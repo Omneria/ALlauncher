@@ -188,8 +188,8 @@ dans le journal de statut tant que la fenêtre reste ouverte.
 
 Fichiers : `MainWindow.xaml.cs` (orchestration), `Services/Launch/ServerListWriter.cs`
 
-Si `LauncherSettings.ServerHost` est renseigné (voir Configuration ci-dessous), deux mécanismes
-combinés limitent le joueur au serveur Astral Nexus :
+`LauncherSettings.ServerHost` est préconfiguré par défaut (adresse du serveur Astral Nexus) : deux
+mécanismes combinés limitent le joueur à ce serveur.
 
 1. **Rejoint automatiquement au démarrage** : `ServerIp`/`ServerPort` sur `MLaunchOption` ajoutent
    les arguments `--server`/`--port` (fonctionnalité vanilla, gérée par CmlLib.Core en interne) —
@@ -238,26 +238,18 @@ dotnet run --project src/MinecraftLauncherPerso
 >
 ## Configuration avant premier lancement
 
-`ModpackZipUrl` et `MicrosoftClientId` sont déjà préconfigurés par défaut : rien à faire pour se
-connecter et jouer, tout le monde partage le même Client ID (voir section Authentification).
-Le dépôt étant public, `ModpackZipUrl` n'apparaît pas en clair dans le code source (stockée
-encodée en base64 dans `LauncherSettings.cs`, décodée au démarrage) pour ne pas exposer l'IP du VPS
-à quiconque parcourt le dépôt — ce n'est qu'une précaution légère (le launcher final l'utilise bien
-en clair au runtime), pas une vraie protection contre quelqu'un qui inspecterait l'exécutable. Le
-Client ID Azure AD, lui, n'a pas besoin d'être masqué (il identifie l'application, pas un secret :
-c'est la même logique que pour n'importe quel launcher tiers public).
+`ModpackZipUrl`, `MicrosoftClientId` et `ServerHost`/`ServerPort` sont déjà préconfigurés par
+défaut : rien à faire pour se connecter et jouer directement sur Astral Nexus, tout le monde
+partage le même Client ID (voir section Authentification).
+Le dépôt étant public, `ModpackZipUrl` et `ServerHost` n'apparaissent pas en clair dans le code
+source (stockées encodées en base64 dans `LauncherSettings.cs`, décodées au démarrage) pour ne pas
+exposer l'IP du VPS — qui est aussi celle du VPN — à quiconque parcourt le dépôt : ce n'est qu'une
+précaution légère (le launcher final l'utilise bien en clair au runtime, et `servers.dat` +
+`--server`/`--port` l'exposent nécessairement en clair côté client), pas une vraie protection
+contre quelqu'un qui inspecterait l'exécutable ou le trafic. Le Client ID Azure AD, lui, n'a pas
+besoin d'être masqué (il identifie l'application, pas un secret : c'est la même logique que pour
+n'importe quel launcher tiers public).
 
-`ServerHost`/`ServerPort` (adresse du serveur Astral Nexus), en revanche, sont **vides par défaut** :
-tant qu'ils ne sont pas renseignés, le verrouillage sur ce serveur (voir section Lancement du jeu)
-est simplement désactivé (écran multijoueur normal). À définir dans
-`%AppData%/MinecraftLauncherPerso/settings.json` :
-
-```json
-{
-  "ServerHost": "<IP ou nom d'hôte du serveur Astral Nexus>",
-  "ServerPort": 25565
-}
-```
-
-Pour ajuster RAM, URL du modpack (si le VPS change) ou dossier de jeu sans passer par l'UI, modifier
+Pour ajuster RAM, URL du modpack, adresse du serveur (`ServerHost`/`ServerPort`) ou dossier de jeu
+sans passer par l'UI, modifier
 ce même fichier.
