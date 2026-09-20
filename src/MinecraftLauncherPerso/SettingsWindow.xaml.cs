@@ -76,4 +76,9 @@ public partial class SettingsWindow : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void LegalButton_Click(object sender, RoutedEventArgs e)
+    {
+        new LegalWindow { Owner = this }.ShowDialog();
+    }
 }

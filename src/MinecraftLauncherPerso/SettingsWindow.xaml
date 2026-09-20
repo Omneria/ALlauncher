@@ -60,8 +60,20 @@
                         Padding="12,7" FontSize="11" Click="BrowseButton_Click" />
             </Grid>
 
-            <Button Content="ENREGISTRER" Style="{StaticResource PrimaryButtonStyle}"
-                    HorizontalAlignment="Right" Click="SaveButton_Click" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Content="MENTIONS LÉGALES" HorizontalAlignment="Left"
+                        Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="0"
+                        FontSize="11" Foreground="{StaticResource InkDimBrush}"
+                        Click="LegalButton_Click" />
+
+                <Button Grid.Column="1" Content="ENREGISTRER" Style="{StaticResource PrimaryButtonStyle}"
+                        Click="SaveButton_Click" />
+            </Grid>
         </StackPanel>
     </Grid>
 </Window>

@@ -1,0 +1,103 @@
+<Window x:Class="MinecraftLauncherPerso.LegalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Mentions légales"
+        Width="520" Height="560"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource VoidBrush}"
+        FontFamily="{StaticResource BodyFontFamily}"
+        Foreground="{StaticResource InkBrush}"
+        Icon="/Assets/Images/algaron-mark.png">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Barre de titre personnalisée (fenêtre sans chrome Windows) -->
+        <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="M E N T I O N S   L É G A L E S" VerticalAlignment="Center"
+                       Margin="16,0,0,0" FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                       Foreground="{StaticResource InkDimBrush}" />
+
+            <Button Grid.Column="1" Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,4,28,20">
+            <StackPanel>
+                <TextBlock Text="AL LAUNCHER" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,20" Foreground="{StaticResource InkBrush}">
+                    Outil non officiel développé pour un usage privé entre amis, sans lien avec Mojang,
+                    Microsoft ou Minecraft. Fourni "en l'état", sans garantie. Ce launcher ne scanne rien
+                    sur la machine du joueur et n'envoie aucune télémétrie : seules les requêtes réseau
+                    nécessaires à son fonctionnement (Java, Forge, mods, authentification Microsoft, statut
+                    du serveur, vérification de mise à jour) sont effectuées.
+                </TextBlock>
+
+                <TextBlock Text="CODE SOURCE" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <TextBlock FontSize="13" Margin="0,0,0,20">
+                    <Hyperlink NavigateUri="https://github.com/Omneria/ALlauncher" RequestNavigate="Hyperlink_RequestNavigate"
+                               Foreground="{StaticResource CyanBrush}">github.com/Omneria/ALlauncher</Hyperlink>
+                </TextBlock>
+
+                <TextBlock Text="DÉPENDANCES OPEN SOURCE" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,10" />
+
+                <StackPanel Margin="0,0,0,10">
+                    <TextBlock FontSize="13" FontWeight="Bold">CmlLib.Core (MIT)</TextBlock>
+                    <TextBlock FontSize="12" Foreground="{StaticResource InkDimBrush}" Margin="0,2,0,0">
+                        Version vanilla, classpath, lancement du jeu.
+                    </TextBlock>
+                    <TextBlock FontSize="12" Margin="0,2,0,0">
+                        <Hyperlink NavigateUri="https://github.com/CmlLib/CmlLib.Core" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource CyanBrush}">github.com/CmlLib/CmlLib.Core</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,0,10">
+                    <TextBlock FontSize="13" FontWeight="Bold">CmlLib.Core.Installer.Forge (MIT)</TextBlock>
+                    <TextBlock FontSize="12" Foreground="{StaticResource InkDimBrush}" Margin="0,2,0,0">
+                        Installation de Forge.
+                    </TextBlock>
+                    <TextBlock FontSize="12" Margin="0,2,0,0">
+                        <Hyperlink NavigateUri="https://github.com/CmlLib/CmlLib.Core.Installer.Forge" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource CyanBrush}">github.com/CmlLib/CmlLib.Core.Installer.Forge</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,0,10">
+                    <TextBlock FontSize="13" FontWeight="Bold">Microsoft.Identity.Client — MSAL.NET (MIT)</TextBlock>
+                    <TextBlock FontSize="12" Foreground="{StaticResource InkDimBrush}" Margin="0,2,0,0">
+                        Authentification Microsoft OAuth.
+                    </TextBlock>
+                    <TextBlock FontSize="12" Margin="0,2,0,0">
+                        <Hyperlink NavigateUri="https://github.com/AzureAD/microsoft-authentication-library-for-dotnet" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource CyanBrush}">github.com/AzureAD/microsoft-authentication-library-for-dotnet</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,0,20">
+                    <TextBlock FontSize="13" FontWeight="Bold">Microsoft.Identity.Client.Extensions.Msal (MIT)</TextBlock>
+                    <TextBlock FontSize="12" Foreground="{StaticResource InkDimBrush}" Margin="0,2,0,0">
+                        Persistance chiffrée de la session Microsoft (reconnexion silencieuse).
+                    </TextBlock>
+                    <TextBlock FontSize="12" Margin="0,2,0,0">
+                        <Hyperlink NavigateUri="https://github.com/AzureAD/microsoft-authentication-extensions-for-dotnet" RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource CyanBrush}">github.com/AzureAD/microsoft-authentication-extensions-for-dotnet</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <TextBlock Text="POLICES EMBARQUÉES" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <TextBlock FontSize="13" TextWrapping="Wrap">
+                    Chakra Petch, Inter, JetBrains Mono — licence SIL Open Font License 1.1.
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

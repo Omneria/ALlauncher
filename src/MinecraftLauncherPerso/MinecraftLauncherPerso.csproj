@@ -10,7 +10,7 @@
     <AssemblyName>AL Launcher</AssemblyName>
     <!-- Comparée par GitHubUpdateService à la dernière release GitHub (tag v*.*.*) pour l'auto-update.
          À incrémenter à chaque tag/release. -->
-    <Version>1.3.0</Version>
+    <Version>1.3.1</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->

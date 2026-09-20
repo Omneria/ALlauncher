@@ -48,6 +48,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
 │       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu)
+│       ├── LegalWindow.xaml(.cs)           # mentions légales + dépendances open source
 │       ├── AlgaronTheme.xaml               # charte graphique (couleurs, polices, styles de contrôles)
 │       ├── Assets/
 │       │   ├── Fonts/                      # Chakra Petch / Inter / JetBrains Mono (OFL), embarquées
@@ -320,6 +321,13 @@ de la machine (P/Invoke `GlobalMemoryStatusEx`, API Win32) et calcule une recomm
 (3G en dessous de 8 Go de RAM système, 4G en dessous de 12 Go, 6G en dessous de 16 Go, 8G au-delà —
 jamais plus de la moitié de la RAM totale). Uniquement au premier lancement (settings.json pas
 encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle utilisée.
+
+**Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
+— rappel du statut non officiel du launcher, et surtout la liste des dépendances open source
+utilisées (nom, licence, lien GitHub) : `CmlLib.Core`, `CmlLib.Core.Installer.Forge` (MIT),
+`Microsoft.Identity.Client`/`.Extensions.Msal` (MIT), polices Chakra Petch/Inter/JetBrains Mono
+(SIL OFL 1.1). Les liens ouvrent le navigateur par défaut (`Hyperlink.RequestNavigate` →
+`Process.Start`).
 
 ## Profil connecté
 
