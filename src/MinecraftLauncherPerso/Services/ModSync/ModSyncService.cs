@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -60,7 +61,7 @@ public sealed class ModSyncService : IModSyncService
             && cached.Matches(remoteMetadata)
             && Directory.Exists(Path.Combine(gameDirectory, "mods"));
 
-        if (upToDate)
+        if (upToDate && await VerifyIntegrityAsync(modpackZipUrl, gameDirectory, progress, cancellationToken))
         {
             progress?.Report("Modpack déjà à jour.");
             return;
@@ -134,6 +135,71 @@ public sealed class ModSyncService : IModSyncService
         {
             // Pas de changelog disponible : rien à afficher, ça n'empêche pas la synchro.
         }
+    }
+
+    /// <summary>
+    /// Vérifie les fichiers extraits localement contre un éventuel manifest.json hébergé à côté
+    /// du zip (mapping "chemin relatif" -> "sha256 hexadécimal"). Optionnel : si le manifest
+    /// n'existe pas (404, VPS pas configuré pour ça), on considère l'intégrité valide (retourne
+    /// true) plutôt que de forcer un retéléchargement inutile. Un fichier manquant ou dont le hash
+    /// ne correspond plus (corruption, modification manuelle accidentelle) fait retourner false :
+    /// SyncAsync retélécharge alors le zip complet même si le cache ETag dit "à jour", puisqu'on
+    /// n'a pas d'URL de téléchargement par fichier individuel pour ne réparer que celui-là.
+    /// </summary>
+    private async Task<bool> VerifyIntegrityAsync(string modpackZipUrl, string gameDirectory, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(modpackZipUrl, UriKind.Absolute, out var zipUri))
+        {
+            return true;
+        }
+
+        var manifestUri = new Uri(zipUri, "manifest.json");
+        Dictionary<string, string>? manifest;
+
+        try
+        {
+            using var response = await _httpClient.GetAsync(manifestUri, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+
+            manifest = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                await response.Content.ReadAsStreamAsync(cancellationToken));
+        }
+        catch (HttpRequestException)
+        {
+            return true;
+        }
+        catch (JsonException)
+        {
+            return true;
+        }
+
+        if (manifest is null || manifest.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var (relativePath, expectedHash) in manifest)
+        {
+            var filePath = Path.Combine(gameDirectory, relativePath);
+            if (!File.Exists(filePath))
+            {
+                progress?.Report($"Fichier manquant détecté ({relativePath}), re-synchronisation du modpack...");
+                return false;
+            }
+
+            await using var stream = File.OpenRead(filePath);
+            var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
+            if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                progress?.Report($"Fichier corrompu détecté ({relativePath}), re-synchronisation du modpack...");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private async Task<RemoteZipMetadata> FetchRemoteMetadataAsync(string url, CancellationToken cancellationToken)

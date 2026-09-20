@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Media;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
@@ -15,6 +16,7 @@ using MinecraftLauncherPerso.Services.Forge;
 using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.ModSync;
+using MinecraftLauncherPerso.Services.News;
 using MinecraftLauncherPerso.Services.Status;
 using MinecraftLauncherPerso.Services.Update;
 
@@ -31,10 +33,12 @@ public partial class MainWindow : Window
     private readonly IGameLauncher _gameLauncher;
     private readonly IServerStatusService _serverStatusService;
     private readonly IUpdateService _updateService;
+    private readonly INewsService _newsService;
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
+    private ServerStatus? _lastServerStatus;
 
     // Référence gardée en vie pour toute la durée de la partie : sans elle, le process/wrapper
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
@@ -55,6 +59,7 @@ public partial class MainWindow : Window
         _gameLauncher.GameExited += GameLauncher_GameExited;
         _serverStatusService = new ServerStatusService();
         _updateService = new GitHubUpdateService();
+        _newsService = new NewsService();
 
         MaxRamTextBox.Text = _settings.MaxRamMb.ToString();
 
@@ -66,13 +71,44 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        await ShowNewsAsync();
         _serverStatusTimer.Start();
         await RefreshServerStatusAsync();
         await CheckForUpdateAsync();
     }
 
+    private async Task ShowNewsAsync()
+    {
+        var news = await _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
+        if (news is null)
+        {
+            return;
+        }
+
+        AppendLog("📰 Actus Astral Nexus :");
+        foreach (var line in news.Split('\n'))
+        {
+            AppendLog($"  {line.TrimEnd('\r')}");
+        }
+        AppendLog("");
+    }
+
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_lastServerStatus is { IsOnline: false })
+        {
+            var result = MessageBox.Show(
+                "Le serveur Astral Nexus semble hors ligne pour le moment. Lancer quand même le jeu ?",
+                "Serveur hors ligne",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
         PlayButton.IsEnabled = false;
         ViewLogsButton.Visibility = Visibility.Collapsed;
         StatusLogTextBox.Clear();
@@ -160,6 +196,7 @@ public partial class MainWindow : Window
         {
             AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
             ViewLogsButton.Visibility = Visibility.Visible;
+            SystemSounds.Hand.Play();
         });
     }
 
@@ -187,6 +224,7 @@ public partial class MainWindow : Window
         }
 
         var status = await _serverStatusService.PingAsync(_settings.ServerHost, _settings.ServerPort);
+        _lastServerStatus = status;
 
         ServerStatusText.Text = status.IsOnline
             ? $"● En ligne — {status.OnlinePlayers}/{status.MaxPlayers} joueurs"
@@ -205,6 +243,7 @@ public partial class MainWindow : Window
         _pendingUpdate = update;
         UpdateBannerButton.Content = $"MISE À JOUR {update.Version} DISPONIBLE";
         UpdateBannerButton.Visibility = Visibility.Visible;
+        SystemSounds.Asterisk.Play();
     }
 
     private async void UpdateBannerButton_Click(object sender, RoutedEventArgs e)

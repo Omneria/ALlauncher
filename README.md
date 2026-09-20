@@ -80,6 +80,9 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── Update/                     # vérification/installation des mises à jour du launcher
 │           │   ├── IUpdateService.cs
 │           │   └── GitHubUpdateService.cs
+│           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
+│           │   ├── INewsService.cs
+│           │   └── NewsService.cs
 │           └── Configuration/
 │               └── SettingsManager.cs      # charge/sauvegarde settings.json
 ├── README.md
@@ -145,6 +148,22 @@ le VPS (ex. si `ModpackZipUrl` est `.../modpack/Algaron-modded.zip`, il cherche
 `.../modpack/changelog.txt`) et en affiche le contenu ligne par ligne dans le journal de statut.
 Fichier entièrement optionnel : absent (404) ou VPS injoignable, le launcher l'ignore
 silencieusement et continue la synchro normalement.
+
+**Vérification d'intégrité optionnelle :** même quand le cache ETag dit "à jour" (pas de
+retéléchargement prévu), le launcher vérifie les fichiers déjà extraits contre un éventuel
+`manifest.json` hébergé au même endroit (mapping `"chemin relatif": "sha256 hexadécimal"`). Un
+fichier manquant ou dont le hash ne correspond plus (corruption disque, modification manuelle
+accidentelle d'un mod) force un retéléchargement complet du zip, même si l'ETag n'a pas changé.
+Comme pour le changelog, absence du manifest = aucune vérification, pas d'erreur.
+
+## Actus (news)
+
+Fichiers : `Services/News/NewsService.cs`, `MainWindow.xaml.cs`
+
+Au démarrage, le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` :
+même dossier que le zip du modpack sur le VPS) et en affiche le contenu dans le journal de statut,
+avant même que le joueur ait cliqué sur "Jouer" — pratique pour annoncer un event, une maintenance
+prévue, etc. sans passer par Discord. Optionnel, silencieux si absent.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -238,6 +257,21 @@ puis toutes les 30 secondes (`DispatcherTimer`) et affiche "● En ligne — X/8
 "● Hors ligne" au-dessus du journal de statut. N'importe quel échec (timeout, port fermé, DNS
 invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
 
+**Avertissement avant de jouer :** si le dernier statut connu est "hors ligne" au moment de
+cliquer sur "Jouer", une boîte de dialogue demande confirmation avant de continuer (le joueur peut
+choisir de lancer quand même — utile si le ping échoue à tort, ex. pare-feu bloquant juste le port
+de status tout en laissant passer le jeu).
+
+## Lancement unique (anti double-instance)
+
+Fichier : `App.xaml.cs`
+
+Un [Mutex](https://learn.microsoft.com/dotnet/api/system.threading.mutex) nommé globalement
+(`Global\AL_Launcher_SingleInstance`) est créé au démarrage : si un autre processus du launcher
+tourne déjà (même utilisateur ou non), une boîte de dialogue prévient et le nouveau process se
+ferme immédiatement, plutôt que de risquer deux instances qui écrivent en même temps dans le même
+`GameDirectory`/`settings.json`.
+
 ## Mise à jour automatique du launcher
 
 Fichiers : `Services/Update/GitHubUpdateService.cs`, workflow `.github/workflows/build-windows.yml`
@@ -293,6 +327,12 @@ Fichiers : `AlgaronTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `As
 - **Icône/exécutable** : l'exécutable publié s'appelle `AL Launcher.exe` (`AssemblyName`), porte une
   icône Windows multi-résolutions générée depuis le logo (`Assets/Images/algaron-mark.ico`), et ne
   génère plus de fichier `.pdb` (`DebugType=None`).
+- **Fond animé** : les deux halos radiaux (violet/cyan) de la fenêtre principale dérivent lentement
+  et pulsent en opacité en boucle infinie (`Storyboard` déclenché sur `Window.Loaded`,
+  `AutoReverse="True"`, durées de 9 à 17s) — signature discrète, jamais assez rapide pour distraire
+  de l'UI.
+- **Sons** : `System.Media.SystemSounds` (aucun asset audio à embarquer) — `Asterisk` quand une
+  mise à jour du launcher est détectée, `Hand` quand le jeu quitte anormalement (crash).
 
 ## Build
 

@@ -10,10 +10,35 @@
         FontFamily="{StaticResource BodyFontFamily}"
         Foreground="{StaticResource InkBrush}"
         Icon="/Assets/Images/algaron-mark.png">
+    <Window.Triggers>
+        <!-- Halos en respiration lente et continue (dérive + pulsation d'opacité) : signature
+             discrète, jamais assez rapide pour distraire de l'UI. -->
+        <EventTrigger RoutedEvent="Window.Loaded">
+            <BeginStoryboard>
+                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                    <DoubleAnimation Storyboard.TargetName="VioletHaloTransform" Storyboard.TargetProperty="X"
+                                      From="0" To="-40" Duration="0:0:14" />
+                    <DoubleAnimation Storyboard.TargetName="VioletHaloTransform" Storyboard.TargetProperty="Y"
+                                      From="0" To="30" Duration="0:0:14" />
+                    <DoubleAnimation Storyboard.TargetName="VioletHalo" Storyboard.TargetProperty="Opacity"
+                                      From="1" To="0.55" Duration="0:0:9" />
+                    <DoubleAnimation Storyboard.TargetName="CyanHaloTransform" Storyboard.TargetProperty="X"
+                                      From="0" To="35" Duration="0:0:17" />
+                    <DoubleAnimation Storyboard.TargetName="CyanHaloTransform" Storyboard.TargetProperty="Y"
+                                      From="0" To="-25" Duration="0:0:17" />
+                    <DoubleAnimation Storyboard.TargetName="CyanHalo" Storyboard.TargetProperty="Opacity"
+                                      From="1" To="0.55" Duration="0:0:11" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
     <Grid>
         <!-- Halo de fond (signature Algaron) : deux dégradés radiaux, violet et cyan. -->
         <Canvas IsHitTestVisible="False">
-            <Ellipse Canvas.Left="380" Canvas.Top="-260" Width="620" Height="480">
+            <Ellipse x:Name="VioletHalo" Canvas.Left="380" Canvas.Top="-260" Width="620" Height="480">
+                <Ellipse.RenderTransform>
+                    <TranslateTransform x:Name="VioletHaloTransform" />
+                </Ellipse.RenderTransform>
                 <Ellipse.Fill>
                     <RadialGradientBrush>
                         <GradientStop Color="#337B5CFF" Offset="0" />
@@ -21,7 +46,10 @@
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
-            <Ellipse Canvas.Left="-160" Canvas.Top="-60" Width="480" Height="360">
+            <Ellipse x:Name="CyanHalo" Canvas.Left="-160" Canvas.Top="-60" Width="480" Height="360">
+                <Ellipse.RenderTransform>
+                    <TranslateTransform x:Name="CyanHaloTransform" />
+                </Ellipse.RenderTransform>
                 <Ellipse.Fill>
                     <RadialGradientBrush>
                         <GradientStop Color="#2200E5C7" Offset="0" />
