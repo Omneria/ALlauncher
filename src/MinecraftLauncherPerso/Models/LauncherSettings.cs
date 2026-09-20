@@ -23,6 +23,13 @@ public sealed class LauncherSettings
         Encoding.UTF8.GetString(Convert.FromBase64String(
             "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svQWxnYXJvbi1tb2RkZWQuemlw"));
 
+    /// <summary>
+    /// "Application (client) ID" de l'app Azure AD enregistrée pour ce launcher (identifie
+    /// l'application, pas les comptes joueurs — un seul ID est partagé par tout le groupe).
+    /// Nécessaire pour l'authentification Microsoft/Xbox Live directe.
+    /// </summary>
+    public string MicrosoftClientId { get; set; } = "88cfb0e1-8c0a-46e4-abf9-9bf73b40eaf7";
+
     public int MinRamMb { get; set; } = 2048;
 
     public int MaxRamMb { get; set; } = 6144;

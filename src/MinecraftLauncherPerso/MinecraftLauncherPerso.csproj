@@ -20,6 +20,8 @@
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="1.1.1" />
+    <!-- Authentification Microsoft (navigateur système, flux OAuth interactif) pour obtenir la session Minecraft. -->
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
   </ItemGroup>
 
   <ItemGroup>
