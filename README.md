@@ -290,9 +290,11 @@ la release, puis :
 
 **Côté publication :** le workflow CI construit toujours l'exe sur chaque push (comme avant), mais
 publie en plus une **GitHub Release** (avec l'exe self-contained en pièce jointe) uniquement quand
-un tag `v*.*.*` est poussé sur le dépôt (`git tag v1.2.0 && git push origin v1.2.0`). Penser à
-incrémenter `<Version>` dans le `.csproj` avant de tagger, sinon l'auto-update ne détectera rien de
-nouveau.
+un tag `v*.*.*` est poussé sur le dépôt (`git tag v1.2.0 && git push origin v1.2.0`, ou via "Draft a
+new release" sur github.com — le job `release` complète l'exe automatiquement dans les deux cas).
+Penser à incrémenter `<Version>` dans le `.csproj` avant de tagger, sinon l'auto-update ne détectera
+rien de nouveau. Versionnage semver classique : `X.Y.Z` où `Z` (patch) pour un correctif de bug,
+`Y` (minor) pour une nouvelle fonctionnalité, `X` (major) réservé à un changement cassant.
 
 ## Paramètres
 
