@@ -169,34 +169,38 @@ public partial class MainWindow : Window
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;
             AppendLog("Jeu lancé.");
+            // Bouton laissé désactivé tant que cette partie tourne : le jeu n'empêche pas
+            // plusieurs instances de lui-même, seul GameLauncher.GameExited le réactive (voir
+            // ci-dessous), pour éviter de pouvoir lancer un deuxième Minecraft par-dessus.
+            return;
         }
         catch (Exception ex)
         {
             ProgressBar.IsIndeterminate = false;
             AppendLog($"Erreur : {ex.Message}");
         }
-        finally
-        {
-            PlayButton.IsEnabled = true;
-        }
+
+        PlayButton.IsEnabled = true;
     }
 
     /// <summary>
     /// Déclenché par IGameLauncher.GameExited, sur un thread d'arrière-plan (Process.Exited) :
-    /// toute mise à jour de l'UI doit repasser par le Dispatcher.
+    /// toute mise à jour de l'UI doit repasser par le Dispatcher. Réactive le bouton "Jouer"
+    /// (désactivé depuis le lancement, voir PlayButton_Click) dans tous les cas, et signale en
+    /// plus une sortie anormale (code non nul).
     /// </summary>
     private void GameLauncher_GameExited(object? sender, int exitCode)
     {
-        if (exitCode == 0)
-        {
-            return;
-        }
-
         Dispatcher.Invoke(() =>
         {
-            AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
-            ViewLogsButton.Visibility = Visibility.Visible;
-            SystemSounds.Hand.Play();
+            PlayButton.IsEnabled = true;
+
+            if (exitCode != 0)
+            {
+                AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
+                ViewLogsButton.Visibility = Visibility.Visible;
+                SystemSounds.Hand.Play();
+            }
         });
     }
 
