@@ -66,6 +66,8 @@ public sealed class ModSyncService : IModSyncService
             return;
         }
 
+        await ReportChangelogAsync(modpackZipUrl, progress, cancellationToken);
+
         progress?.Report("Téléchargement du modpack...");
         var tempZipPath = Path.Combine(Path.GetTempPath(), $"modpack-{Guid.NewGuid():N}.zip");
 
@@ -91,6 +93,47 @@ public sealed class ModSyncService : IModSyncService
         }
 
         progress?.Report("Modpack mis à jour.");
+    }
+
+    /// <summary>
+    /// Affiche le contenu d'un éventuel changelog.txt hébergé à côté du zip du modpack (même
+    /// dossier), quand une mise à jour du modpack est détectée. Optionnel : si le fichier n'existe
+    /// pas (404, VPS pas encore configuré pour ça) ou est inaccessible, on l'ignore silencieusement
+    /// plutôt que de faire échouer la synchro pour un simple fichier de nouveautés.
+    /// </summary>
+    private async Task ReportChangelogAsync(string modpackZipUrl, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(modpackZipUrl, UriKind.Absolute, out var zipUri))
+        {
+            return;
+        }
+
+        var changelogUri = new Uri(zipUri, "changelog.txt");
+
+        try
+        {
+            using var response = await _httpClient.GetAsync(changelogUri, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var content = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim();
+            if (content.Length == 0)
+            {
+                return;
+            }
+
+            progress?.Report("Nouveautés du modpack :");
+            foreach (var line in content.Split('\n'))
+            {
+                progress?.Report($"  {line.TrimEnd('\r')}");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Pas de changelog disponible : rien à afficher, ça n'empêche pas la synchro.
+        }
     }
 
     private async Task<RemoteZipMetadata> FetchRemoteMetadataAsync(string url, CancellationToken cancellationToken)

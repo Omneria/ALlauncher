@@ -53,6 +53,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="SettingsButton" Content="⚙" Style="{StaticResource GhostButtonStyle}" Click="SettingsButton_Click" />
                     <Button Content="—" Style="{StaticResource GhostButtonStyle}" Click="MinimizeButton_Click" />
                     <Button Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
                 </StackPanel>
@@ -62,20 +63,46 @@
             <Grid Grid.Row="1" Margin="32,0,32,28">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Bloc marque : logo Algaron officiel (hexagone + mot-symbole) -->
-                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,8,0,16">
+                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,8,0,12">
                     <Image Source="/Assets/Images/algaron-lockup.png" Width="220" Stretch="Uniform" />
                     <TextBlock Text="L A U N C H E R" HorizontalAlignment="Center" Margin="0,4,0,0"
                                FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
                                Foreground="{StaticResource CyanBrush}" />
                 </StackPanel>
 
+                <!-- Barre de statut : état du serveur à gauche, profil connecté à droite, bandeau MAJ. -->
+                <Grid Grid.Row="1" Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="ServerStatusText" Grid.Column="0" VerticalAlignment="Center"
+                               Text="Vérification du serveur..." FontFamily="{StaticResource MonoFontFamily}"
+                               FontSize="12" Foreground="{StaticResource InkDimBrush}" />
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="UpdateBannerButton" Content="MISE À JOUR DISPONIBLE"
+                                Visibility="Collapsed" Margin="0,0,12,0"
+                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
+                                FontSize="11" Foreground="{StaticResource AmberBrush}"
+                                Click="UpdateBannerButton_Click" />
+                        <Image x:Name="PlayerAvatarImage" Width="20" Height="20" Margin="0,0,8,0"
+                               Visibility="Collapsed" />
+                        <TextBlock x:Name="PlayerNameText" VerticalAlignment="Center"
+                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                   Foreground="{StaticResource InkDimBrush}" />
+                    </StackPanel>
+                </Grid>
+
                 <!-- Panneau journal (liseré cyan -> violet -> magenta en haut, réservé au bloc principal) -->
-                <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+                <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="2" />
@@ -96,7 +123,7 @@
                 </Border>
 
                 <!-- Barre de contrôle : progression, RAM, bouton Jouer -->
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="3">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -105,9 +132,10 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <ProgressBar x:Name="ProgressBar" Grid.Row="0" Grid.ColumnSpan="3" Height="4" Margin="0,0,0,14"
+                    <ProgressBar x:Name="ProgressBar" Grid.Row="0" Grid.ColumnSpan="4" Height="4" Margin="0,0,0,14"
                                  Minimum="0" Maximum="100"
                                  Background="{StaticResource Surface2Brush}" BorderThickness="0"
                                  Foreground="{StaticResource CyanBrush}" />
@@ -117,7 +145,13 @@
                         <TextBox x:Name="MaxRamTextBox" Style="{StaticResource AlgaronTextBoxStyle}" Width="110" Text="6144" />
                     </StackPanel>
 
-                    <Button x:Name="PlayButton" Grid.Row="1" Grid.Column="2" Content="JOUER"
+                    <Button x:Name="ViewLogsButton" Grid.Row="1" Grid.Column="2" Content="VOIR LES LOGS"
+                            Visibility="Collapsed" Margin="0,0,12,0"
+                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,4"
+                            VerticalAlignment="Bottom" FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                            Click="ViewLogsButton_Click" />
+
+                    <Button x:Name="PlayButton" Grid.Row="1" Grid.Column="3" Content="JOUER"
                             Style="{StaticResource PrimaryButtonStyle}" VerticalAlignment="Bottom"
                             Click="PlayButton_Click" />
                 </Grid>

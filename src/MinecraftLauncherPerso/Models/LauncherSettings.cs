@@ -61,4 +61,12 @@ public sealed class LauncherSettings
     public string GameDirectory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MinecraftLauncherPerso", "game");
+
+    /// <summary>
+    /// Résolution de la fenêtre du jeu (MLaunchOption.ScreenWidth/Height). 0 = valeur par défaut
+    /// de Minecraft (pas d'argument --width/--height passé, laisse le jeu décider).
+    /// </summary>
+    public int ScreenWidth { get; set; } = 0;
+
+    public int ScreenHeight { get; set; } = 0;
 }

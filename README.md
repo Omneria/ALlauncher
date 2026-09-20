@@ -15,24 +15,24 @@ Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé
 
 1. Vérifie/installe Java 8 (build Temurin/Adoptium si absent) — **implémenté**
 2. Installe Forge 1.16.5-36.2.34 via CmlLib.Core.Installer.Forge — **implémenté**
-3. Synchronise `mods/` et `config/` depuis le VPS (par hash, pas à chaque lancement) — **implémenté**
+3. Synchronise `mods/` et `config/` depuis le VPS (par hash, pas à chaque lancement), affiche un
+   changelog optionnel quand une mise à jour est détectée — **implémenté**
 4. Authentifie via OAuth Microsoft direct (navigateur système, sans dépendre du launcher officiel)
-   puis la chaîne Xbox Live → XSTS → Minecraft — **implémenté, en attente d'approbation Microsoft**
-5. Lance le jeu avec le bon classpath Forge et la RAM configurée — **implémenté**
+   puis la chaîne Xbox Live → XSTS → Minecraft — **implémenté et approuvé par Microsoft**
+5. Lance le jeu avec le bon classpath Forge, la RAM/résolution configurées, en masquant la console
+   Java — **implémenté**
+6. Vérifie au démarrage si une nouvelle version du launcher est disponible (GitHub Releases) et
+   propose de l'installer — **implémenté**
+7. Affiche le statut du serveur (en ligne/hors ligne, joueurs connectés) avant de jouer —
+   **implémenté**
 
 Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machine.
 
-> **Statut (2026-09) :** l'authentification OAuth Microsoft directe (MSAL.NET, navigateur système +
-> Xbox Live/XSTS, sans dépendre du launcher officiel) est implémentée et le code fonctionne (Xbox
-> Live et XSTS répondent correctement). Mais Minecraft exige une **approbation manuelle par
-> Microsoft** de toute nouvelle application Azure AD avant d'autoriser l'appel à
-> `login_with_xbox` — sans cette approbation, cet appel échoue avec `403 "Invalid app
-> registration"` (formulaire de demande : https://aka.ms/mce-reviewappid, délai variable, de 24h à
-> plusieurs mois selon les témoignages). Il n'existe pas d'API permettant de vérifier ce statut
-> autrement qu'en tentant une vraie connexion : lancez le launcher et connectez-vous avec un compte
-> Microsoft réel — un succès (arrivée sur le profil Minecraft) confirme l'approbation, un
-> `403 "Invalid app registration"` confirme qu'elle est toujours en attente. Si l'app n'est pas
-> encore approuvée, l'ancien mode de secours (lecture de la session du launcher officiel via
+> **Statut (2026-10) :** l'authentification OAuth Microsoft directe (MSAL.NET, navigateur système +
+> Xbox Live/XSTS, sans dépendre du launcher officiel) a été testée en conditions réelles et
+> fonctionne : l'application Azure AD du groupe est approuvée par Microsoft. Si l'app venait à
+> perdre son approbation ou à devoir être recréée, l'ancien mode de secours (lecture de la session
+> du launcher officiel via
 > `launcher_accounts.json`) reste disponible dans l'historique git (commit `b97b6fa` et avant) et
 > peut être restauré temporairement.
 
@@ -47,12 +47,13 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       ├── App.xaml(.cs)                   # bootstrap : ouvre SplashWindow au démarrage
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
+│       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu)
 │       ├── AlgaronTheme.xaml               # charte graphique (couleurs, polices, styles de contrôles)
 │       ├── Assets/
 │       │   ├── Fonts/                      # Chakra Petch / Inter / JetBrains Mono (OFL), embarquées
 │       │   └── Images/                     # logo Algaron (mark/lockup) + icône .ico du launcher
 │       ├── Models/
-│       │   ├── LauncherSettings.cs         # préférences persistées (RAM, dossier de jeu, URL modpack)
+│       │   ├── LauncherSettings.cs         # préférences persistées (RAM, dossier de jeu, URL modpack...)
 │       │   ├── JavaVersionInfo.cs
 │       │   └── JavaSetupProgress.cs
 │       └── Services/
@@ -71,7 +72,14 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── MicrosoftAuthService.cs
 │           ├── Launch/                     # construction + démarrage du process Forge/Minecraft
 │           │   ├── IGameLauncher.cs
-│           │   └── GameLauncher.cs
+│           │   ├── GameLauncher.cs
+│           │   └── ServerListWriter.cs     # verrouille servers.dat sur le serveur configuré
+│           ├── Status/                     # ping du serveur (en ligne/hors ligne, joueurs)
+│           │   ├── IServerStatusService.cs
+│           │   └── ServerStatusService.cs
+│           ├── Update/                     # vérification/installation des mises à jour du launcher
+│           │   ├── IUpdateService.cs
+│           │   └── GitHubUpdateService.cs
 │           └── Configuration/
 │               └── SettingsManager.cs      # charge/sauvegarde settings.json
 ├── README.md
@@ -131,6 +139,13 @@ retélécharge pas à chaque lancement. Si le serveur ne renvoie pas ces en-têt
 `HEAD`), le launcher retélécharge par prudence plutôt que d'échouer. Le zip est ensuite extrait
 directement dans `GameDirectory`, en écrasant les fichiers existants.
 
+**Changelog optionnel :** quand une mise à jour du modpack est détectée (avant de télécharger le
+nouveau zip), le launcher tente de récupérer `changelog.txt` dans le même dossier que le zip sur
+le VPS (ex. si `ModpackZipUrl` est `.../modpack/Algaron-modded.zip`, il cherche
+`.../modpack/changelog.txt`) et en affiche le contenu ligne par ligne dans le journal de statut.
+Fichier entièrement optionnel : absent (404) ou VPS injoignable, le launcher l'ignore
+silencieusement et continue la synchro normalement.
+
 ## Authentification (OAuth Microsoft direct)
 
 Fichier : `src/MinecraftLauncherPerso/Services/Auth/MicrosoftAuthService.cs`
@@ -175,14 +190,20 @@ avec son propre compte Microsoft. Pour référence, si ce Client ID doit un jour
 Fichier : `src/MinecraftLauncherPerso/Services/Launch/GameLauncher.cs`
 
 Construit une `MSession` (CmlLib.Core.Auth) à partir de la session lue ci-dessus, un
-`MLaunchOption` avec `JavaPath`, `MinimumRamMb`/`MaximumRamMb`, `ServerIp`/`ServerPort` (voir
-ci-dessous), puis appelle `MinecraftLauncher.BuildProcessAsync(versionId, options)`. Le process
-est ensuite démarré manuellement (au lieu du `ProcessWrapper.StartWithEvents()` fourni par
-CmlLib.Core, qui force `CreateNoWindow=false`) avec `CreateNoWindow=true` : sans ça, une fenêtre
-de console Windows s'ouvrait pour `java.exe` (application console sans parent console attaché) en
-plus de la fenêtre du launcher. Le launcher ne bloque pas en attendant la fermeture du jeu : le
-bouton "Jouer" redevient disponible dès que le process a démarré, et les logs du jeu remontent
-dans le journal de statut tant que la fenêtre reste ouverte.
+`MLaunchOption` à partir de `LauncherSettings` (RAM, serveur, résolution — voir ci-dessous), puis
+appelle `MinecraftLauncher.BuildProcessAsync(versionId, options)`. Le process est ensuite démarré
+manuellement (au lieu du `ProcessWrapper.StartWithEvents()` fourni par CmlLib.Core, qui force
+`CreateNoWindow=false`) avec `CreateNoWindow=true` : sans ça, une fenêtre de console Windows
+s'ouvrait pour `java.exe` (application console sans parent console attaché) en plus de la fenêtre
+du launcher. Le launcher ne bloque pas en attendant la fermeture du jeu : le bouton "Jouer"
+redevient disponible dès que le process a démarré, et les logs du jeu remontent dans le journal de
+statut tant que la fenêtre reste ouverte.
+
+**Crash du jeu :** `GameLauncher` expose un événement `GameExited(exitCode)` (déclenché par
+`Process.Exited`, sur un thread d'arrière-plan). Si le code de sortie est non nul, `MainWindow`
+affiche un bouton "VOIR LES LOGS" qui ouvre `{GameDirectory}/logs/latest.log` (ou le dossier
+`logs/` si le fichier n'existe pas encore) avec l'application associée par défaut — évite de devoir
+chercher soi-même où sont les logs pour diagnostiquer un crash.
 
 ### Serveur unique (Astral Nexus)
 
@@ -204,6 +225,58 @@ une session déjà lancée (l'écran multijoueur vanilla le permet nativement, e
 launcher n'implémentent de restriction côté client type mod/whitelist) — seule la liste au
 prochain lancement est remise à zéro. Suffisant pour un usage privé entre amis, pas une vraie
 sandbox contre un joueur déterminé à contourner.
+
+## Statut du serveur
+
+Fichier : `src/MinecraftLauncherPerso/Services/Status/ServerStatusService.cs`
+
+Implémente le protocole *Server List Ping* de Minecraft (le même que l'écran multijoueur du jeu
+utilise pour afficher joueurs connectés/latence à côté de chaque serveur) : handshake puis requête
+status sur une connexion TCP brute vers `ServerHost:ServerPort`, sans authentification, réponse
+JSON parsée pour en extraire `players.online`/`players.max`. `MainWindow` l'interroge au démarrage
+puis toutes les 30 secondes (`DispatcherTimer`) et affiche "● En ligne — X/8 joueurs" ou
+"● Hors ligne" au-dessus du journal de statut. N'importe quel échec (timeout, port fermé, DNS
+invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
+
+## Mise à jour automatique du launcher
+
+Fichiers : `Services/Update/GitHubUpdateService.cs`, workflow `.github/workflows/build-windows.yml`
+
+Au démarrage, le launcher interroge `GET /repos/Omneria/ALlauncher/releases/latest` (API GitHub
+publique, pas d'authentification nécessaire) et compare le tag de la dernière release (`vX.Y.Z`) à
+`MinecraftLauncherPerso.csproj` → `<Version>`. Si une version plus récente existe, un bouton
+"MISE À JOUR X.Y.Z DISPONIBLE" apparaît à côté du statut serveur ; un clic télécharge l'exe joint à
+la release, puis :
+
+1. Écrit un script `.cmd` temporaire qui attend (boucle sur `tasklist`/PID) que le process courant
+   se termine — impossible de remplacer son propre `.exe` pendant qu'il tourne (verrou Windows) —,
+   remplace le fichier, puis relance le launcher.
+2. Lance ce script en détaché et appelle `Environment.Exit(0)` : le launcher se ferme, le script
+   termine le remplacement, le nouveau launcher redémarre automatiquement.
+
+**Côté publication :** le workflow CI construit toujours l'exe sur chaque push (comme avant), mais
+publie en plus une **GitHub Release** (avec l'exe self-contained en pièce jointe) uniquement quand
+un tag `v*.*.*` est poussé sur le dépôt (`git tag v1.2.0 && git push origin v1.2.0`). Penser à
+incrémenter `<Version>` dans le `.csproj` avant de tagger, sinon l'auto-update ne détectera rien de
+nouveau.
+
+## Paramètres
+
+Fichiers : `SettingsWindow.xaml(.cs)`
+
+Fenêtre ouverte via l'icône ⚙ de la barre de titre (à côté de réduire/fermer) : RAM minimum/maximum,
+résolution de la fenêtre du jeu (`ScreenWidth`/`ScreenHeight` sur `MLaunchOption` — `0` laisse
+Minecraft décider, pas d'argument `--width`/`--height` passé), dossier de jeu (`GameDirectory`,
+sélection via `Microsoft.Win32.OpenFolderDialog`, natif WPF depuis .NET 8, pas de dépendance
+WinForms). "Enregistrer" persiste dans `settings.json` et ferme la fenêtre ; fermer sans enregistrer
+(✕) n'écrit rien.
+
+## Profil connecté
+
+Après authentification réussie, le launcher affiche le pseudo et un rendu de tête (avatar)
+récupéré depuis [crafatar.com](https://crafatar.com) (`https://crafatar.com/avatars/{uuid}`, service
+public gratuit de rendu de skins Minecraft) à côté du statut serveur. Best-effort : si crafatar est
+indisponible, seul le pseudo texte s'affiche, sans erreur bloquante.
 
 ## Identité visuelle (branding Algaron)
 

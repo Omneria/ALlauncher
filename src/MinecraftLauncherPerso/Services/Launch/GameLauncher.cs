@@ -3,21 +3,21 @@ using System.Text;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
+using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
 
 namespace MinecraftLauncherPerso.Services.Launch;
 
 public sealed class GameLauncher : IGameLauncher
 {
+    public event EventHandler<int>? GameExited;
+
     public async Task<ProcessWrapper> LaunchAsync(
         MinecraftLauncher launcher,
         string versionId,
         MinecraftSession session,
         string javaExecutablePath,
-        int minRamMb,
-        int maxRamMb,
-        string? serverIp = null,
-        int serverPort = 25565,
+        LauncherSettings settings,
         IProgress<string>? gameOutput = null,
         CancellationToken cancellationToken = default)
     {
@@ -27,10 +27,12 @@ public sealed class GameLauncher : IGameLauncher
         {
             Session = mSession,
             JavaPath = javaExecutablePath,
-            MinimumRamMb = minRamMb,
-            MaximumRamMb = maxRamMb,
-            ServerIp = serverIp,
-            ServerPort = serverPort,
+            MinimumRamMb = settings.MinRamMb,
+            MaximumRamMb = settings.MaxRamMb,
+            ServerIp = settings.ServerHost,
+            ServerPort = settings.ServerPort,
+            ScreenWidth = settings.ScreenWidth,
+            ScreenHeight = settings.ScreenHeight,
         });
 
         var processWrapper = new ProcessWrapper(process);
@@ -49,6 +51,7 @@ public sealed class GameLauncher : IGameLauncher
         process.EnableRaisingEvents = true;
         process.OutputDataReceived += (_, e) => gameOutput?.Report(e.Data ?? "");
         process.ErrorDataReceived += (_, e) => gameOutput?.Report(e.Data ?? "");
+        process.Exited += (_, _) => GameExited?.Invoke(this, process.ExitCode);
 
         process.Start();
         process.BeginOutputReadLine();
