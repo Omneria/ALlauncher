@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using MinecraftLauncherPerso.Services.Hardware;
 
 namespace MinecraftLauncherPerso.Models;
 
@@ -52,7 +53,34 @@ public sealed class LauncherSettings
 
     public int MinRamMb { get; set; } = 2048;
 
-    public int MaxRamMb { get; set; } = 6144;
+    /// <summary>
+    /// Valeur par défaut calculée à partir de la RAM totale de la machine (voir <see
+    /// cref="RecommendMaxRamMb"/>) plutôt qu'une valeur fixe identique pour tout le monde — un
+    /// joueur avec 8 Go de RAM système n'a pas les mêmes marges qu'un joueur avec 32 Go. Reste
+    /// librement modifiable ensuite dans les Paramètres ou settings.json.
+    /// </summary>
+    public int MaxRamMb { get; set; } = RecommendMaxRamMb();
+
+    private static int RecommendMaxRamMb()
+    {
+        var totalMb = SystemInfo.GetTotalPhysicalMemoryMb();
+        if (totalMb is null)
+        {
+            // RAM système indéterminable (API Windows indisponible) : repli sur l'ancienne valeur fixe.
+            return 6144;
+        }
+
+        var recommended = totalMb.Value switch
+        {
+            < 8192 => 3072,
+            < 12288 => 4096,
+            < 16384 => 6144,
+            _ => 8192,
+        };
+
+        // Jamais plus de la moitié de la RAM totale, pour laisser de la marge à l'OS et au reste.
+        return Math.Min(recommended, totalMb.Value / 2);
+    }
 
     /// <summary>
     /// Dossier .minecraft utilisé par CE launcher pour le pack modé — volontairement distinct du

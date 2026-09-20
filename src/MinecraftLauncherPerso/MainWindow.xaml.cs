@@ -85,12 +85,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        AppendLog("📰 Actus Astral Nexus :");
-        foreach (var line in news.Split('\n'))
-        {
-            AppendLog($"  {line.TrimEnd('\r')}");
-        }
-        AppendLog("");
+        NewsText.Text = news;
+        NewsPanel.Visibility = Visibility.Visible;
     }
 
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
@@ -284,7 +280,7 @@ public partial class MainWindow : Window
             image.Freeze();
 
             PlayerAvatarImage.Source = image;
-            PlayerAvatarImage.Visibility = Visibility.Visible;
+            PlayerAvatarBorder.Visibility = Visibility.Visible;
         }
         catch (Exception)
         {

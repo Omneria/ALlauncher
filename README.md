@@ -83,6 +83,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
 │           │   ├── INewsService.cs
 │           │   └── NewsService.cs
+│           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
+│           │   └── SystemInfo.cs
 │           └── Configuration/
 │               └── SettingsManager.cs      # charge/sauvegarde settings.json
 ├── README.md
@@ -161,9 +163,11 @@ Comme pour le changelog, absence du manifest = aucune vérification, pas d'erreu
 Fichiers : `Services/News/NewsService.cs`, `MainWindow.xaml.cs`
 
 Au démarrage, le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` :
-même dossier que le zip du modpack sur le VPS) et en affiche le contenu dans le journal de statut,
-avant même que le joueur ait cliqué sur "Jouer" — pratique pour annoncer un event, une maintenance
-prévue, etc. sans passer par Discord. Optionnel, silencieux si absent.
+même dossier que le zip du modpack sur le VPS), avant même que le joueur ait cliqué sur "Jouer" —
+pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
+silencieux si absent : le panneau `NewsPanel` (carte dédiée, typographie normale — pas le
+`StatusLogTextBox` en monospace qui, lui, reste réservé à la progression du lancement et aux
+erreurs) ne prend aucune place tant qu'il n'y a rien à afficher.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -310,6 +314,13 @@ sélection via `Microsoft.Win32.OpenFolderDialog`, natif WPF depuis .NET 8, pas 
 WinForms). "Enregistrer" persiste dans `settings.json` et ferme la fenêtre ; fermer sans enregistrer
 (✕) n'écrit rien.
 
+**RAM par défaut adaptée à la machine :** `LauncherSettings.MaxRamMb` n'est plus une valeur fixe
+identique pour tout le monde — `Services/Hardware/SystemInfo.cs` interroge la RAM physique totale
+de la machine (P/Invoke `GlobalMemoryStatusEx`, API Win32) et calcule une recommandation adaptée
+(3G en dessous de 8 Go de RAM système, 4G en dessous de 12 Go, 6G en dessous de 16 Go, 8G au-delà —
+jamais plus de la moitié de la RAM totale). Uniquement au premier lancement (settings.json pas
+encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle utilisée.
+
 ## Profil connecté
 
 Après authentification réussie, le launcher affiche le pseudo et un rendu de tête (avatar)
@@ -374,3 +385,17 @@ launcher tiers public).
 Pour ajuster RAM, URL du modpack, adresse du serveur (`ServerHost`/`ServerPort`) ou dossier de jeu
 sans passer par l'UI, modifier
 ce même fichier.
+
+## Avertissement
+
+Ce launcher est un outil non officiel développé pour un usage privé entre amis, sans lien avec
+Mojang, Microsoft ou Minecraft. Fourni "en l'état", sans garantie — chacun l'utilise à ses propres
+risques (comme n'importe quel logiciel tiers modifiant l'installation du jeu). Chaque joueur reste
+responsable du respect des conditions d'utilisation de Mojang/Microsoft liées à son propre compte.
+
+Contrairement à certains launchers tiers commerciaux (ex. Paladium, dont le CLUF autorise
+explicitement un scan de la RAM de la machine pour détecter des logiciels tiers, avec remontée au
+serveur de l'intitulé du compte, de l'IP et des specs matérielles), **ce launcher ne scanne rien sur
+la machine du joueur et n'envoie aucune télémétrie** : les seules requêtes réseau qu'il effectue
+sont celles nécessaires à son fonctionnement (Java, Forge, mods, auth Microsoft, ping du statut
+serveur, vérification de mise à jour) — voir les sections ci-dessus pour le détail de chacune.
