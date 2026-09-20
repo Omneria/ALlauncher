@@ -5,9 +5,11 @@ public sealed record MinecraftSession(string Username, string Uuid, string Acces
 public interface IAuthService
 {
     /// <summary>
-    /// Récupère la session du compte déjà connecté sur le launcher officiel Minecraft installé
-    /// sur la machine (lecture de launcher_accounts.json dans %AppData%/.minecraft), sans
-    /// implémenter de flux OAuth Microsoft complet.
+    /// Authentifie l'utilisateur via OAuth Microsoft (navigateur système + redirection sur boucle
+    /// locale) puis la chaîne Xbox Live -> XSTS -> Minecraft, et retourne la session à utiliser
+    /// pour lancer le jeu. Réutilise silencieusement une session Microsoft précédemment mise en
+    /// cache tant qu'elle est valide ; ne redemande une connexion interactive (navigateur) que si
+    /// elle a expiré ou n'existe pas encore.
     /// </summary>
-    MinecraftSession GetActiveSession();
+    Task<MinecraftSession> GetActiveSessionAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default);
 }

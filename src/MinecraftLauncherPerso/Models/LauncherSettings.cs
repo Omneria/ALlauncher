@@ -23,6 +23,33 @@ public sealed class LauncherSettings
         Encoding.UTF8.GetString(Convert.FromBase64String(
             "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svQWxnYXJvbi1tb2RkZWQuemlw"));
 
+    /// <summary>
+    /// "Application (client) ID" de l'app Azure AD enregistrée pour ce launcher (identifie
+    /// l'application, pas les comptes joueurs — un seul ID est partagé par tout le groupe).
+    /// Nécessaire pour l'authentification Microsoft/Xbox Live directe.
+    /// </summary>
+    public string MicrosoftClientId { get; set; } = "88cfb0e1-8c0a-46e4-abf9-9bf73b40eaf7";
+
+    /// <summary>
+    /// Nom affiché dans l'écran multijoueur pour l'unique serveur de la liste (voir <see
+    /// cref="ServerHost"/>).
+    /// </summary>
+    public string ServerName { get; set; } = "Astral Nexus";
+
+    /// <summary>
+    /// Adresse (IP ou nom d'hôte) du serveur Minecraft Astral Nexus. Le launcher y rejoint
+    /// directement le joueur au lancement (arguments --server/--port, comme un "quick play") et
+    /// réécrit servers.dat à chaque démarrage pour qu'il n'y ait que ce serveur dans la liste
+    /// multijoueur — un joueur qui en ajouterait un autre manuellement le retrouve retiré au
+    /// lancement suivant.
+    /// Nom de domaine DuckDNS plutôt que l'IP brute (qui est aussi celle du VPN) : contrairement
+    /// à <see cref="ModpackZipUrl"/>, pas besoin d'encodage base64 ici, un nom de domaine n'a rien
+    /// à cacher en lui-même. Peut être écrasée dans settings.json (si le serveur change d'adresse).
+    /// </summary>
+    public string ServerHost { get; set; } = "astralnexusmc.duckdns.org";
+
+    public int ServerPort { get; set; } = 25565;
+
     public int MinRamMb { get; set; } = 2048;
 
     public int MaxRamMb { get; set; } = 6144;
@@ -34,4 +61,12 @@ public sealed class LauncherSettings
     public string GameDirectory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MinecraftLauncherPerso", "game");
+
+    /// <summary>
+    /// Résolution de la fenêtre du jeu (MLaunchOption.ScreenWidth/Height). 0 = valeur par défaut
+    /// de Minecraft (pas d'argument --width/--height passé, laisse le jeu décider).
+    /// </summary>
+    public int ScreenWidth { get; set; } = 0;
+
+    public int ScreenHeight { get; set; } = 0;
 }
