@@ -175,11 +175,35 @@ avec son propre compte Microsoft. Pour référence, si ce Client ID doit un jour
 Fichier : `src/MinecraftLauncherPerso/Services/Launch/GameLauncher.cs`
 
 Construit une `MSession` (CmlLib.Core.Auth) à partir de la session lue ci-dessus, un
-`MLaunchOption` avec `JavaPath`, `MinimumRamMb`/`MaximumRamMb`, puis appelle
-`MinecraftLauncher.BuildProcessAsync(versionId, options)` et démarre le process obtenu. Le
-launcher ne bloque pas en attendant la fermeture du jeu : le bouton "Jouer" redevient disponible
-dès que le process a démarré, et les logs du jeu remontent dans le journal de statut tant que la
-fenêtre reste ouverte.
+`MLaunchOption` avec `JavaPath`, `MinimumRamMb`/`MaximumRamMb`, `ServerIp`/`ServerPort` (voir
+ci-dessous), puis appelle `MinecraftLauncher.BuildProcessAsync(versionId, options)`. Le process
+est ensuite démarré manuellement (au lieu du `ProcessWrapper.StartWithEvents()` fourni par
+CmlLib.Core, qui force `CreateNoWindow=false`) avec `CreateNoWindow=true` : sans ça, une fenêtre
+de console Windows s'ouvrait pour `java.exe` (application console sans parent console attaché) en
+plus de la fenêtre du launcher. Le launcher ne bloque pas en attendant la fermeture du jeu : le
+bouton "Jouer" redevient disponible dès que le process a démarré, et les logs du jeu remontent
+dans le journal de statut tant que la fenêtre reste ouverte.
+
+### Serveur unique (Astral Nexus)
+
+Fichiers : `MainWindow.xaml.cs` (orchestration), `Services/Launch/ServerListWriter.cs`
+
+Si `LauncherSettings.ServerHost` est renseigné (voir Configuration ci-dessous), deux mécanismes
+combinés limitent le joueur au serveur Astral Nexus :
+
+1. **Rejoint automatiquement au démarrage** : `ServerIp`/`ServerPort` sur `MLaunchOption` ajoutent
+   les arguments `--server`/`--port` (fonctionnalité vanilla, gérée par CmlLib.Core en interne) —
+   le jeu se connecte directement au serveur configuré dès le lancement, sans passer par l'écran
+   multijoueur.
+2. **Liste multijoueur réinitialisée** : `ServerListWriter.WriteSingleServer` écrit `servers.dat`
+   (NBT non compressé, format vanilla, écrit à la main — pas de dépendance NBT nécessaire pour une
+   structure aussi simple) avec ce seul serveur, à chaque lancement, avant de démarrer le jeu.
+
+**Limite connue :** ceci n'empêche pas un joueur d'ajouter manuellement un autre serveur *pendant*
+une session déjà lancée (l'écran multijoueur vanilla le permet nativement, et ni CmlLib.Core ni ce
+launcher n'implémentent de restriction côté client type mod/whitelist) — seule la liste au
+prochain lancement est remise à zéro. Suffisant pour un usage privé entre amis, pas une vraie
+sandbox contre un joueur déterminé à contourner.
 
 ## Identité visuelle (branding Algaron)
 
@@ -223,5 +247,17 @@ en clair au runtime), pas une vraie protection contre quelqu'un qui inspecterait
 Client ID Azure AD, lui, n'a pas besoin d'être masqué (il identifie l'application, pas un secret :
 c'est la même logique que pour n'importe quel launcher tiers public).
 
+`ServerHost`/`ServerPort` (adresse du serveur Astral Nexus), en revanche, sont **vides par défaut** :
+tant qu'ils ne sont pas renseignés, le verrouillage sur ce serveur (voir section Lancement du jeu)
+est simplement désactivé (écran multijoueur normal). À définir dans
+`%AppData%/MinecraftLauncherPerso/settings.json` :
+
+```json
+{
+  "ServerHost": "<IP ou nom d'hôte du serveur Astral Nexus>",
+  "ServerPort": 25565
+}
+```
+
 Pour ajuster RAM, URL du modpack (si le VPS change) ou dossier de jeu sans passer par l'UI, modifier
-`%AppData%/MinecraftLauncherPerso/settings.json` (créé au premier lancement).
+ce même fichier.

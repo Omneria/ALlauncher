@@ -87,11 +87,18 @@ public partial class MainWindow : Window
             var session = await _authService.GetActiveSessionAsync(authProgress);
             AppendLog($"Connecté en tant que {session.Username}.");
 
-            // 5. Lancement
+            // 5. Verrouille la liste multijoueur sur Astral Nexus (voir LauncherSettings.ServerHost)
+            if (!string.IsNullOrWhiteSpace(_settings.ServerHost))
+            {
+                ServerListWriter.WriteSingleServer(_settings.GameDirectory, _settings.ServerName, _settings.ServerHost);
+            }
+
+            // 6. Lancement
             AppendLog("Lancement du jeu...");
             var gameOutput = new Progress<string>(AppendLog);
             _activeGame = await _gameLauncher.LaunchAsync(
-                launcher, versionId, session, javaPath, _settings.MinRamMb, _settings.MaxRamMb, gameOutput);
+                launcher, versionId, session, javaPath, _settings.MinRamMb, _settings.MaxRamMb,
+                _settings.ServerHost, _settings.ServerPort, gameOutput);
 
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;

@@ -30,6 +30,24 @@ public sealed class LauncherSettings
     /// </summary>
     public string MicrosoftClientId { get; set; } = "88cfb0e1-8c0a-46e4-abf9-9bf73b40eaf7";
 
+    /// <summary>
+    /// Nom affiché dans l'écran multijoueur pour l'unique serveur de la liste (voir <see
+    /// cref="ServerHost"/>).
+    /// </summary>
+    public string ServerName { get; set; } = "Astral Nexus";
+
+    /// <summary>
+    /// Adresse (IP ou nom d'hôte) du serveur Minecraft Astral Nexus. Le launcher y rejoint
+    /// directement le joueur au lancement (arguments --server/--port, comme un "quick play") et
+    /// réécrit servers.dat à chaque démarrage pour qu'il n'y ait que ce serveur dans la liste
+    /// multijoueur — un joueur qui en ajouterait un autre manuellement le retrouve retiré au
+    /// lancement suivant. Vide par défaut : tant que non configuré, ce comportement est désactivé
+    /// (écran multijoueur normal, non verrouillé).
+    /// </summary>
+    public string ServerHost { get; set; } = "";
+
+    public int ServerPort { get; set; } = 25565;
+
     public int MinRamMb { get; set; } = 2048;
 
     public int MaxRamMb { get; set; } = 6144;
