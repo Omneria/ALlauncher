@@ -78,12 +78,20 @@ jobs:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained
 
-      - name: Create GitHub Release
+      # Si le tag a été créé via "Draft a new release" sur github.com, la release existe déjà
+      # (créée en même temps que le tag, sans l'exe) : on y ajoute juste l'exe (--clobber écrase
+      # un éventuel exe déjà attaché) au lieu d'essayer d'en créer une deuxième (qui échouerait).
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "${{ github.ref_name }}"
-          "publish/win-x64-selfcontained/AL Launcher.exe"
-          --repo "${{ github.repository }}"
-          --title "${{ github.ref_name }}"
-          --generate-notes
+        shell: pwsh
+        run: |
+          $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          gh release view $tag --repo $repo 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $exe --repo $repo --clobber
+          } else {
+            gh release create $tag $exe --repo $repo --title $tag --generate-notes
+          }
