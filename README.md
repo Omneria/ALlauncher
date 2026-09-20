@@ -173,10 +173,13 @@ Flux MSAL.NET interactif, navigateur système (pas de WebView2, pas de code à r
 expérience que CurseForge/Paladium) :
 
 1. `PublicClientApplicationBuilder` (autorité `consumers`, redirection `http://localhost`) tente
-   d'abord un `AcquireTokenSilent` sur un compte déjà en cache (`msal-cache.bin` dans
-   `%AppData%/MinecraftLauncherPerso/`) ; en cas d'échec/expiration, ouvre le navigateur par défaut
-   pour une connexion interactive (`AcquireTokenInteractive`, scopes `XboxLive.signin` +
-   `offline_access`).
+   d'abord un `AcquireTokenSilent` sur un compte déjà en cache (`msal-cache-v2.bin` dans
+   `%AppData%/MinecraftLauncherPerso/`, persisté via `Microsoft.Identity.Client.Extensions.Msal`
+   — package officiel MSAL, chiffrement DPAPI natif sur Windows — plutôt qu'une sérialisation
+   manuelle) ; en cas d'échec/expiration, ouvre le navigateur par défaut pour une connexion
+   interactive (`AcquireTokenInteractive`, scopes `XboxLive.signin` + `offline_access`). Une fois
+   connecté une première fois, les lancements suivants renouvellent la session en silence tant que
+   le refresh token Microsoft reste valide (habituellement des mois).
 2. Échange le token Microsoft contre un token Xbox Live (`user.auth.xboxlive.com/user/authenticate`).
 3. Autorise ce token via XSTS (`xsts.auth.xboxlive.com/xsts/authorize`, `RelyingParty` Minecraft
    Services) — les erreurs `XErr` connues (pas de compte Xbox, région non supportée, vérification

@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.Extensions.Msal;
 
 namespace MinecraftLauncherPerso.Services.Auth;
 
@@ -26,18 +27,24 @@ namespace MinecraftLauncherPerso.Services.Auth;
 /// </summary>
 public sealed class MicrosoftAuthService : IAuthService
 {
+    // "v2" : format différent de l'ancien msal-cache.bin (sérialisé à la main, non chiffré) —
+    // nom distinct pour ne jamais risquer de lire un fichier dans le mauvais format. L'ancien
+    // fichier devient simplement orphelin (inoffensif), et chacun se reconnecte une dernière fois
+    // avant que la reconnexion silencieuse reprenne durablement.
+    private const string TokenCacheFileName = "msal-cache-v2.bin";
+
     private static readonly string[] Scopes = { "XboxLive.signin", "offline_access" };
 
     private readonly string _clientId;
-    private readonly string _tokenCachePath;
+    private readonly string _tokenCacheDirectory;
     private readonly HttpClient _httpClient;
 
-    public MicrosoftAuthService(string clientId, string? tokenCachePath = null, HttpClient? httpClient = null)
+    public MicrosoftAuthService(string clientId, string? tokenCacheDirectory = null, HttpClient? httpClient = null)
     {
         _clientId = clientId;
-        _tokenCachePath = tokenCachePath ?? Path.Combine(
+        _tokenCacheDirectory = tokenCacheDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "MinecraftLauncherPerso", "msal-cache.bin");
+            "MinecraftLauncherPerso");
         _httpClient = httpClient ?? new HttpClient();
 
         // Certains points de terminaison Xbox Live renvoient 403 aux requêtes sans User-Agent
@@ -64,7 +71,7 @@ public sealed class MicrosoftAuthService : IAuthService
             .WithRedirectUri("http://localhost")
             .Build();
 
-        EnableTokenCacheSerialization(app.UserTokenCache);
+        await EnableTokenCacheSerializationAsync(app.UserTokenCache);
 
         progress?.Report("Connexion à Microsoft...");
         var microsoftAccessToken = await AcquireMicrosoftTokenAsync(app, progress, cancellationToken);
@@ -117,31 +124,22 @@ public sealed class MicrosoftAuthService : IAuthService
         return result.AccessToken;
     }
 
-    private void EnableTokenCacheSerialization(ITokenCache tokenCache)
+    /// <summary>
+    /// Utilise Microsoft.Identity.Client.Extensions.Msal (package officiel MSAL) plutôt qu'une
+    /// sérialisation manuelle du cache : chiffrement DPAPI natif sur Windows, verrouillage de
+    /// fichier correct entre process concurrents, et c'est l'implémentation que Microsoft
+    /// recommande et maintient pour ce cas d'usage précis (reconnexion silencieuse fiable d'un
+    /// lancement à l'autre, tant que le refresh token Microsoft reste valide).
+    /// </summary>
+    private async Task EnableTokenCacheSerializationAsync(ITokenCache tokenCache)
     {
-        tokenCache.SetBeforeAccess(args =>
-        {
-            if (File.Exists(_tokenCachePath))
-            {
-                args.TokenCache.DeserializeMsalV3(File.ReadAllBytes(_tokenCachePath));
-            }
-        });
+        Directory.CreateDirectory(_tokenCacheDirectory);
 
-        tokenCache.SetAfterAccess(args =>
-        {
-            if (!args.HasStateChanged)
-            {
-                return;
-            }
+        var storageProperties = new StorageCreationPropertiesBuilder(TokenCacheFileName, _tokenCacheDirectory)
+            .Build();
 
-            var directory = Path.GetDirectoryName(_tokenCachePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            File.WriteAllBytes(_tokenCachePath, args.TokenCache.SerializeMsalV3());
-        });
+        var cacheHelper = await MsalCacheHelper.CreateAsync(storageProperties);
+        cacheHelper.RegisterCache(tokenCache);
     }
 
     private async Task<(string Token, string UserHash)> AuthenticateWithXboxLiveAsync(string microsoftAccessToken, CancellationToken cancellationToken)

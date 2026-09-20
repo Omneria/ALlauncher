@@ -10,7 +10,7 @@
     <AssemblyName>AL Launcher</AssemblyName>
     <!-- Comparée par GitHubUpdateService à la dernière release GitHub (tag v*.*.*) pour l'auto-update.
          À incrémenter à chaque tag/release. -->
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
@@ -25,6 +25,10 @@
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="1.1.1" />
     <!-- Authentification Microsoft (navigateur système, flux OAuth interactif) pour obtenir la session Minecraft. -->
     <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
+    <!-- Persistance officielle du cache de token MSAL (chiffré via DPAPI sur Windows) : plus
+         robuste que la sérialisation manuelle pour garantir une reconnexion silencieuse fiable
+         d'un lancement à l'autre. -->
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.66.1" />
   </ItemGroup>
 
   <ItemGroup>
