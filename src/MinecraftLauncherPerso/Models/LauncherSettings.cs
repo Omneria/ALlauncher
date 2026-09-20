@@ -42,14 +42,11 @@ public sealed class LauncherSettings
     /// réécrit servers.dat à chaque démarrage pour qu'il n'y ait que ce serveur dans la liste
     /// multijoueur — un joueur qui en ajouterait un autre manuellement le retrouve retiré au
     /// lancement suivant.
-    /// Valeur par défaut encodée en base64 (voir <see cref="DecodeDefaultServerHost"/>), même
-    /// raison que <see cref="ModpackZipUrl"/> : cette IP est aussi celle du VPN, elle ne doit pas
-    /// apparaître en clair dans le dépôt public. Peut être écrasée dans settings.json.
+    /// Nom de domaine DuckDNS plutôt que l'IP brute (qui est aussi celle du VPN) : contrairement
+    /// à <see cref="ModpackZipUrl"/>, pas besoin d'encodage base64 ici, un nom de domaine n'a rien
+    /// à cacher en lui-même. Peut être écrasée dans settings.json (si le serveur change d'adresse).
     /// </summary>
-    public string ServerHost { get; set; } = DecodeDefaultServerHost();
-
-    private static string DecodeDefaultServerHost() =>
-        Encoding.UTF8.GetString(Convert.FromBase64String("MTg1LjE4NS44Mi4xODA="));
+    public string ServerHost { get; set; } = "astranexusmc.duckdns.org";
 
     public int ServerPort { get; set; } = 25565;
 
