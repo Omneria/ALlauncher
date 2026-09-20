@@ -245,7 +245,7 @@ Le dépôt étant public, `ModpackZipUrl` n'apparaît pas en clair dans le code 
 encodée en base64 dans `LauncherSettings.cs`, décodée au démarrage) pour ne pas exposer l'IP du
 VPS à quiconque parcourt le dépôt — ce n'est qu'une précaution légère (le launcher final l'utilise
 bien en clair au runtime), pas une vraie protection contre quelqu'un qui inspecterait
-l'exécutable. `ServerHost` pointe lui sur `astranexusmc.duckdns.org` (DuckDNS) plutôt que sur
+l'exécutable. `ServerHost` pointe lui sur `astralnexusmc.duckdns.org` (DuckDNS) plutôt que sur
 l'IP du VPS directement — celle-ci est aussi celle du VPN, donc découplée derrière un nom de
 domaine au lieu d'être encodée en base64 (qui n'aurait de toute façon pas empêché `servers.dat` de
 l'exposer en clair une fois résolue). Si le VPS change d'adresse, seul l'enregistrement DNS

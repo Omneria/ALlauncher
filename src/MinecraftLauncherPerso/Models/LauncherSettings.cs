@@ -46,7 +46,7 @@ public sealed class LauncherSettings
     /// à <see cref="ModpackZipUrl"/>, pas besoin d'encodage base64 ici, un nom de domaine n'a rien
     /// à cacher en lui-même. Peut être écrasée dans settings.json (si le serveur change d'adresse).
     /// </summary>
-    public string ServerHost { get; set; } = "astranexusmc.duckdns.org";
+    public string ServerHost { get; set; } = "astralnexusmc.duckdns.org";
 
     public int ServerPort { get; set; } = 25565;
 
