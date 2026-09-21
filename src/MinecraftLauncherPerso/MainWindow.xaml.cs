@@ -141,8 +141,7 @@ public partial class MainWindow : Window
             var authProgress = new Progress<string>(AppendLog);
             var session = await _authService.GetActiveSessionAsync(authProgress);
             AppendLog($"Connecté en tant que {session.Username}.");
-            PlayerNameText.Text = session.Username;
-            _ = LoadPlayerAvatarAsync(session.Uuid);
+            ShowConnectedPlayer(session);
 
             // 5. Verrouille la liste multijoueur sur Astral Nexus (voir LauncherSettings.ServerHost)
             if (!string.IsNullOrWhiteSpace(_settings.ServerHost))
@@ -260,6 +259,39 @@ public partial class MainWindow : Window
             AppendLog($"Échec de la mise à jour : {ex.Message}");
             UpdateBannerButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// Connexion Microsoft/Minecraft indépendante du bouton "Jouer" : permet de voir/valider son
+    /// identité avant de lancer le jeu (GetActiveSessionAsync réutilise silencieusement la session
+    /// en cache si elle existe déjà, donc un second appel côté PlayButton_Click ne rouvre pas de
+    /// navigateur).
+    /// </summary>
+    private async void LoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        LoginButton.IsEnabled = false;
+
+        try
+        {
+            var session = await _authService.GetActiveSessionAsync();
+            ShowConnectedPlayer(session);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Échec de la connexion : {ex.Message}",
+                "Connexion Minecraft",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            LoginButton.IsEnabled = true;
+        }
+    }
+
+    private void ShowConnectedPlayer(MinecraftSession session)
+    {
+        LoginButton.Visibility = Visibility.Collapsed;
+        PlayerNameText.Text = session.Username;
+        _ = LoadPlayerAvatarAsync(session.Uuid);
     }
 
     private async Task LoadPlayerAvatarAsync(string uuid)
