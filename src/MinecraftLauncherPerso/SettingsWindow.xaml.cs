@@ -189,7 +189,7 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// "Réparation rapide" (v1.9.0) : jusqu'ici, un fichier de mod corrompu/supprimé par erreur
+    /// "Réparation rapide" (v1.8.0) : jusqu'ici, un fichier de mod corrompu/supprimé par erreur
     /// n'était détecté qu'au clic sur JOUER (et seulement si un manifest.json existe côté VPS), sans
     /// aucun moyen manuel de le forcer. Ignore le cache ETag (IModSyncService.RepairAsync) pour
     /// retélécharger le modpack complet, même si le serveur affirme que rien n'a changé.

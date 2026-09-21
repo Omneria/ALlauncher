@@ -78,7 +78,7 @@ public partial class MainWindow : Window
     private const int CrashBufferMaxLines = 400;
     private readonly Queue<string> _gameOutputBuffer = new();
 
-    // Préchargement du modpack en arrière-plan (v1.9.0) : lancé dès MainWindow_Loaded si une mise à
+    // Préchargement du modpack en arrière-plan (v1.8.0) : lancé dès MainWindow_Loaded si une mise à
     // jour est détectée, annulé si le joueur clique sur JOUER avant la fin pour éviter que les deux
     // n'écrivent en même temps dans le même fichier .part (voir ModSyncService.PrefetchAsync).
     private CancellationTokenSource? _prefetchCts;
@@ -181,7 +181,7 @@ public partial class MainWindow : Window
         VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
         RefreshLastSyncText();
 
-        // Assistant de premier lancement (v1.9.0) : seulement si settings.json n'existait pas
+        // Assistant de premier lancement (v1.8.0) : seulement si settings.json n'existait pas
         // encore au tout début du constructeur (voir _isFirstLaunch) — après ce point, Load() l'a
         // déjà créé (comportement existant), donc ce drapeau ne redeviendra jamais vrai.
         if (_isFirstLaunch)

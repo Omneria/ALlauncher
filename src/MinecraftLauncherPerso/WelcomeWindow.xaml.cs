@@ -4,7 +4,7 @@ using System.Windows.Input;
 namespace MinecraftLauncherPerso;
 
 /// <summary>
-/// Assistant de premier lancement (v1.9.0) : affiché une seule fois, quand settings.json n'existait
+/// Assistant de premier lancement (v1.8.0) : affiché une seule fois, quand settings.json n'existait
 /// pas encore avant SettingsManager.Load() (voir MainWindow). Un nouvel ami qui rejoint le serveur
 /// n'a jusqu'ici aucune indication de ce que fait le launcher au premier démarrage — RAM/dossier de
 /// jeu par défaut choisis silencieusement, aucune explication du flux Java -> Forge -> mods -> auth.
