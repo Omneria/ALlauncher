@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CmlLib.Core;
@@ -53,9 +54,11 @@ public partial class MainWindow : Window
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
     private readonly DispatcherTimer _updateCheckTimer;
+    private readonly DispatcherTimer _newsRefreshTimer;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
+    private DispatcherTimer? _playButtonWatchdog;
 
     // Référence gardée en vie pour toute la durée de la partie : sans elle, le process/wrapper
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
@@ -88,6 +91,13 @@ public partial class MainWindow : Window
         _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdateAsync();
 
+        // Contrairement au statut serveur et aux mises à jour, les actus n'étaient chargées
+        // qu'au démarrage : une actu postée pendant que le launcher est déjà ouvert n'apparaissait
+        // qu'au redémarrage suivant. Même principe de polling, cadence plus lâche (contenu qui
+        // change rarement).
+        _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
+
         Loaded += MainWindow_Loaded;
     }
 
@@ -100,6 +110,7 @@ public partial class MainWindow : Window
         await ShowNewsAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
+        _newsRefreshTimer.Start();
         await RefreshServerStatusAsync();
         await CheckForUpdateAsync();
 
@@ -129,6 +140,51 @@ public partial class MainWindow : Window
         NewsText.Text = news;
     }
 
+    // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
+    // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
+    // effet à ces items de nav, au lieu de rester des libellés inertes.
+    private void ActusNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashCard(NewsCardScale);
+
+    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashCard(ServerCardScale);
+
+    // Active/Espace au clavier pour les items de nav (Border, pas Button : pas de KeyDown par
+    // défaut) — seule concession "accessibilité" ajoutée ici, le reste (lecteur d'écran, chrome
+    // de fenêtre natif) resterait un chantier bien plus large.
+    private void NavItem_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter && e.Key != Key.Space)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(sender, NavActus))
+        {
+            FlashCard(NewsCardScale);
+        }
+        else if (ReferenceEquals(sender, NavServeur))
+        {
+            FlashCard(ServerCardScale);
+        }
+        else if (ReferenceEquals(sender, NavParametres))
+        {
+            SettingsButton_Click(sender, e);
+        }
+    }
+
+    private static void FlashCard(ScaleTransform scale)
+    {
+        var pulse = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 1.03,
+            Duration = TimeSpan.FromMilliseconds(160),
+            AutoReverse = true,
+            EasingFunction = new QuadraticEase(),
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+    }
+
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
         if (_lastServerStatus is { IsOnline: false })
@@ -154,13 +210,26 @@ public partial class MainWindow : Window
 
         try
         {
+            // Chaque étape est enveloppée séparément : auparavant, un seul catch générique en bas
+            // de méthode affichait juste ex.Message, sans dire quelle étape (Java ? Forge ? sync
+            // mods ? auth ?) avait échoué — impossible à diagnostiquer pour l'utilisateur sans
+            // aller lire StatusLogTextBox en détail.
+
             // 1. Java 8 : seule étape avec une progression chiffrée (téléchargement), pilote la barre.
             var javaProgress = new Progress<JavaSetupProgress>(report =>
             {
                 ProgressBar.Value = report.PercentComplete;
                 AppendLog(report.Message);
             });
-            var javaPath = await _javaManager.EnsureJava8Async(javaProgress);
+            string javaPath;
+            try
+            {
+                javaPath = await _javaManager.EnsureJava8Async(javaProgress);
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Préparation de Java 8", ex);
+            }
             AppendLog($"Java 8 prêt : {javaPath}");
 
             // Les étapes suivantes ne rapportent que du texte (pas de fraction) : barre indéterminée.
@@ -171,30 +240,67 @@ public partial class MainWindow : Window
 
             // 2. Forge
             var forgeProgress = new Progress<string>(AppendLog);
-            var versionId = await _forgeManager.EnsureForgeInstalledAsync(
-                launcher, _settings.MinecraftVersion, _settings.ForgeVersion, forgeProgress);
+            string versionId;
+            try
+            {
+                versionId = await _forgeManager.EnsureForgeInstalledAsync(
+                    launcher, _settings.MinecraftVersion, _settings.ForgeVersion, forgeProgress);
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Installation de Forge", ex);
+            }
             AppendLog($"Forge prêt : {versionId}");
 
             // 3. Synchronisation mods/config depuis le VPS
             var syncProgress = new Progress<string>(AppendLog);
-            await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.GameDirectory, syncProgress);
+            try
+            {
+                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.GameDirectory, syncProgress);
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Synchronisation des mods", ex);
+            }
 
             // 4. Authentification Microsoft directe (Xbox Live -> XSTS -> Minecraft)
             var authProgress = new Progress<string>(AppendLog);
-            var session = await _authService.GetActiveSessionAsync(authProgress);
+            MinecraftSession session;
+            try
+            {
+                session = await _authService.GetActiveSessionAsync(authProgress);
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Connexion Microsoft", ex);
+            }
             AppendLog($"Connecté en tant que {session.Username}.");
             ShowConnectedPlayer(session);
 
             // 5. Verrouille la liste multijoueur sur Astral Nexus (voir LauncherSettings.ServerHost)
-            if (!string.IsNullOrWhiteSpace(_settings.ServerHost))
+            try
             {
-                ServerListWriter.WriteSingleServer(_settings.GameDirectory, _settings.ServerName, _settings.ServerHost);
+                if (!string.IsNullOrWhiteSpace(_settings.ServerHost))
+                {
+                    ServerListWriter.WriteSingleServer(_settings.GameDirectory, _settings.ServerName, _settings.ServerHost);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Écriture de la liste des serveurs", ex);
             }
 
             // 6. Lancement
             AppendLog("Lancement du jeu...");
             var gameOutput = new Progress<string>(AppendLog);
-            _activeGame = await _gameLauncher.LaunchAsync(launcher, versionId, session, javaPath, _settings, gameOutput);
+            try
+            {
+                _activeGame = await _gameLauncher.LaunchAsync(launcher, versionId, session, javaPath, _settings, gameOutput);
+            }
+            catch (Exception ex)
+            {
+                throw new LauncherStepException("Lancement du jeu", ex);
+            }
 
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;
@@ -203,6 +309,10 @@ public partial class MainWindow : Window
             // Bouton laissé désactivé tant que cette partie tourne : le jeu n'empêche pas
             // plusieurs instances de lui-même, seul GameLauncher.GameExited le réactive (voir
             // ci-dessous), pour éviter de pouvoir lancer un deuxième Minecraft par-dessus.
+            // Garde-fou : si cet événement ne se déclenchait jamais pour une raison quelconque, le
+            // bouton resterait grisé indéfiniment sans recours pour l'utilisateur autre que
+            // redémarrer le launcher — ce timer le réactive de force après un long délai.
+            StartPlayButtonWatchdog();
             return;
         }
         catch (Exception ex)
@@ -225,6 +335,7 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
+            _playButtonWatchdog?.Stop();
             PlayButton.IsEnabled = true;
 
             if (exitCode != 0)
@@ -236,6 +347,41 @@ public partial class MainWindow : Window
 
             LoadingPanel.Visibility = Visibility.Collapsed;
         });
+    }
+
+    /// <summary>
+    /// Filet de sécurité pour le bouton JOUER, désactivé pendant toute la durée de la partie et
+    /// normalement réactivé par GameLauncher_GameExited (voir ci-dessus). Si cet événement ne se
+    /// déclenchait jamais pour une raison quelconque, le bouton resterait grisé indéfiniment sans
+    /// aucun recours pour l'utilisateur — ce timer à usage unique le réactive de force après un
+    /// délai large (bien au-delà d'une session de jeu normale), plutôt que de laisser ce risque
+    /// sans filet.
+    /// </summary>
+    private void StartPlayButtonWatchdog()
+    {
+        _playButtonWatchdog?.Stop();
+        _playButtonWatchdog = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        _playButtonWatchdog.Tick += (_, _) =>
+        {
+            _playButtonWatchdog!.Stop();
+            if (!PlayButton.IsEnabled)
+            {
+                AppendLog("Bouton JOUER réactivé automatiquement (sécurité : aucune détection de fermeture du jeu depuis 6h).");
+                PlayButton.IsEnabled = true;
+            }
+        };
+        _playButtonWatchdog.Start();
+    }
+
+    /// <summary>
+    /// Enveloppe l'exception d'origine d'une étape du pipeline de lancement (Java, Forge, sync
+    /// mods, auth, écriture servers.dat, lancement du jeu) avec le nom de l'étape : sans ça, le
+    /// seul catch générique en bas de PlayButton_Click affichait juste ex.Message, impossible à
+    /// rattacher à une étape précise pour l'utilisateur.
+    /// </summary>
+    private sealed class LauncherStepException(string step, Exception inner)
+        : Exception($"{step} : {inner.Message}", inner)
+    {
     }
 
     private void ViewLogsButton_Click(object sender, RoutedEventArgs e)
@@ -384,8 +530,29 @@ public partial class MainWindow : Window
         uuid => $"https://minotar.net/avatar/{uuid}/40.png",
     };
 
+    private static readonly string AvatarCacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "MinecraftLauncherPerso", "avatar-cache");
+
     private async Task LoadPlayerAvatarAsync(string uuid)
     {
+        var cachePath = Path.Combine(AvatarCacheDirectory, $"{uuid}.png");
+
+        // Affiche immédiatement le dernier avatar connu en cache (évite d'attendre le réseau à
+        // chaque connexion/redémarrage) pendant qu'on tente un rafraîchissement en tâche de fond ;
+        // auparavant l'avatar était retéléchargé à chaque appel, sans aucun cache disque.
+        if (File.Exists(cachePath))
+        {
+            try
+            {
+                ShowAvatarBytes(await File.ReadAllBytesAsync(cachePath));
+            }
+            catch (Exception)
+            {
+                // Cache corrompu/illisible : ignoré, le chemin réseau ci-dessous prend le relais.
+            }
+        }
+
         var errors = new List<string>();
 
         foreach (var buildUrl in AvatarUrlBuilders)
@@ -394,18 +561,19 @@ public partial class MainWindow : Window
             try
             {
                 var bytes = await SkinHttpClient.GetByteArrayAsync(url);
+                ShowAvatarBytes(bytes);
 
-                var image = new BitmapImage();
-                using var stream = new MemoryStream(bytes);
-                image.BeginInit();
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.StreamSource = stream;
-                image.EndInit();
-                image.Freeze();
+                try
+                {
+                    Directory.CreateDirectory(AvatarCacheDirectory);
+                    await File.WriteAllBytesAsync(cachePath, bytes);
+                }
+                catch (Exception)
+                {
+                    // Échec d'écriture du cache (disque plein, permissions...) : sans conséquence,
+                    // l'avatar est déjà affiché depuis les bytes téléchargés ci-dessus.
+                }
 
-                PlayerAvatarImage.Source = image;
-                PlayerAvatarBorder.Visibility = Visibility.Visible;
-                AvatarErrorHint.Visibility = Visibility.Collapsed;
                 return;
             }
             catch (Exception ex)
@@ -414,13 +582,36 @@ public partial class MainWindow : Window
             }
         }
 
-        // Les deux services ont échoué : pas bloquant, on garde le pseudo texte, mais on le
-        // rend visible (au lieu du silence complet d'avant) via un indicateur survolable, en
-        // plus du journal, pour pouvoir diagnostiquer sans avoir à rouvrir le code.
         var combinedError = string.Join(Environment.NewLine, errors);
+        if (File.Exists(cachePath))
+        {
+            // Le réseau a échoué mais la version en cache affichée plus haut reste valable : pas
+            // la peine d'alarmer l'utilisateur pour un simple échec de rafraîchissement.
+            AppendLog($"Rafraîchissement de l'avatar impossible, version en cache conservée :{Environment.NewLine}{combinedError}");
+            return;
+        }
+
+        // Les deux services ont échoué et aucun cache n'existe : pas bloquant, on garde le pseudo
+        // texte, mais on le rend visible (au lieu du silence complet d'avant) via un indicateur
+        // survolable, en plus du journal, pour pouvoir diagnostiquer sans avoir à rouvrir le code.
         AppendLog($"Avatar Minecraft indisponible :{Environment.NewLine}{combinedError}");
         AvatarErrorHint.ToolTip = combinedError;
         AvatarErrorHint.Visibility = Visibility.Visible;
+    }
+
+    private void ShowAvatarBytes(byte[] bytes)
+    {
+        var image = new BitmapImage();
+        using var stream = new MemoryStream(bytes);
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+
+        PlayerAvatarImage.Source = image;
+        PlayerAvatarBorder.Visibility = Visibility.Visible;
+        AvatarErrorHint.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
