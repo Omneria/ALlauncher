@@ -24,7 +24,15 @@ public static class ServerListWriter
         var path = Path.Combine(gameDirectory, "servers.dat");
 
         using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
-        using var writer = new BinaryWriter(stream);
+        WriteSingleServer(stream, serverName, serverAddress);
+    }
+
+    // Surcharge sur Stream (plutôt qu'un chemin de fichier) : uniquement pour que
+    // MinecraftLauncherPerso.Tests puisse vérifier l'encodage NBT produit (tags, entiers en
+    // big-endian, longueurs de chaînes) contre un MemoryStream, sans toucher au disque.
+    internal static void WriteSingleServer(Stream stream, string serverName, string serverAddress)
+    {
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 
         WriteTagHeader(writer, TagCompound, ""); // racine
 

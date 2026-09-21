@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -5,6 +6,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using MinecraftLauncherPerso.Models;
+using MinecraftLauncherPerso.Services.Diagnostics;
 
 namespace MinecraftLauncherPerso.Services.Java;
 
@@ -237,14 +239,28 @@ public sealed class JavaManager : IJavaManager
 
             return ParseVersionOutput(javaPath, output);
         }
-        catch
+        catch (Win32Exception)
         {
-            // Exécutable absent, non exécutable, ou pas un binaire Java valide : traité comme "non trouvé".
+            // Cas normal et fréquent : ce candidat est testé "à l'aveugle" parmi plusieurs chemins
+            // possibles (registre, dossiers courants, PATH), la plupart n'existent simplement pas.
+            // Rien à tracer ici, ce n'est pas une anomalie.
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // Cause plus inhabituelle (accès refusé, antivirus qui bloque le process, binaire
+            // présent mais pas un exécutable Java valide...) : auparavant traitée exactement comme
+            // le cas normal ci-dessus, sans aucune trace nulle part si ça faisait échouer la
+            // détection Java pour de mauvaises raisons.
+            Logger.Warn("JavaManager", $"Échec inattendu en sondant {javaPath} : {ex.GetType().Name} {ex.Message}");
             return null;
         }
     }
 
-    private static JavaVersionInfo? ParseVersionOutput(string javaPath, string output)
+    // internal (au lieu de private) : ParseVersionOutput/ParseMajorVersion testés directement par
+    // MinecraftLauncherPerso.Tests (voir InternalsVisibleTo dans le csproj), sans avoir besoin de
+    // lancer un vrai process java.exe pour valider le parsing de sortie "-version".
+    internal static JavaVersionInfo? ParseVersionOutput(string javaPath, string output)
     {
         var match = VersionRegex.Match(output);
         if (!match.Success)
@@ -256,7 +272,7 @@ public sealed class JavaManager : IJavaManager
         return new JavaVersionInfo(javaPath, versionString, ParseMajorVersion(versionString));
     }
 
-    private static int ParseMajorVersion(string versionString)
+    internal static int ParseMajorVersion(string versionString)
     {
         var parts = versionString.Split('.', '_', '-');
         if (parts.Length == 0)
@@ -284,6 +300,7 @@ public sealed class JavaManager : IJavaManager
         await _adoptiumClient.DownloadAsync(
             downloadInfo.DownloadUrl,
             archivePath,
+            downloadInfo.Sha256Checksum,
             onProgress: fraction => progress?.Report(new JavaSetupProgress(
                 JavaSetupStage.Downloading,
                 fraction * 90,

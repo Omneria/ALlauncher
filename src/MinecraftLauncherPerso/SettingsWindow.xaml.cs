@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using MinecraftLauncherPerso.Models;
+using MinecraftLauncherPerso.Services.Hardware;
 
 namespace MinecraftLauncherPerso;
 
@@ -18,11 +19,54 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _settings = settings;
 
-        MinRamTextBox.Text = _settings.MinRamMb.ToString();
-        MaxRamTextBox.Text = _settings.MaxRamMb.ToString();
+        // Borne haute des sliders RAM = RAM physique réelle de la machine (au lieu d'un plafond
+        // arbitraire) : impossible de configurer plus que ce que la machine peut physiquement
+        // fournir. Repli sur 16384 Mo si indétectable (même valeur de repli que
+        // LauncherSettings.RecommendMaxRamMb).
+        var totalRamMb = SystemInfo.GetTotalPhysicalMemoryMb() ?? 16384;
+        MinRamSlider.Maximum = totalRamMb;
+        MaxRamSlider.Maximum = totalRamMb;
+
+        // Clamp au cas où settings.json contiendrait une valeur au-delà de cette RAM détectée
+        // (ex. settings copiés depuis une autre machine plus puissante).
+        MinRamSlider.Value = Math.Clamp(_settings.MinRamMb, MinRamSlider.Minimum, totalRamMb);
+        MaxRamSlider.Value = Math.Clamp(_settings.MaxRamMb, MaxRamSlider.Minimum, totalRamMb);
+
         ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
         ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
         GameDirectoryTextBox.Text = _settings.GameDirectory;
+    }
+
+    // Empêche par construction RAM min > RAM max (au lieu de valider seulement à l'enregistrement) :
+    // pousse l'autre slider plutôt que de laisser l'utilisateur configurer une plage invalide.
+    private void MinRamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MaxRamSlider is null) // se déclenche aussi pendant InitializeComponent, avant que MaxRamSlider existe
+        {
+            return;
+        }
+
+        if (MinRamSlider.Value > MaxRamSlider.Value)
+        {
+            MaxRamSlider.Value = MinRamSlider.Value;
+        }
+
+        MinRamValueText.Text = $"{(int)MinRamSlider.Value} Mo";
+    }
+
+    private void MaxRamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MinRamSlider is null)
+        {
+            return;
+        }
+
+        if (MaxRamSlider.Value < MinRamSlider.Value)
+        {
+            MinRamSlider.Value = MaxRamSlider.Value;
+        }
+
+        MaxRamValueText.Text = $"{(int)MaxRamSlider.Value} Mo";
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -48,29 +92,11 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
+        // RAM min/max n'a plus besoin d'être validée ici : les sliders l'empêchent déjà par
+        // construction (MinRamSlider_ValueChanged/MaxRamSlider_ValueChanged ci-dessus), contrairement
+        // aux champs texte libres restants ci-dessous.
         ValidationErrorText.Visibility = Visibility.Collapsed;
         var errors = new List<string>();
-
-        var minRamValid = int.TryParse(MinRamTextBox.Text, out var minRam) && minRam > 0;
-        SetFieldValid(MinRamTextBox, minRamValid);
-        if (!minRamValid)
-        {
-            errors.Add("RAM minimum : entier positif attendu.");
-        }
-
-        var maxRamValid = int.TryParse(MaxRamTextBox.Text, out var maxRam) && maxRam > 0;
-        SetFieldValid(MaxRamTextBox, maxRamValid);
-        if (!maxRamValid)
-        {
-            errors.Add("RAM maximum : entier positif attendu.");
-        }
-
-        if (minRamValid && maxRamValid && minRam > maxRam)
-        {
-            SetFieldValid(MinRamTextBox, false);
-            SetFieldValid(MaxRamTextBox, false);
-            errors.Add("La RAM minimum ne peut pas dépasser la RAM maximum.");
-        }
 
         var widthValid = int.TryParse(ScreenWidthTextBox.Text, out var width) && width >= 0;
         SetFieldValid(ScreenWidthTextBox, widthValid);
@@ -93,8 +119,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _settings.MinRamMb = minRam;
-        _settings.MaxRamMb = maxRam;
+        _settings.MinRamMb = (int)MinRamSlider.Value;
+        _settings.MaxRamMb = (int)MaxRamSlider.Value;
         _settings.ScreenWidth = width;
         _settings.ScreenHeight = height;
 

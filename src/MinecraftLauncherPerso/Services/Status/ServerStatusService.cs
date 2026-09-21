@@ -107,7 +107,11 @@ public sealed class ServerStatusService : IServerStatusService
         return new ServerStatus(true, online, max);
     }
 
-    private static void WriteVarInt(Stream stream, int value)
+    // internal (au lieu de private) + accepte Stream plutôt que NetworkStream : uniquement pour
+    // que MinecraftLauncherPerso.Tests puisse vérifier l'encodage/décodage VarInt (voir
+    // InternalsVisibleTo dans le csproj) contre un MemoryStream, sans avoir besoin d'une vraie
+    // connexion TCP. Comportement de production inchangé (NetworkStream est un Stream).
+    internal static void WriteVarInt(Stream stream, int value)
     {
         var unsigned = (uint)value;
         do
@@ -136,7 +140,7 @@ public sealed class ServerStatusService : IServerStatusService
         stream.WriteByte((byte)value);
     }
 
-    private static async Task<int> ReadVarIntAsync(NetworkStream stream, CancellationToken cancellationToken)
+    internal static async Task<int> ReadVarIntAsync(Stream stream, CancellationToken cancellationToken)
     {
         var result = 0;
         var shift = 0;

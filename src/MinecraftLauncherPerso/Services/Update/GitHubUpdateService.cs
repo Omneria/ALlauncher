@@ -3,7 +3,9 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
+using MinecraftLauncherPerso.Services.Diagnostics;
 
 namespace MinecraftLauncherPerso.Services.Update;
 
@@ -51,8 +53,9 @@ public sealed class GitHubUpdateService : IUpdateService
                 return null;
             }
 
-            var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
-                .FirstOrDefault(a => (a.GetProperty("name").GetString() ?? "").EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            var assets = doc.RootElement.GetProperty("assets").EnumerateArray().ToList();
+            var asset = assets.FirstOrDefault(
+                a => (a.GetProperty("name").GetString() ?? "").EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
 
             if (asset.ValueKind != JsonValueKind.Object)
             {
@@ -60,11 +63,32 @@ public sealed class GitHubUpdateService : IUpdateService
             }
 
             var downloadUrl = asset.GetProperty("browser_download_url").GetString();
-            return string.IsNullOrEmpty(downloadUrl) ? null : new UpdateInfo(remoteVersion, downloadUrl);
+            if (string.IsNullOrEmpty(downloadUrl))
+            {
+                return null;
+            }
+
+            // Empreinte SHA-256 de l'exe, publiée par le workflow de release comme un fichier
+            // séparé "<nom de l'exe>.sha256" à côté de l'exe lui-même. Absente sur d'anciennes
+            // releases publiées avant l'ajout de cette vérification : ChecksumUrl reste alors null,
+            // et ApplyUpdateAndRestartAsync applique la mise à jour sans contrôle plutôt que de
+            // casser l'auto-update pour tout le monde rétroactivement.
+            var exeAssetName = asset.GetProperty("name").GetString() ?? "";
+            var checksumAsset = assets.FirstOrDefault(
+                a => (a.GetProperty("name").GetString() ?? "") == $"{exeAssetName}.sha256");
+            var checksumUrl = checksumAsset.ValueKind == JsonValueKind.Object
+                ? checksumAsset.GetProperty("browser_download_url").GetString()
+                : null;
+
+            return new UpdateInfo(remoteVersion, downloadUrl, checksumUrl);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Vérification best-effort : ne doit jamais empêcher de lancer le jeu.
+            // Vérification best-effort : ne doit jamais empêcher de lancer le jeu. Reste tracée
+            // dans le journal (auparavant invisible) pour distinguer "pas de mise à jour" d'un
+            // échec répété (ex. rate-limit GitHub non authentifié) qui masquerait une vraie mise à
+            // jour disponible sans que personne ne le sache.
+            Logger.Warn("GitHubUpdateService", $"Vérification de mise à jour échouée : {ex.Message}");
             return null;
         }
     }
@@ -81,6 +105,29 @@ public sealed class GitHubUpdateService : IUpdateService
         await using (var file = new FileStream(newExePath, FileMode.Create, FileAccess.Write))
         {
             await stream.CopyToAsync(file, cancellationToken);
+        }
+
+        // Vérifie l'empreinte SHA-256 avant de remplacer/exécuter quoi que ce soit : sans ça, un
+        // contenu altéré en transit (MITM, CDN GitHub compromis) aurait été exécuté avec les mêmes
+        // droits que le launcher, sans aucun contrôle d'intégrité.
+        if (!string.IsNullOrEmpty(update.ChecksumUrl))
+        {
+            progress?.Report("Vérification de l'intégrité...");
+            var expectedSha256 = (await _httpClient.GetStringAsync(update.ChecksumUrl, cancellationToken)).Trim();
+
+            string actualSha256;
+            await using (var verifyStream = File.OpenRead(newExePath))
+            {
+                actualSha256 = Convert.ToHexString(await SHA256.HashDataAsync(verifyStream, cancellationToken)).ToLowerInvariant();
+            }
+
+            if (!string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(newExePath);
+                throw new InvalidOperationException(
+                    $"Empreinte SHA-256 invalide pour la mise à jour téléchargée : attendu {expectedSha256}, obtenu {actualSha256}. " +
+                    "Fichier supprimé, le téléchargement a peut-être été altéré en transit.");
+            }
         }
 
         // Le process courant verrouille son propre .exe (Windows) : impossible de l'écraser tant
@@ -115,7 +162,10 @@ public sealed class GitHubUpdateService : IUpdateService
     private static Version GetCurrentVersion() =>
         Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
 
-    private static bool TryParseVersion(string tagName, out Version version)
+    // internal (au lieu de private) : testé directement par MinecraftLauncherPerso.Tests (voir
+    // InternalsVisibleTo dans le csproj) sans avoir besoin de passer par toute la vérification
+    // réseau pour valider le parsing des différents formats de tag.
+    internal static bool TryParseVersion(string tagName, out Version version)
     {
         var trimmed = tagName.TrimStart('v', 'V');
         if (Version.TryParse(trimmed, out var parsed))
