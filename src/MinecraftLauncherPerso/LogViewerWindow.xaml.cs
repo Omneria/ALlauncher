@@ -7,7 +7,7 @@ using MinecraftLauncherPerso.Services.Diagnostics;
 namespace MinecraftLauncherPerso;
 
 /// <summary>
-/// Visualiseur de logs intégré (v1.9.0, onglet Paramètres) : jusqu'ici il fallait aller fouiller
+/// Visualiseur de logs intégré (v1.8.0, onglet Paramètres) : jusqu'ici il fallait aller fouiller
 /// %AppData%/MinecraftLauncherPerso à la main (launcher.log) ou le dossier logs/ du jeu pour aider
 /// à diagnostiquer un problème. Affiche les deux au même endroit, avec une recherche texte simple
 /// (filtre par ligne) et un bouton "copier" pour préparer un extrait à coller sur Discord quand un

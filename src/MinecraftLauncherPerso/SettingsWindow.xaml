@@ -93,7 +93,7 @@
             <CheckBox x:Name="DesktopNotificationsCheckBox" Content="NOTIFICATIONS DESKTOP (SERVEUR EN LIGNE)"
                       Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,16" />
 
-            <!-- Maintenance (v1.9.0) : réparation du modpack et visualiseur de logs, jusqu'ici
+            <!-- Maintenance (v1.8.0) : réparation du modpack et visualiseur de logs, jusqu'ici
                  accessibles uniquement en cas de plantage (ViewLogsButton) ou pas du tout
                  (aucun moyen manuel de forcer une resynchro sans supprimer le dossier de jeu à la main). -->
             <TextBlock Text="MAINTENANCE" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,4" />
