@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Extensions.Msal;
+using MinecraftLauncherPerso.Services.Diagnostics;
 
 namespace MinecraftLauncherPerso.Services.Auth;
 
@@ -99,11 +100,14 @@ public sealed class MicrosoftAuthService : IAuthService
         {
             return await CompleteMinecraftLoginAsync(microsoftAccessToken, progress: null, cancellationToken);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Best-effort : un profil Minecraft/Xbox Live indisponible ponctuellement (réseau,
             // service en maintenance) ne doit pas empêcher le launcher de démarrer normalement,
-            // l'utilisateur pourra toujours se reconnecter via le bouton SE CONNECTER.
+            // l'utilisateur pourra toujours se reconnecter via le bouton SE CONNECTER. L'échec
+            // reste tracé dans le journal (auparavant totalement invisible) pour diagnostiquer un
+            // échec qui se répéterait anormalement à chaque démarrage.
+            Logger.Warn("MicrosoftAuthService", $"Reconnexion silencieuse échouée : {ex.Message}");
             return null;
         }
     }

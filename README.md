@@ -86,8 +86,12 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── NewsService.cs
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
-│           └── Configuration/
-│               └── SettingsManager.cs      # charge/sauvegarde settings.json
+│           ├── Configuration/
+│           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
+│           └── Diagnostics/
+│               └── Logger.cs               # journal fichier (launcher.log) pour les échecs "avalés"
+├── tests/
+│   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager
 ├── README.md
 └── .gitignore
 ```
@@ -339,16 +343,66 @@ tableau (ex. « → prochain tag : `v1.2.7` ») — que le tag soit posé tout d
 releases réellement publiées, sans que personne ne s'en aperçoive avant que l'auto-update cesse de
 fonctionner).
 
+## Fiabilité, sécurité & tests
+
+Fichiers : `Services/Configuration/SettingsManager.cs`, `Services/Diagnostics/Logger.cs`,
+`Services/Java/AdoptiumApiClient.cs`, `Services/Update/GitHubUpdateService.cs`,
+`.github/workflows/build-windows.yml`, `tests/MinecraftLauncherPerso.Tests/`
+
+**settings.json robuste face aux coupures/corruptions :** `SettingsManager.Save` écrit sur un
+fichier temporaire puis le remplace de façon atomique (`File.Move(..., overwrite: true)`) plutôt
+que d'écraser directement le fichier final — une coupure en pleine écriture ne peut plus laisser un
+`settings.json` tronqué. Si un `settings.json` corrompu existe déjà (ancienne version du launcher,
+crash antérieur à ce correctif...), `Load()` ne plante plus : il repart des valeurs par défaut et
+renomme le fichier fautif à côté (`settings.json.corrupt-<horodatage>`) plutôt que de l'écraser en
+silence. `Load()` valide aussi les champs numériques (RAM min/max positives et dans le bon ordre,
+port serveur dans `[1, 65535]`) et corrige toute valeur absurde — utile si `settings.json` est édité
+à la main, en plus de la validation déjà faite dans `SettingsWindow`.
+
+**Vérification d'intégrité des téléchargements :** le JRE Temurin (API Adoptium, qui fournit une
+empreinte SHA-256 par build) et l'exe de mise à jour du launcher (empreinte publiée par le workflow
+CI en pièce jointe séparée `<exe>.sha256` à côté de l'exe sur chaque release) sont tous les deux
+vérifiés après téléchargement, avant extraction/exécution — un contenu altéré en transit est rejeté
+plutôt qu'exécuté avec les mêmes droits que le launcher. Une release publiée avant l'ajout de ce
+mécanisme (sans fichier `.sha256` joint) applique la mise à jour sans ce contrôle plutôt que de
+casser l'auto-update rétroactivement.
+
+**Cohérence `<Version>` / tag vérifiée en CI :** un job échoue désormais le build si le tag `v*`
+poussé ne correspond pas à `<Version>` dans le `.csproj`, pour empêcher à la racine l'incident
+documenté plus haut (`v1.2.5`, auto-update cassé en silence par une dérive entre les deux).
+
+**Journal fichier (`launcher.log`) :** plusieurs échecs volontairement "avalés" pour ne jamais
+bloquer l'utilisateur (reconnexion Microsoft silencieuse en cache, vérification de mise à jour,
+sondage d'un exécutable `java` candidat) étaient jusqu'ici totalement invisibles. Ils sont
+maintenant tracés dans `%AppData%/MinecraftLauncherPerso/launcher.log` (rotation simple au-delà de
+5 Mo) via `Services/Diagnostics/Logger.cs` — best-effort : une erreur d'écriture du journal
+lui-même est ignorée, pour ne jamais devenir une nouvelle source de plantage.
+
+**Tests unitaires :** `tests/MinecraftLauncherPerso.Tests` (xUnit) couvre la logique la plus
+risquée à la main : encodage/décodage VarInt du ping serveur, écriture NBT de `servers.dat`,
+parsing des tags `vX.Y.Z` et de la sortie `java -version`, et la récupération de
+`SettingsManager` face à un fichier corrompu ou des valeurs invalides. Quelques membres
+normalement `private` sont exposés en `internal` (voir `[InternalsVisibleTo]` dans
+`AssemblyInfo.cs`) uniquement pour rester testables sans passer par le réseau ou le disque. Lancé
+en CI (`dotnet test`) avant la publication des artefacts.
+
 ## Paramètres
 
 Fichiers : `SettingsWindow.xaml(.cs)`
 
-Fenêtre ouverte via l'icône ⚙ de la barre de titre (à côté de réduire/fermer) : RAM minimum/maximum,
+Fenêtre ouverte via l'item "PARAMÈTRES" de la barre latérale : RAM minimum/maximum,
 résolution de la fenêtre du jeu (`ScreenWidth`/`ScreenHeight` sur `MLaunchOption` — `0` laisse
 Minecraft décider, pas d'argument `--width`/`--height` passé), dossier de jeu (`GameDirectory`,
 sélection via `Microsoft.Win32.OpenFolderDialog`, natif WPF depuis .NET 8, pas de dépendance
 WinForms). "Enregistrer" persiste dans `settings.json` et ferme la fenêtre ; fermer sans enregistrer
 (✕) n'écrit rien.
+
+**RAM en sliders, pas en champs texte :** `MinRamSlider`/`MaxRamSlider` (style `AppSliderStyle`,
+`AppTheme.xaml`) remplacent les anciens `TextBox` — bornés à `[512, RAM physique totale de la
+machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`), calés sur des paliers de 256 Mo
+(`IsSnapToTickEnabled`). RAM min > RAM max est rendu impossible par construction (chaque
+`ValueChanged` pousse l'autre slider plutôt que de valider après coup), au lieu de devoir
+détecter/rejeter la valeur invalide comme avec des champs texte libres.
 
 **RAM par défaut adaptée à la machine :** `LauncherSettings.MaxRamMb` n'est plus une valeur fixe
 identique pour tout le monde — `Services/Hardware/SystemInfo.cs` interroge la RAM physique totale

@@ -1,6 +1,6 @@
 namespace MinecraftLauncherPerso.Services.Update;
 
-public sealed record UpdateInfo(Version Version, string DownloadUrl);
+public sealed record UpdateInfo(Version Version, string DownloadUrl, string? ChecksumUrl);
 
 public interface IUpdateService
 {

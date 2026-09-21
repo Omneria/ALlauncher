@@ -18,6 +18,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Incident passé (v1.2.5) : <Version> dans le csproj avait dérivé en avance sur les tags
+      # réellement publiés, cassant silencieusement l'auto-update pendant un moment (voir README).
+      # Ce check échoue le build plutôt que de laisser ça se reproduire sans que personne ne le
+      # remarque avant qu'un joueur ne signale que l'auto-update ne détecte rien.
+      - name: Vérifie que <Version> correspond au tag poussé
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          $csprojContent = Get-Content 'src/MinecraftLauncherPerso/MinecraftLauncherPerso.csproj' -Raw
+          $match = [regex]::Match($csprojContent, '<Version>(.*?)</Version>')
+          if (-not $match.Success) {
+            Write-Error "Impossible de trouver <Version> dans MinecraftLauncherPerso.csproj."
+            exit 1
+          }
+          $csprojVersion = $match.Groups[1].Value
+          if ($tagVersion -ne $csprojVersion) {
+            Write-Error "Le tag '${{ github.ref_name }}' ne correspond pas à <Version>$csprojVersion</Version> dans le csproj. Corrige l'un des deux avant de retagger (voir README, section versionnage)."
+            exit 1
+          }
+          Write-Host "OK : tag ${{ github.ref_name }} == <Version>$csprojVersion</Version>"
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -27,6 +49,12 @@ jobs:
 
       - name: Build (Release)
         run: dotnet build -c Release --no-restore
+
+      # Projet de tests séparé (tests/MinecraftLauncherPerso.Tests), pas référencé dans le .sln
+      # principal : dotnet restore/build ci-dessus ne le couvrent pas, d'où un appel dédié.
+      # "dotnet test" fait son propre restore, donc pas besoin d'un --no-restore ici.
+      - name: Test
+        run: dotnet test tests/MinecraftLauncherPerso.Tests/MinecraftLauncherPerso.Tests.csproj -c Release
 
       - name: Publish (self-contained win-x64, exe unique, ~65 Mo)
         run: >
@@ -89,9 +117,17 @@ jobs:
           $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
           $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
+
+          # Empreinte SHA-256 publiée en pièce jointe séparée à côté de l'exe : vérifiée par
+          # GitHubUpdateService (Services/Update/) avant d'exécuter une mise à jour téléchargée,
+          # pour détecter un contenu altéré en transit plutôt que de l'exécuter aveuglément.
+          $hash = (Get-FileHash -Path $exe -Algorithm SHA256).Hash.ToLower()
+          $hashFile = "$exe.sha256"
+          Set-Content -Path $hashFile -Value $hash -NoNewline
+
           gh release view $tag --repo $repo 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $exe --repo $repo --clobber
+            gh release upload $tag $exe $hashFile --repo $repo --clobber
           } else {
-            gh release create $tag $exe --repo $repo --title $tag --generate-notes
+            gh release create $tag $exe $hashFile --repo $repo --title $tag --generate-notes
           }

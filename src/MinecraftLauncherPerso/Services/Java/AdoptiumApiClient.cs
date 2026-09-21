@@ -1,13 +1,15 @@
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MinecraftLauncherPerso.Services.Java;
 
-/// <summary>Résultat de résolution : URL de téléchargement + nom de fichier de l'archive Temurin.</summary>
-public sealed record JavaDownloadInfo(string DownloadUrl, string FileName);
+/// <summary>Résultat de résolution : URL de téléchargement + nom de fichier + empreinte SHA-256
+/// (fournie par l'API Adoptium elle-même) de l'archive Temurin.</summary>
+public sealed record JavaDownloadInfo(string DownloadUrl, string FileName, string? Sha256Checksum);
 
 /// <summary>Client minimal pour l'API Adoptium (https://api.adoptium.net), utilisé pour récupérer
 /// la dernière build Temurin 8 (JRE) correspondant à l'OS/architecture de la machine.</summary>
@@ -37,12 +39,19 @@ public sealed class AdoptiumApiClient
             ?? throw new InvalidOperationException(
                 $"Aucune build Temurin 8 disponible pour os={os} architecture={architecture}.");
 
-        return new JavaDownloadInfo(asset.Binary.Package.Link, asset.Binary.Package.Name);
+        return new JavaDownloadInfo(asset.Binary.Package.Link, asset.Binary.Package.Name, asset.Binary.Package.Checksum);
     }
 
+    /// <summary>
+    /// Télécharge l'archive puis vérifie son empreinte SHA-256 contre <paramref name="expectedSha256"/>
+    /// (fournie par GetLatestJre8Async, elle-même issue de l'API Adoptium) avant de rendre la main :
+    /// sans ce contrôle, un contenu altéré en transit (MITM, miroir CDN corrompu) aurait été extrait
+    /// et exécuté sans qu'aucun signal ne le distingue d'un téléchargement normal.
+    /// </summary>
     public async Task DownloadAsync(
         string url,
         string destinationPath,
+        string? expectedSha256,
         Action<double>? onProgress,
         CancellationToken cancellationToken = default)
     {
@@ -51,21 +60,43 @@ public sealed class AdoptiumApiClient
 
         var totalBytes = response.Content.Headers.ContentLength ?? -1L;
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
-        var buffer = new byte[81920];
-        long totalRead = 0;
-        int bytesRead;
-
-        while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
+        using var sha256 = SHA256.Create();
+        await using (var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-            totalRead += bytesRead;
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int bytesRead;
 
-            if (totalBytes > 0)
+            while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                onProgress?.Invoke((double)totalRead / totalBytes);
+                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
+                totalRead += bytesRead;
+
+                if (totalBytes > 0)
+                {
+                    onProgress?.Invoke((double)totalRead / totalBytes);
+                }
             }
+
+            sha256.TransformFinalBlock([], 0, 0);
+        }
+
+        if (string.IsNullOrWhiteSpace(expectedSha256))
+        {
+            // L'API n'a exceptionnellement pas fourni d'empreinte pour cette build : pas de quoi
+            // bloquer l'installation de Java, mais rien à vérifier non plus.
+            return;
+        }
+
+        var actualSha256 = Convert.ToHexString(sha256.Hash!).ToLowerInvariant();
+        if (!string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete(destinationPath);
+            throw new InvalidOperationException(
+                $"Empreinte SHA-256 invalide pour {Path.GetFileName(destinationPath)} : attendu {expectedSha256}, obtenu {actualSha256}. " +
+                "Fichier supprimé, le téléchargement a peut-être été altéré en transit.");
         }
     }
 
@@ -109,5 +140,8 @@ public sealed class AdoptiumApiClient
 
         [JsonPropertyName("name")]
         public string Name { get; set; } = "";
+
+        [JsonPropertyName("checksum")]
+        public string? Checksum { get; set; }
     }
 }
