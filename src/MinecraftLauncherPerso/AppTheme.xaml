@@ -152,45 +152,29 @@
         <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
     </Style>
 
-    <!-- Slider RAM (Paramètres) : piste fine cyan/atténuée + poignée circulaire, à la place du
-         chrome Windows par défaut qui jurerait avec le reste de la charte. -->
-    <Style x:Key="AppSliderStyle" TargetType="Slider">
-        <Setter Property="Height" Value="20" />
+    <!-- Case à cocher (Paramètres) : carré filaire + coche cyan, à la place du chrome Windows par
+         défaut qui jurerait avec le reste de la charte (même logique que AppTextBoxStyle/PrimaryButtonStyle). -->
+    <Style x:Key="AppCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="Slider">
-                    <Grid VerticalAlignment="Center">
-                        <Border Height="4" Background="{StaticResource Surface2Brush}" />
-                        <Track x:Name="PART_Track">
-                            <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="Slider.DecreaseLarge">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Height="4" Background="{StaticResource CyanBrush}" />
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.DecreaseRepeatButton>
-                            <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="Slider.IncreaseLarge">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent" />
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.IncreaseRepeatButton>
-                            <Track.Thumb>
-                                <Thumb Width="14" Height="14" Cursor="Hand">
-                                    <Thumb.Template>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <Ellipse Fill="{StaticResource CyanBrush}" />
-                                        </ControlTemplate>
-                                    </Thumb.Template>
-                                </Thumb>
-                            </Track.Thumb>
-                        </Track>
-                    </Grid>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="16" Height="16" BorderThickness="1" BorderBrush="{StaticResource LineBrush}"
+                                Background="{StaticResource InputBrush}" VerticalAlignment="Center">
+                            <Path x:Name="CheckMark" Data="M2,7 L6,11 L14,2" Stroke="{StaticResource CyanBrush}"
+                                  StrokeThickness="2" Margin="1" Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

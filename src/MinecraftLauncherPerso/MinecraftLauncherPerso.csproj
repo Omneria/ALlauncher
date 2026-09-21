@@ -14,7 +14,7 @@
            - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
-    <Version>1.7.0</Version>
+    <Version>1.8.0</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
@@ -23,6 +23,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Référence directe à l'assembly WinForms (plutôt que <UseWindowsForms>true</UseWindowsForms>)
+         pour System.Windows.Forms.NotifyIcon (notifications desktop, DesktopNotificationService.cs) :
+         UseWindowsForms ajoute en plus des "implicit usings" globaux pour System.Windows.Forms, qui
+         entrent en collision avec System.Windows (WPF) sur des noms comme Application/TextBox/
+         KeyEventArgs utilisés sans préfixe partout ailleurs dans le projet (CS0104, référence
+         ambiguë). Cette référence seule donne accès au type sans ce comportement global. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <!-- Gère la version vanilla, le classpath et le lancement du jeu (arguments JVM/jeu). -->
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->

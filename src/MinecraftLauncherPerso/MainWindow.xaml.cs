@@ -16,10 +16,12 @@ using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
 using MinecraftLauncherPerso.Services.Configuration;
 using MinecraftLauncherPerso.Services.Forge;
+using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.ModSync;
 using MinecraftLauncherPerso.Services.News;
+using MinecraftLauncherPerso.Services.Notifications;
 using MinecraftLauncherPerso.Services.Status;
 using MinecraftLauncherPerso.Services.Update;
 
@@ -51,6 +53,7 @@ public partial class MainWindow : Window
     private readonly IServerStatusService _serverStatusService;
     private readonly IUpdateService _updateService;
     private readonly INewsService _newsService;
+    private readonly NewsHistoryStore _newsHistoryStore;
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
     private readonly DispatcherTimer _updateCheckTimer;
@@ -59,6 +62,11 @@ public partial class MainWindow : Window
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
     private DispatcherTimer? _playButtonWatchdog;
+    private List<NewsHistoryEntry> _newsHistory = [];
+    private bool _isCompactMode;
+    private double _normalWidth = 1240;
+    private string? _connectedUuid;
+    private readonly DispatcherTimer _avatarRefreshTimer;
 
     // Référence gardée en vie pour toute la durée de la partie : sans elle, le process/wrapper
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
@@ -71,15 +79,30 @@ public partial class MainWindow : Window
         _settingsManager = new SettingsManager();
         _settings = _settingsManager.Load();
 
-        _javaManager = new JavaManager();
+        // Taille de fenêtre et mode compact mémorisés d'un lancement à l'autre (v1.8.0) : sans ça,
+        // la fenêtre (redimensionnable depuis ce même changement) revenait systématiquement à sa
+        // taille par défaut au redémarrage malgré un redimensionnement manuel.
+        _normalWidth = _settings.LauncherWindowWidth;
+        Width = _settings.LauncherWindowWidth;
+        Height = _settings.LauncherWindowHeight;
+        if (_settings.IsCompactMode)
+        {
+            ApplyCompactMode(compact: true);
+        }
+
+        // HttpClient partagé plutôt qu'un new HttpClient() par service (voir SharedHttpClient) :
+        // tous des singletons créés une seule fois ici, au démarrage.
+        _javaManager = new JavaManager(httpClient: SharedHttpClient.Instance);
         _forgeManager = new ForgeManager();
-        _modSyncService = new ModSyncService();
-        _authService = new MicrosoftAuthService(_settings.MicrosoftClientId);
+        _modSyncService = new ModSyncService(SharedHttpClient.Instance);
+        _authService = new MicrosoftAuthService(_settings.MicrosoftClientId, httpClient: SharedHttpClient.Instance);
         _gameLauncher = new GameLauncher();
         _gameLauncher.GameExited += GameLauncher_GameExited;
         _serverStatusService = new ServerStatusService();
-        _updateService = new GitHubUpdateService();
-        _newsService = new NewsService();
+        _updateService = new GitHubUpdateService(SharedHttpClient.Instance);
+        _newsService = new NewsService(SharedHttpClient.Instance);
+        _newsHistoryStore = new NewsHistoryStore();
+        _newsHistory = _newsHistoryStore.Load();
 
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
@@ -98,14 +121,47 @@ public partial class MainWindow : Window
         _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
 
+        // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
+        // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
+        // si le joueur change de skin sur minecraft.net pendant une session déjà longue du
+        // launcher, rien ne le détecte avant le prochain redémarrage. Re-vérifie périodiquement
+        // tant qu'un profil est affiché.
+        _avatarRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+        _avatarRefreshTimer.Tick += async (_, _) =>
+        {
+            if (_connectedUuid is not null)
+            {
+                await LoadPlayerAvatarAsync(_connectedUuid);
+            }
+        };
+        _avatarRefreshTimer.Start();
+
         Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
+    }
+
+    /// <summary>Mémorise la taille de fenêtre et le mode compact courants pour le prochain lancement.</summary>
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // WindowState.Normal uniquement : si la fenêtre est minimisée/maximisée à la fermeture,
+        // Width/Height ne reflètent pas sa taille "normale" réelle, ça écraserait la valeur utile
+        // avec la taille minimisée/maximisée au prochain démarrage.
+        if (WindowState == WindowState.Normal)
+        {
+            _settings.LauncherWindowWidth = _isCompactMode ? _normalWidth : Width;
+            _settings.LauncherWindowHeight = Height;
+        }
+
+        _settings.IsCompactMode = _isCompactMode;
+        _settingsManager.Save(_settings);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        ServerEyebrowText.Text = _settings.ServerName.ToUpperInvariant();
+        ServerNameText.Text = _settings.ServerName.ToUpperInvariant();
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
+        RefreshLastSyncText();
 
         await ShowNewsAsync();
         _serverStatusTimer.Start();
@@ -129,16 +185,23 @@ public partial class MainWindow : Window
     private async Task ShowNewsAsync()
     {
         // La carte actus reste toujours visible (mise en page deux colonnes de la barre
-        // latérale) ; seul son contenu change — le texte par défaut ("Aucune actualité pour le
-        // moment.") posé dans le XAML reste affiché tant qu'aucun news.txt n'est disponible.
+        // latérale) ; seul son contenu change. Historique (pas juste la dernière actu) : chaque
+        // contenu distinct observé est horodaté et conservé localement (NewsHistoryStore), puisque
+        // news.txt côté VPS ne garde lui-même aucun historique.
         var news = await _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
-        if (news is null)
+        if (news is not null)
         {
-            return;
+            _newsHistory = _newsHistoryStore.RecordIfNew(_newsHistory, news);
         }
 
-        NewsText.Text = news;
+        NewsEmptyText.Visibility = _newsHistory.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NewsHistoryList.ItemsSource = _newsHistory
+            .Select(entry => new NewsHistoryItem(entry.FetchedAt.ToLocalTime().ToString("dd/MM HH:mm"), entry.Content))
+            .ToList();
     }
+
+    /// <summary>Vue d'affichage d'une NewsHistoryEntry, avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
+    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
 
     // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
     // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
@@ -232,19 +295,21 @@ public partial class MainWindow : Window
             }
             AppendLog($"Java 8 prêt : {javaPath}");
 
-            // Les étapes suivantes ne rapportent que du texte (pas de fraction) : barre indéterminée.
-            ProgressBar.IsIndeterminate = true;
-
             var minecraftPath = new MinecraftPath(_settings.GameDirectory);
             var launcher = new MinecraftLauncher(minecraftPath);
 
-            // 2. Forge
+            // 2. Forge : CmlLib expose déjà une progression en octets (ByteProgress), jusqu'ici
+            // seulement transformée en texte — une vraie barre par téléchargement plutôt qu'un
+            // indicateur indéterminé pendant toute l'étape.
+            ProgressBar.IsIndeterminate = false;
+            ProgressBar.Value = 0;
             var forgeProgress = new Progress<string>(AppendLog);
+            var forgeDownloadProgress = new Progress<double>(fraction => ProgressBar.Value = fraction * 100);
             string versionId;
             try
             {
                 versionId = await _forgeManager.EnsureForgeInstalledAsync(
-                    launcher, _settings.MinecraftVersion, _settings.ForgeVersion, forgeProgress);
+                    launcher, _settings.MinecraftVersion, _settings.ForgeVersion, forgeProgress, forgeDownloadProgress);
             }
             catch (Exception ex)
             {
@@ -252,16 +317,25 @@ public partial class MainWindow : Window
             }
             AppendLog($"Forge prêt : {versionId}");
 
-            // 3. Synchronisation mods/config depuis le VPS
+            // 3. Synchronisation mods/config depuis le VPS : même principe, vraie barre plutôt
+            // qu'indéterminée (ne progresse que pendant un téléchargement effectif ; reste à 0 si
+            // le modpack est déjà à jour, ce qui ne dure qu'un instant de toute façon).
+            ProgressBar.IsIndeterminate = false;
+            ProgressBar.Value = 0;
             var syncProgress = new Progress<string>(AppendLog);
+            var syncDownloadProgress = new Progress<double>(fraction => ProgressBar.Value = fraction * 100);
             try
             {
-                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.GameDirectory, syncProgress);
+                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.GameDirectory, syncProgress, syncDownloadProgress);
             }
             catch (Exception ex)
             {
                 throw new LauncherStepException("Synchronisation des mods", ex);
             }
+            RefreshLastSyncText();
+
+            // Étapes suivantes (auth, lancement) : pas de progression chiffrée, barre indéterminée.
+            ProgressBar.IsIndeterminate = true;
 
             // 4. Authentification Microsoft directe (Xbox Live -> XSTS -> Minecraft)
             var authProgress = new Progress<string>(AppendLog);
@@ -410,8 +484,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        var wasOffline = _lastServerStatus is { IsOnline: false };
+
         var status = await _serverStatusService.PingAsync(_settings.ServerHost, _settings.ServerPort);
         _lastServerStatus = status;
+
+        // Seulement sur une vraie transition hors ligne -> en ligne (pas au tout premier check,
+        // où _lastServerStatus est encore null = "inconnu", pas "hors ligne") : sans ça, la toute
+        // première détection "en ligne" au démarrage déclencherait une notif à chaque lancement.
+        if (wasOffline && status.IsOnline && _settings.DesktopNotificationsEnabled)
+        {
+            DesktopNotificationService.Show(_settings.ServerName, "Le serveur est de nouveau en ligne.");
+        }
 
         ServerStatusText.Text = status.IsOnline ? "EN LIGNE" : "HORS LIGNE";
         // Sur toute la ligne (pastille + texte), pas juste le texte : cible de survol trop étroite
@@ -516,6 +600,7 @@ public partial class MainWindow : Window
         LoginButton.Visibility = Visibility.Collapsed;
         SidebarAccountPanel.Visibility = Visibility.Visible;
         PlayerNameText.Text = session.Username;
+        _connectedUuid = session.Uuid;
         _ = LoadPlayerAvatarAsync(session.Uuid);
     }
 
@@ -663,6 +748,27 @@ public partial class MainWindow : Window
         WindowState = WindowState.Minimized;
     }
 
+    /// <summary>
+    /// Bascule un mode compact (pas de redimensionnement manuel) : masque la colonne ACTUS pour ne
+    /// garder que la colonne serveur + lancement, et rétrécit la fenêtre en conséquence — utile sur
+    /// un petit écran ou pour garder le launcher discret pendant qu'une partie tourne déjà (voir
+    /// aussi le redimensionnement libre ajouté au même moment, WindowChrome dans le XAML).
+    /// </summary>
+    private void CompactModeButton_Click(object sender, RoutedEventArgs e) => ApplyCompactMode(!_isCompactMode);
+
+    private void ApplyCompactMode(bool compact)
+    {
+        if (compact && !_isCompactMode)
+        {
+            _normalWidth = Width;
+        }
+
+        _isCompactMode = compact;
+        NewsColumn.Width = compact ? new GridLength(0) : new GridLength(1.3, GridUnitType.Star);
+        GapColumn.Width = compact ? new GridLength(0) : new GridLength(18);
+        Width = compact ? Math.Max(MinWidth, 640) : _normalWidth;
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         Close();
@@ -681,6 +787,37 @@ public partial class MainWindow : Window
         LoadingSpinner.Visibility = Visibility.Visible;
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = message;
+    }
+
+    /// <summary>Indicateur visible ("dernière synchro : il y a...") lu depuis le cache local du
+    /// modpack, sans requête réseau — appelé au démarrage et après chaque tentative de sync.</summary>
+    private void RefreshLastSyncText()
+    {
+        var lastSyncedAt = _modSyncService.GetLastSyncedAt(_settings.GameDirectory);
+        LastSyncText.Text = lastSyncedAt is null
+            ? "SYNCHRO : JAMAIS"
+            : $"SYNCHRO : {FormatRelativeTime(lastSyncedAt.Value).ToUpperInvariant()}";
+    }
+
+    private static string FormatRelativeTime(DateTimeOffset instant)
+    {
+        var elapsed = DateTimeOffset.Now - instant;
+        if (elapsed < TimeSpan.FromMinutes(1))
+        {
+            return "à l'instant";
+        }
+
+        if (elapsed < TimeSpan.FromHours(1))
+        {
+            return $"il y a {(int)elapsed.TotalMinutes} min";
+        }
+
+        if (elapsed < TimeSpan.FromDays(1))
+        {
+            return $"il y a {(int)elapsed.TotalHours} h";
+        }
+
+        return $"il y a {(int)elapsed.TotalDays} j";
     }
 
     private void ShowLoadingError(string message)

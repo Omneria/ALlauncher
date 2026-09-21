@@ -83,9 +83,14 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── GitHubUpdateService.cs
 │           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
 │           │   ├── INewsService.cs
-│           │   └── NewsService.cs
+│           │   ├── NewsService.cs
+│           │   └── NewsHistoryStore.cs     # historique local des actus (news.txt lui-même n'en garde aucun)
+│           ├── Notifications/
+│           │   └── DesktopNotificationService.cs  # bulle Windows native (NotifyIcon), ex. serveur de retour en ligne
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
+│           ├── Http/
+│           │   └── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
 │           ├── Configuration/
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
@@ -166,18 +171,46 @@ fichier manquant ou dont le hash ne correspond plus (corruption disque, modifica
 accidentelle d'un mod) force un retéléchargement complet du zip, même si l'ETag n'a pas changé.
 Comme pour le changelog, absence du manifest = aucune vérification, pas d'erreur.
 
+**Vraie barre de progression, pas un indicateur indéterminé :** `SyncAsync` accepte désormais un
+second `IProgress<double>` (fraction 0.0-1.0, en plus du message texte existant) rapporté pendant
+le téléchargement effectif du zip — `MainWindow` l'utilise pour piloter `ProgressBar.Value`
+directement plutôt que de basculer sur une barre indéterminée le temps de toute l'étape (même
+principe pour Forge, dont CmlLib exposait déjà cette progression en octets, jusqu'ici seulement
+transformée en texte).
+
+**Indicateur de dernière synchro :** `GetLastSyncedAt` lit l'horodatage `syncedAt` du cache local
+(mis à jour à chaque `SyncAsync`, que le modpack ait été retéléchargé ou juste confirmé à jour)
+sans requête réseau — affiché en bas de la barre latérale ("SYNCHRO : IL Y A X MIN"), rafraîchi au
+démarrage et après chaque tentative de lancement.
+
+**Téléchargement reprenable :** le zip du modpack peut faire plusieurs centaines de Mo ; une
+coupure réseau (VPS instable, fermeture du launcher en pleine synchro) forçait auparavant à tout
+retélécharger depuis le début. Le fichier en cours de téléchargement est maintenant écrit dans un
+`.part` temporaire à un chemin stable (dérivé d'un hash SHA-256 de l'URL, retrouvable même après
+redémarrage du launcher) plutôt que dans le fichier final directement. À la tentative suivante, si
+ce `.part` existe déjà, le launcher reprend avec un en-tête HTTP `Range: bytes={taille}-`, protégé
+par `If-Range` sur l'ETag connu : si le serveur ignore `Range` (renvoie `200` complet au lieu de
+`206 Partial Content`) ou si le contenu a changé côté serveur entretemps (ETag différent), le
+`.part` est abandonné et le téléchargement repart intégralement de zéro plutôt que de produire un
+zip corrompu par concaténation de deux versions différentes.
+
 ## Actus (news)
 
-Fichiers : `Services/News/NewsService.cs`, `MainWindow.xaml.cs`
+Fichiers : `Services/News/NewsService.cs`, `Services/News/NewsHistoryStore.cs`, `MainWindow.xaml.cs`
 
-Au démarrage, le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` :
-même dossier que le zip du modpack sur le VPS), avant même que le joueur ait cliqué sur "Jouer" —
+Au démarrage puis toutes les 5 minutes (`DispatcherTimer`), le launcher tente de récupérer
+`news.txt` (même convention que `changelog.txt` : même dossier que le zip du modpack sur le VPS) —
 pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
-silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord depuis la
-v1.5.0, typographie normale — pas le `StatusLogTextBox` en monospace qui, lui, reste réservé à la
-progression du lancement et aux erreurs) affiche un texte par défaut ("Aucune actualité pour le
-moment.") tant qu'aucun `news.txt` n'est disponible, plutôt que de disparaître entièrement (la mise
-en page deux colonnes suppose sa présence).
+silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord) affiche un
+texte par défaut ("Aucune actualité pour le moment.") tant qu'aucun `news.txt` n'est disponible,
+plutôt que de disparaître entièrement (la mise en page deux colonnes suppose sa présence).
+
+**Historique, pas juste la dernière actu :** `news.txt` côté VPS est un simple fichier "à plat" —
+il ne garde lui-même aucun historique, chaque requête ne renvoie que son contenu actuel. Pour
+afficher un historique malgré tout, `NewsHistoryStore` horodate et conserve localement
+(`%AppData%/MinecraftLauncherPerso/news-history.json`, plafonné à 20 entrées) chaque contenu
+distinct observé, dédupliqué sur les rafraîchissements consécutifs identiques : la carte affiche
+la liste complète, la plus récente en tête, plutôt que de se contenter d'écraser le texte affiché.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -287,6 +320,14 @@ cliquer sur "Jouer", une boîte de dialogue demande confirmation avant de contin
 choisir de lancer quand même — utile si le ping échoue à tort, ex. pare-feu bloquant juste le port
 de status tout en laissant passer le jeu).
 
+**Notification desktop au retour en ligne :** `Services/Notifications/DesktopNotificationService.cs`
+affiche une bulle native Windows (`System.Windows.Forms.NotifyIcon`, pas de dépendance toast dédiée
+— celles-ci supposent généralement une identité de paquet MSIX que cet exe autonome n'a pas) sur
+une vraie transition hors ligne → en ligne détectée par le polling ci-dessus, pour le remarquer
+même si le launcher est réduit ou en arrière-plan. Ne se déclenche jamais au tout premier check
+(statut "inconnu" au démarrage, pas "hors ligne"). Peut être désactivée dans les Paramètres
+(`DesktopNotificationsEnabled`, activée par défaut).
+
 ## Lancement unique (anti double-instance)
 
 Fichier : `App.xaml.cs`
@@ -359,6 +400,13 @@ silence. `Load()` valide aussi les champs numériques (RAM min/max positives et 
 port serveur dans `[1, 65535]`) et corrige toute valeur absurde — utile si `settings.json` est édité
 à la main, en plus de la validation déjà faite dans `SettingsWindow`.
 
+**`HttpClient` partagé :** `Services/Http/SharedHttpClient.cs` fournit une instance unique
+(`SharedHttpClient.Instance`) réutilisée par tous les services HTTP (Java, ModSync, Auth, Update,
+News) au lieu qu'un `new HttpClient()` distinct soit créé par service — évite l'épuisement des
+sockets disponibles (chaque `HttpClient` non partagé garde ses connexions TCP ouvertes jusqu'à sa
+propre finalisation par le GC) sur un launcher qui enchaîne beaucoup de requêtes courtes au même
+moment (démarrage : vérif Java, statut serveur, sync modpack, mise à jour, actus, auth).
+
 **Vérification d'intégrité des téléchargements :** le JRE Temurin (API Adoptium, qui fournit une
 empreinte SHA-256 par build) et l'exe de mise à jour du launcher (empreinte publiée par le workflow
 CI en pièce jointe séparée `<exe>.sha256` à côté de l'exe sur chaque release) sont tous les deux
@@ -397,12 +445,14 @@ sélection via `Microsoft.Win32.OpenFolderDialog`, natif WPF depuis .NET 8, pas 
 WinForms). "Enregistrer" persiste dans `settings.json` et ferme la fenêtre ; fermer sans enregistrer
 (✕) n'écrit rien.
 
-**RAM en sliders, pas en champs texte :** `MinRamSlider`/`MaxRamSlider` (style `AppSliderStyle`,
-`AppTheme.xaml`) remplacent les anciens `TextBox` — bornés à `[512, RAM physique totale de la
-machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`), calés sur des paliers de 256 Mo
-(`IsSnapToTickEnabled`). RAM min > RAM max est rendu impossible par construction (chaque
-`ValueChanged` pousse l'autre slider plutôt que de valider après coup), au lieu de devoir
-détecter/rejeter la valeur invalide comme avec des champs texte libres.
+**RAM en un slider à deux poignées, pas en champs texte :** `RamMinThumb`/`RamMaxThumb` (deux
+`Thumb` sur un `Canvas`, `RamRangeCanvas`) remplacent les anciens `TextBox` — et depuis v1.8.0,
+les deux sliders min/max séparés de la v1.7.0, fusionnés en un seul contrôle à deux poignées.
+Bornées à `[512, RAM physique totale de la machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`),
+calées sur des paliers de 256 Mo. RAM min > RAM max est rendu impossible par construction (chaque
+poignée ne peut pas dépasser l'autre, `RamMinThumb_DragDelta`/`RamMaxThumb_DragDelta` dans
+`SettingsWindow.xaml.cs`), au lieu de devoir détecter/rejeter la valeur invalide comme avec des
+champs texte libres.
 
 **RAM par défaut adaptée à la machine :** `LauncherSettings.MaxRamMb` n'est plus une valeur fixe
 identique pour tout le monde — `Services/Hardware/SystemInfo.cs` interroge la RAM physique totale
@@ -410,6 +460,10 @@ de la machine (P/Invoke `GlobalMemoryStatusEx`, API Win32) et calcule une recomm
 (3G en dessous de 8 Go de RAM système, 4G en dessous de 12 Go, 6G en dessous de 16 Go, 8G au-delà —
 jamais plus de la moitié de la RAM totale). Uniquement au premier lancement (settings.json pas
 encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle utilisée.
+
+**Notifications desktop :** case à cocher "NOTIFICATIONS DESKTOP (SERVEUR EN LIGNE)"
+(`DesktopNotificationsEnabled`, activée par défaut) contrôle si `DesktopNotificationService` (voir
+section "Statut du serveur") a le droit de s'afficher au retour en ligne du serveur.
 
 **Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
 — rappel du statut non officiel du launcher, et surtout la liste des dépendances open source
@@ -434,6 +488,11 @@ survolable (tooltip = message d'erreur exact) au lieu d'un échec silencieux.
 skin intégré au launcher, minecraft.net gère déjà l'upload/la prévisualisation via la session du
 navigateur.
 
+**Rafraîchi périodiquement :** l'avatar n'était auparavant récupéré qu'à la connexion (ou à la
+restauration de session au démarrage) — un changement de skin fait sur minecraft.net pendant une
+session déjà longue du launcher n'était visible qu'au redémarrage suivant. Un `DispatcherTimer`
+(30 min) le re-télécharge tant qu'un profil reste affiché.
+
 ## Identité visuelle (branding Omnéria)
 
 Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets/`
@@ -442,11 +501,19 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
   géométrie à coins vifs/biseautés (jamais de `CornerRadius`), polices Chakra Petch / Inter /
   JetBrains Mono embarquées (licence OFL) pour un rendu identique sans installation côté joueur.
 - **Fenêtre principale** (v1.5.0, refonte "Fusion") : chrome Windows par défaut désactivé
-  (`WindowStyle="None"`), barre de titre réduite aux boutons réduire/fermer/paramètres (la marque
+  (`WindowStyle="None"`), barre de titre réduite aux boutons réduire/fermer/mode compact (la marque
   vit désormais dans la barre latérale). Disposition en tableau de bord : barre latérale fixe
   (logo Omnéria, navigation, profil connecté) + zone principale à deux colonnes (actus/changelog à
   gauche, statut du serveur Astral Nexus avec son crest + lancement à droite). Voir
   `MainWindow.xaml.cs` pour l'orchestration Java → Forge → Sync → Auth → Lancement, inchangée.
+- **Redimensionnable + mode compact** (v1.8.0) : `WindowChrome` (`System.Windows.Shell`,
+  `CaptionHeight="0"`) restaure des bords redimensionnables à la souris sur cette fenêtre sans
+  chrome natif — un simple `ResizeMode="CanResize"` seul n'en donne aucun. Le bouton "⤢" de la
+  barre de titre bascule un mode compact qui masque la colonne ACTUS pour ne garder que le statut
+  serveur + lancement, avec la fenêtre rétrécie en conséquence (utile sur petit écran). Taille de
+  fenêtre et mode compact sont mémorisés dans `settings.json`
+  (`LauncherWindowWidth`/`LauncherWindowHeight`/`IsCompactMode`) et réappliqués au démarrage
+  suivant, au lieu de revenir systématiquement à la taille par défaut.
 - **Écran de démarrage** (`SplashWindow`) : affiche le logo Omnéria (`omneria-mark.png`) avec une
   entrée animée (rotation + zoom, easing à rebond) avant de céder la place à la fenêtre principale ;
   ouvert par `App.xaml.cs` au lancement, à la place de `MainWindow` directement.

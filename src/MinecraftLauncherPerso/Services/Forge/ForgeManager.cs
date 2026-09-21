@@ -17,6 +17,7 @@ public sealed class ForgeManager : IForgeManager
         string minecraftVersion,
         string forgeVersion,
         IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
         CancellationToken cancellationToken = default)
     {
         var forgeInstaller = new ForgeInstaller(launcher);
@@ -24,7 +25,10 @@ public sealed class ForgeManager : IForgeManager
         var fileProgress = new Progress<InstallerProgressChangedEventArgs>(e =>
             progress?.Report($"[{e.ProgressedTasks}/{e.TotalTasks}] {e.Name}"));
         var byteProgress = new Progress<ByteProgress>(e =>
-            progress?.Report($"Téléchargement... {e.ToRatio():P0}"));
+        {
+            progress?.Report($"Téléchargement... {e.ToRatio():P0}");
+            downloadProgress?.Report(e.ToRatio());
+        });
 
         progress?.Report($"Installation de Forge {minecraftVersion}-{forgeVersion}...");
 
