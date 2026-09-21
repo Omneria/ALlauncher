@@ -123,6 +123,9 @@
                     <TextBlock x:Name="PlayerNameText" VerticalAlignment="Center"
                                FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
                                Foreground="{StaticResource InkDimBrush}" />
+                    <TextBlock x:Name="AvatarErrorHint" Text="⚠" Margin="6,0,0,0" VerticalAlignment="Center"
+                               FontSize="12" Foreground="{StaticResource MagentaBrush}"
+                               Visibility="Collapsed" Cursor="Help" />
                 </StackPanel>
 
                 <!-- Barre de statut : état du serveur à gauche, bandeau MAJ à droite. -->
