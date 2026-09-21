@@ -103,14 +103,22 @@
                                 BorderBrush="{StaticResource CyanBrush}" Background="#1200E5C7">
                             <TextBlock Text="JOUER" Style="{StaticResource NavItemActiveTextStyle}" />
                         </Border>
-                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent">
+                        <!-- ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà sur le tableau
+                             de bord) : cliquer fait défiler jusqu'à la carte correspondante et la fait
+                             pulser brièvement, pour que ces items ne soient plus de faux boutons inertes. -->
+                        <Border x:Name="NavActus" Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
+                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Actus et changelog"
+                                MouseLeftButtonUp="ActusNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
                             <TextBlock Text="ACTUS" Style="{StaticResource NavItemTextStyle}" />
                         </Border>
-                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent">
+                        <Border x:Name="NavServeur" Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
+                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Statut du serveur"
+                                MouseLeftButtonUp="ServeurNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
                             <TextBlock Text="SERVEUR" Style="{StaticResource NavItemTextStyle}" />
                         </Border>
-                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
-                                Cursor="Hand" MouseLeftButtonUp="ParametresNavItem_MouseLeftButtonUp">
+                        <Border x:Name="NavParametres" Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
+                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Paramètres"
+                                MouseLeftButtonUp="ParametresNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
                             <TextBlock Text="PARAMÈTRES" Style="{StaticResource NavItemTextStyle}" />
                         </Border>
                     </StackPanel>
@@ -131,6 +139,7 @@
                                         <Border x:Name="PlayerAvatarBorder" Width="44" Height="44" Margin="0,0,12,0"
                                                 BorderBrush="{StaticResource CyanBrush}" BorderThickness="1"
                                                 Cursor="Hand" ToolTip="Modifier mon skin Minecraft"
+                                                AutomationProperties.Name="Modifier mon skin Minecraft"
                                                 MouseLeftButtonUp="PlayerAvatarBorder_MouseLeftButtonUp"
                                                 Visibility="Collapsed">
                                             <Image x:Name="PlayerAvatarImage" />
@@ -193,7 +202,11 @@
                         <!-- Colonne actus (news.txt optionnel) : carte toujours visible, avec un
                              état vide explicite plutôt que de disparaître entièrement (la mise en
                              page deux colonnes suppose sa présence). -->
-                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+                        <Border x:Name="NewsCardBorder" Grid.Column="0" Style="{StaticResource CardBorderStyle}"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="NewsCardScale" />
+                            </Border.RenderTransform>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -220,7 +233,11 @@
 
                             <!-- Carte statut serveur : crest à droite, occupant toute la hauteur
                                  disponible, jamais coincé au niveau du texte "EN LIGNE". -->
-                            <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14" Margin="0,0,0,14">
+                            <Border x:Name="ServerCardBorder" Grid.Row="0" Style="{StaticResource CardBorderStyle}"
+                                    Padding="14" Margin="0,0,0,14" RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="ServerCardScale" />
+                                </Border.RenderTransform>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

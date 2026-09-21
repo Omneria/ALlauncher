@@ -49,7 +49,7 @@
             </Grid>
 
             <TextBlock Text="DOSSIER DE JEU" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,4" />
-            <Grid Margin="0,0,0,24">
+            <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -59,6 +59,12 @@
                 <Button Grid.Column="1" Content="PARCOURIR" Style="{StaticResource GhostButtonStyle}" Width="Auto"
                         Padding="12,7" FontSize="11" Click="BrowseButton_Click" />
             </Grid>
+
+            <!-- Auparavant une saisie invalide (texte non numérique, RAM min > max...) était
+                 silencieusement ignorée : le champ gardait sa valeur précédente sans aucun retour,
+                 donnant l'impression que "ça n'enregistrait pas" sans dire pourquoi. -->
+            <TextBlock x:Name="ValidationErrorText" Foreground="{StaticResource MagentaBrush}" FontSize="11"
+                       TextWrapping="Wrap" Margin="0,0,0,12" Visibility="Collapsed" />
 
             <Grid>
                 <Grid.ColumnDefinitions>

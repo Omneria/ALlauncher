@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using MinecraftLauncherPerso.Models;
 
 namespace MinecraftLauncherPerso;
@@ -46,25 +48,55 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        if (int.TryParse(MinRamTextBox.Text, out var minRam))
+        ValidationErrorText.Visibility = Visibility.Collapsed;
+        var errors = new List<string>();
+
+        var minRamValid = int.TryParse(MinRamTextBox.Text, out var minRam) && minRam > 0;
+        SetFieldValid(MinRamTextBox, minRamValid);
+        if (!minRamValid)
         {
-            _settings.MinRamMb = minRam;
+            errors.Add("RAM minimum : entier positif attendu.");
         }
 
-        if (int.TryParse(MaxRamTextBox.Text, out var maxRam))
+        var maxRamValid = int.TryParse(MaxRamTextBox.Text, out var maxRam) && maxRam > 0;
+        SetFieldValid(MaxRamTextBox, maxRamValid);
+        if (!maxRamValid)
         {
-            _settings.MaxRamMb = maxRam;
+            errors.Add("RAM maximum : entier positif attendu.");
         }
 
-        if (int.TryParse(ScreenWidthTextBox.Text, out var width))
+        if (minRamValid && maxRamValid && minRam > maxRam)
         {
-            _settings.ScreenWidth = width;
+            SetFieldValid(MinRamTextBox, false);
+            SetFieldValid(MaxRamTextBox, false);
+            errors.Add("La RAM minimum ne peut pas dépasser la RAM maximum.");
         }
 
-        if (int.TryParse(ScreenHeightTextBox.Text, out var height))
+        var widthValid = int.TryParse(ScreenWidthTextBox.Text, out var width) && width >= 0;
+        SetFieldValid(ScreenWidthTextBox, widthValid);
+        if (!widthValid)
         {
-            _settings.ScreenHeight = height;
+            errors.Add("Largeur : entier positif ou 0 (automatique) attendu.");
         }
+
+        var heightValid = int.TryParse(ScreenHeightTextBox.Text, out var height) && height >= 0;
+        SetFieldValid(ScreenHeightTextBox, heightValid);
+        if (!heightValid)
+        {
+            errors.Add("Hauteur : entier positif ou 0 (automatique) attendu.");
+        }
+
+        if (errors.Count > 0)
+        {
+            ValidationErrorText.Text = string.Join(" ", errors);
+            ValidationErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        _settings.MinRamMb = minRam;
+        _settings.MaxRamMb = maxRam;
+        _settings.ScreenWidth = width;
+        _settings.ScreenHeight = height;
 
         if (!string.IsNullOrWhiteSpace(GameDirectoryTextBox.Text))
         {
@@ -73,6 +105,18 @@ public partial class SettingsWindow : Window
 
         SettingsSaved = true;
         Close();
+    }
+
+    private void SetFieldValid(TextBox box, bool valid)
+    {
+        if (valid)
+        {
+            box.ClearValue(TextBox.BorderBrushProperty);
+        }
+        else
+        {
+            box.BorderBrush = (Brush)FindResource("MagentaBrush");
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
