@@ -268,6 +268,7 @@ public partial class MainWindow : Window
         _lastServerStatus = status;
 
         ServerStatusText.Text = status.IsOnline ? "EN LIGNE" : "HORS LIGNE";
+        ServerStatusText.ToolTip = status.IsOnline ? null : status.ErrorDetail;
         var statusBrush = (Brush)FindResource(status.IsOnline ? "CyanBrush" : "MagentaBrush");
         ServerStatusDot.Fill = statusBrush;
 

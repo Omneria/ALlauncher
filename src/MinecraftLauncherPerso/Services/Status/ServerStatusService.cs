@@ -12,7 +12,10 @@ namespace MinecraftLauncherPerso.Services.Status;
 /// </summary>
 public sealed class ServerStatusService : IServerStatusService
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
+    // 4s était trop court pour une adresse qui route parfois via un VPN (latence de handshake plus
+    // élevée que sur une connexion directe) : un ping qui timeout à tort affichait "hors ligne" à
+    // un serveur en réalité joignable.
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(8);
 
     public async Task<ServerStatus> PingAsync(string host, int port, CancellationToken cancellationToken = default)
     {
@@ -32,11 +35,16 @@ public sealed class ServerStatusService : IServerStatusService
             var json = await ReadStatusResponseAsync(stream, timeoutCts.Token);
             return ParseStatus(json);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Hors ligne, port fermé, timeout, hôte introuvable... : l'UI n'a besoin que d'un
-            // oui/non, pas de la raison exacte de l'échec.
-            return new ServerStatus(false, 0, 0);
+            // Hors ligne, port fermé, hôte introuvable... : l'UI n'a besoin que d'un oui/non pour
+            // le statut, mais le détail (DNS, connexion refusée, timeout) reste utile pour
+            // diagnostiquer un faux "hors ligne" (ex. adresse qui ne route que via un VPN précis) :
+            // exposé en tooltip par MainWindow plutôt que juste avalé.
+            var detail = ex is OperationCanceledException
+                ? $"Timeout après {Timeout.TotalSeconds:0}s en contactant {host}:{port}."
+                : $"{ex.GetType().Name} en contactant {host}:{port} : {ex.Message}";
+            return new ServerStatus(false, 0, 0, detail);
         }
     }
 

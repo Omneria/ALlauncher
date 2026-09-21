@@ -1,6 +1,6 @@
 namespace MinecraftLauncherPerso.Services.Status;
 
-public sealed record ServerStatus(bool IsOnline, int OnlinePlayers, int MaxPlayers);
+public sealed record ServerStatus(bool IsOnline, int OnlinePlayers, int MaxPlayers, string? ErrorDetail = null);
 
 public interface IServerStatusService
 {
