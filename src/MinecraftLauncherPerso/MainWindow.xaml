@@ -70,7 +70,6 @@
             <Grid x:Name="TitleBar" Grid.Row="0" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                    <Button x:Name="SettingsButton" Content="⚙" Style="{StaticResource GhostButtonStyle}" Click="SettingsButton_Click" />
                     <Button Content="—" Style="{StaticResource GhostButtonStyle}" Click="MinimizeButton_Click" />
                     <Button Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
                 </StackPanel>
