@@ -82,7 +82,7 @@ public sealed class ModSyncService : IModSyncService
 
         try
         {
-            await DownloadAsync(modpackZipUrl, tempZipPath, progress, downloadProgress, cancellationToken);
+            await DownloadAsync(modpackZipUrl, tempZipPath, remoteMetadata?.ETag, progress, downloadProgress, cancellationToken);
 
             progress?.Report("Extraction du modpack (mods/config)...");
             Directory.CreateDirectory(gameDirectory);
@@ -227,41 +227,94 @@ public sealed class ModSyncService : IModSyncService
         };
     }
 
+    /// <summary>
+    /// Télécharge le zip du modpack avec reprise sur coupure (connexion VPS instable, fermeture du
+    /// launcher en pleine synchro...). Auparavant une interruption forçait à retélécharger le zip
+    /// entier depuis le début, potentiellement plusieurs centaines de Mo.
+    ///
+    /// Le fichier partiel est écrit à un chemin stable dérivé du hash de l'URL (contrairement à
+    /// destinationPath qui contient un GUID par appel) pour pouvoir le retrouver à la tentative
+    /// suivante, même après redémarrage du launcher. Repris via Range/If-Range (ETag) : si le
+    /// serveur ignore Range (200 au lieu de 206) ou si l'ETag ne correspond plus au fichier partiel
+    /// (contenu changé côté serveur entretemps), on repart de zéro plutôt que de produire un zip
+    /// corrompu par concaténation de deux versions différentes.
+    /// </summary>
     private async Task DownloadAsync(
         string url,
         string destinationPath,
+        string? etag,
         IProgress<string>? progress,
         IProgress<double>? downloadProgress,
         CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var partialPath = GetPartialDownloadPath(url);
+        var resumeFrom = File.Exists(partialPath) ? new FileInfo(partialPath).Length : 0L;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (resumeFrom > 0)
+        {
+            request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(resumeFrom, null);
+            if (etag is not null)
+            {
+                request.Headers.IfRange = new System.Net.Http.Headers.RangeConditionHeaderValue(new System.Net.Http.Headers.EntityTagHeaderValue(etag));
+            }
+        }
+
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-        var buffer = new byte[81920];
-        long totalRead = 0;
-        int bytesRead;
-        var lastReportedPercent = -1;
-
-        while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
+        var isResuming = resumeFrom > 0 && response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+        if (resumeFrom > 0 && !isResuming)
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-            totalRead += bytesRead;
+            // Serveur qui a ignoré Range (200 complet) ou contenu changé (ETag différent) : le
+            // fichier partiel existant ne correspond plus à ce qu'on est en train de recevoir.
+            resumeFrom = 0;
+        }
 
-            if (totalBytes > 0)
+        var totalBytes = isResuming
+            ? (response.Content.Headers.ContentRange?.Length ?? -1L)
+            : response.Content.Headers.ContentLength ?? -1L;
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using (var fileStream = new FileStream(
+            partialPath,
+            isResuming ? FileMode.Append : FileMode.Create,
+            FileAccess.Write,
+            FileShare.None))
+        {
+            var buffer = new byte[81920];
+            long totalRead = resumeFrom;
+            int bytesRead;
+            var lastReportedPercent = -1;
+
+            while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                var percent = (int)(totalRead * 100 / totalBytes);
-                if (percent != lastReportedPercent)
+                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                totalRead += bytesRead;
+
+                if (totalBytes > 0)
                 {
-                    lastReportedPercent = percent;
-                    progress?.Report($"Téléchargement du modpack... {percent}%");
-                    downloadProgress?.Report(totalRead / (double)totalBytes);
+                    var percent = (int)(totalRead * 100 / totalBytes);
+                    if (percent != lastReportedPercent)
+                    {
+                        lastReportedPercent = percent;
+                        progress?.Report($"Téléchargement du modpack... {percent}%");
+                        downloadProgress?.Report(totalRead / (double)totalBytes);
+                    }
                 }
             }
         }
+
+        // Téléchargement complet réussi : le .part devient le zip final, prêt pour extraction. En
+        // cas d'échec avant ce point (exception ci-dessus), le .part reste en place tel quel pour
+        // permettre une reprise à la prochaine tentative.
+        File.Move(partialPath, destinationPath, overwrite: true);
+    }
+
+    private static string GetPartialDownloadPath(string url)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(url)));
+        return Path.Combine(Path.GetTempPath(), $"modpack-{hash}.part");
     }
 
     private static RemoteZipMetadata? LoadCache(string cachePath)

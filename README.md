@@ -89,6 +89,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── DesktopNotificationService.cs  # bulle Windows native (NotifyIcon), ex. serveur de retour en ligne
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
+│           ├── Http/
+│           │   └── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
 │           ├── Configuration/
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
@@ -180,6 +182,17 @@ transformée en texte).
 (mis à jour à chaque `SyncAsync`, que le modpack ait été retéléchargé ou juste confirmé à jour)
 sans requête réseau — affiché en bas de la barre latérale ("SYNCHRO : IL Y A X MIN"), rafraîchi au
 démarrage et après chaque tentative de lancement.
+
+**Téléchargement reprenable :** le zip du modpack peut faire plusieurs centaines de Mo ; une
+coupure réseau (VPS instable, fermeture du launcher en pleine synchro) forçait auparavant à tout
+retélécharger depuis le début. Le fichier en cours de téléchargement est maintenant écrit dans un
+`.part` temporaire à un chemin stable (dérivé d'un hash SHA-256 de l'URL, retrouvable même après
+redémarrage du launcher) plutôt que dans le fichier final directement. À la tentative suivante, si
+ce `.part` existe déjà, le launcher reprend avec un en-tête HTTP `Range: bytes={taille}-`, protégé
+par `If-Range` sur l'ETag connu : si le serveur ignore `Range` (renvoie `200` complet au lieu de
+`206 Partial Content`) ou si le contenu a changé côté serveur entretemps (ETag différent), le
+`.part` est abandonné et le téléchargement repart intégralement de zéro plutôt que de produire un
+zip corrompu par concaténation de deux versions différentes.
 
 ## Actus (news)
 
@@ -312,7 +325,8 @@ affiche une bulle native Windows (`System.Windows.Forms.NotifyIcon`, pas de dép
 — celles-ci supposent généralement une identité de paquet MSIX que cet exe autonome n'a pas) sur
 une vraie transition hors ligne → en ligne détectée par le polling ci-dessus, pour le remarquer
 même si le launcher est réduit ou en arrière-plan. Ne se déclenche jamais au tout premier check
-(statut "inconnu" au démarrage, pas "hors ligne").
+(statut "inconnu" au démarrage, pas "hors ligne"). Peut être désactivée dans les Paramètres
+(`DesktopNotificationsEnabled`, activée par défaut).
 
 ## Lancement unique (anti double-instance)
 
@@ -386,6 +400,13 @@ silence. `Load()` valide aussi les champs numériques (RAM min/max positives et 
 port serveur dans `[1, 65535]`) et corrige toute valeur absurde — utile si `settings.json` est édité
 à la main, en plus de la validation déjà faite dans `SettingsWindow`.
 
+**`HttpClient` partagé :** `Services/Http/SharedHttpClient.cs` fournit une instance unique
+(`SharedHttpClient.Instance`) réutilisée par tous les services HTTP (Java, ModSync, Auth, Update,
+News) au lieu qu'un `new HttpClient()` distinct soit créé par service — évite l'épuisement des
+sockets disponibles (chaque `HttpClient` non partagé garde ses connexions TCP ouvertes jusqu'à sa
+propre finalisation par le GC) sur un launcher qui enchaîne beaucoup de requêtes courtes au même
+moment (démarrage : vérif Java, statut serveur, sync modpack, mise à jour, actus, auth).
+
 **Vérification d'intégrité des téléchargements :** le JRE Temurin (API Adoptium, qui fournit une
 empreinte SHA-256 par build) et l'exe de mise à jour du launcher (empreinte publiée par le workflow
 CI en pièce jointe séparée `<exe>.sha256` à côté de l'exe sur chaque release) sont tous les deux
@@ -440,6 +461,10 @@ de la machine (P/Invoke `GlobalMemoryStatusEx`, API Win32) et calcule une recomm
 jamais plus de la moitié de la RAM totale). Uniquement au premier lancement (settings.json pas
 encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle utilisée.
 
+**Notifications desktop :** case à cocher "NOTIFICATIONS DESKTOP (SERVEUR EN LIGNE)"
+(`DesktopNotificationsEnabled`, activée par défaut) contrôle si `DesktopNotificationService` (voir
+section "Statut du serveur") a le droit de s'afficher au retour en ligne du serveur.
+
 **Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
 — rappel du statut non officiel du launcher, et surtout la liste des dépendances open source
 utilisées (nom, licence, lien GitHub) : `CmlLib.Core`, `CmlLib.Core.Installer.Forge` (MIT),
@@ -463,6 +488,11 @@ survolable (tooltip = message d'erreur exact) au lieu d'un échec silencieux.
 skin intégré au launcher, minecraft.net gère déjà l'upload/la prévisualisation via la session du
 navigateur.
 
+**Rafraîchi périodiquement :** l'avatar n'était auparavant récupéré qu'à la connexion (ou à la
+restauration de session au démarrage) — un changement de skin fait sur minecraft.net pendant une
+session déjà longue du launcher n'était visible qu'au redémarrage suivant. Un `DispatcherTimer`
+(30 min) le re-télécharge tant qu'un profil reste affiché.
+
 ## Identité visuelle (branding Omnéria)
 
 Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets/`
@@ -480,7 +510,10 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
   `CaptionHeight="0"`) restaure des bords redimensionnables à la souris sur cette fenêtre sans
   chrome natif — un simple `ResizeMode="CanResize"` seul n'en donne aucun. Le bouton "⤢" de la
   barre de titre bascule un mode compact qui masque la colonne ACTUS pour ne garder que le statut
-  serveur + lancement, avec la fenêtre rétrécie en conséquence (utile sur petit écran).
+  serveur + lancement, avec la fenêtre rétrécie en conséquence (utile sur petit écran). Taille de
+  fenêtre et mode compact sont mémorisés dans `settings.json`
+  (`LauncherWindowWidth`/`LauncherWindowHeight`/`IsCompactMode`) et réappliqués au démarrage
+  suivant, au lieu de revenir systématiquement à la taille par défaut.
 - **Écran de démarrage** (`SplashWindow`) : affiche le logo Omnéria (`omneria-mark.png`) avec une
   entrée animée (rotation + zoom, easing à rebond) avant de céder la place à la fenêtre principale ;
   ouvert par `App.xaml.cs` au lancement, à la place de `MainWindow` directement.

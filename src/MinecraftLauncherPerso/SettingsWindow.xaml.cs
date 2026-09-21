@@ -42,6 +42,7 @@ public partial class SettingsWindow : Window
         ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
         ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
         GameDirectoryTextBox.Text = _settings.GameDirectory;
+        DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
     }
 
     // Un seul slider à deux poignées (au lieu de deux sliders min/max distincts, remplacé v1.8.0) :
@@ -165,6 +166,8 @@ public partial class SettingsWindow : Window
         {
             _settings.GameDirectory = GameDirectoryTextBox.Text;
         }
+
+        _settings.DesktopNotificationsEnabled = DesktopNotificationsCheckBox.IsChecked == true;
 
         SettingsSaved = true;
         Close();

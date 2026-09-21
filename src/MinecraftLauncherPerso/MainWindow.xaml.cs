@@ -16,6 +16,7 @@ using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
 using MinecraftLauncherPerso.Services.Configuration;
 using MinecraftLauncherPerso.Services.Forge;
+using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.ModSync;
@@ -64,6 +65,8 @@ public partial class MainWindow : Window
     private List<NewsHistoryEntry> _newsHistory = [];
     private bool _isCompactMode;
     private double _normalWidth = 1240;
+    private string? _connectedUuid;
+    private readonly DispatcherTimer _avatarRefreshTimer;
 
     // Référence gardée en vie pour toute la durée de la partie : sans elle, le process/wrapper
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
@@ -76,15 +79,28 @@ public partial class MainWindow : Window
         _settingsManager = new SettingsManager();
         _settings = _settingsManager.Load();
 
-        _javaManager = new JavaManager();
+        // Taille de fenêtre et mode compact mémorisés d'un lancement à l'autre (v1.8.0) : sans ça,
+        // la fenêtre (redimensionnable depuis ce même changement) revenait systématiquement à sa
+        // taille par défaut au redémarrage malgré un redimensionnement manuel.
+        _normalWidth = _settings.LauncherWindowWidth;
+        Width = _settings.LauncherWindowWidth;
+        Height = _settings.LauncherWindowHeight;
+        if (_settings.IsCompactMode)
+        {
+            ApplyCompactMode(compact: true);
+        }
+
+        // HttpClient partagé plutôt qu'un new HttpClient() par service (voir SharedHttpClient) :
+        // tous des singletons créés une seule fois ici, au démarrage.
+        _javaManager = new JavaManager(httpClient: SharedHttpClient.Instance);
         _forgeManager = new ForgeManager();
-        _modSyncService = new ModSyncService();
-        _authService = new MicrosoftAuthService(_settings.MicrosoftClientId);
+        _modSyncService = new ModSyncService(SharedHttpClient.Instance);
+        _authService = new MicrosoftAuthService(_settings.MicrosoftClientId, httpClient: SharedHttpClient.Instance);
         _gameLauncher = new GameLauncher();
         _gameLauncher.GameExited += GameLauncher_GameExited;
         _serverStatusService = new ServerStatusService();
-        _updateService = new GitHubUpdateService();
-        _newsService = new NewsService();
+        _updateService = new GitHubUpdateService(SharedHttpClient.Instance);
+        _newsService = new NewsService(SharedHttpClient.Instance);
         _newsHistoryStore = new NewsHistoryStore();
         _newsHistory = _newsHistoryStore.Load();
 
@@ -105,7 +121,39 @@ public partial class MainWindow : Window
         _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
 
+        // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
+        // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
+        // si le joueur change de skin sur minecraft.net pendant une session déjà longue du
+        // launcher, rien ne le détecte avant le prochain redémarrage. Re-vérifie périodiquement
+        // tant qu'un profil est affiché.
+        _avatarRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+        _avatarRefreshTimer.Tick += async (_, _) =>
+        {
+            if (_connectedUuid is not null)
+            {
+                await LoadPlayerAvatarAsync(_connectedUuid);
+            }
+        };
+        _avatarRefreshTimer.Start();
+
         Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
+    }
+
+    /// <summary>Mémorise la taille de fenêtre et le mode compact courants pour le prochain lancement.</summary>
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // WindowState.Normal uniquement : si la fenêtre est minimisée/maximisée à la fermeture,
+        // Width/Height ne reflètent pas sa taille "normale" réelle, ça écraserait la valeur utile
+        // avec la taille minimisée/maximisée au prochain démarrage.
+        if (WindowState == WindowState.Normal)
+        {
+            _settings.LauncherWindowWidth = _isCompactMode ? _normalWidth : Width;
+            _settings.LauncherWindowHeight = Height;
+        }
+
+        _settings.IsCompactMode = _isCompactMode;
+        _settingsManager.Save(_settings);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -444,7 +492,7 @@ public partial class MainWindow : Window
         // Seulement sur une vraie transition hors ligne -> en ligne (pas au tout premier check,
         // où _lastServerStatus est encore null = "inconnu", pas "hors ligne") : sans ça, la toute
         // première détection "en ligne" au démarrage déclencherait une notif à chaque lancement.
-        if (wasOffline && status.IsOnline)
+        if (wasOffline && status.IsOnline && _settings.DesktopNotificationsEnabled)
         {
             DesktopNotificationService.Show(_settings.ServerName, "Le serveur est de nouveau en ligne.");
         }
@@ -552,6 +600,7 @@ public partial class MainWindow : Window
         LoginButton.Visibility = Visibility.Collapsed;
         SidebarAccountPanel.Visibility = Visibility.Visible;
         PlayerNameText.Text = session.Username;
+        _connectedUuid = session.Uuid;
         _ = LoadPlayerAvatarAsync(session.Uuid);
     }
 
@@ -705,18 +754,19 @@ public partial class MainWindow : Window
     /// un petit écran ou pour garder le launcher discret pendant qu'une partie tourne déjà (voir
     /// aussi le redimensionnement libre ajouté au même moment, WindowChrome dans le XAML).
     /// </summary>
-    private void CompactModeButton_Click(object sender, RoutedEventArgs e)
-    {
-        _isCompactMode = !_isCompactMode;
+    private void CompactModeButton_Click(object sender, RoutedEventArgs e) => ApplyCompactMode(!_isCompactMode);
 
-        if (_isCompactMode)
+    private void ApplyCompactMode(bool compact)
+    {
+        if (compact && !_isCompactMode)
         {
             _normalWidth = Width;
         }
 
-        NewsColumn.Width = _isCompactMode ? new GridLength(0) : new GridLength(1.3, GridUnitType.Star);
-        GapColumn.Width = _isCompactMode ? new GridLength(0) : new GridLength(18);
-        Width = _isCompactMode ? Math.Max(MinWidth, 640) : _normalWidth;
+        _isCompactMode = compact;
+        NewsColumn.Width = compact ? new GridLength(0) : new GridLength(1.3, GridUnitType.Star);
+        GapColumn.Width = compact ? new GridLength(0) : new GridLength(18);
+        Width = compact ? Math.Max(MinWidth, 640) : _normalWidth;
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

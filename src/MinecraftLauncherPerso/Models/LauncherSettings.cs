@@ -97,4 +97,24 @@ public sealed class LauncherSettings
     public int ScreenWidth { get; set; } = 0;
 
     public int ScreenHeight { get; set; } = 0;
+
+    /// <summary>
+    /// Taille de la fenêtre du launcher (pas celle du jeu, voir <see cref="ScreenWidth"/> ci-dessus)
+    /// mémorisée entre deux lancements depuis que la fenêtre est redimensionnable (v1.8.0,
+    /// WindowChrome) — sans ça, elle revenait systématiquement à sa taille par défaut au redémarrage
+    /// malgré un redimensionnement manuel.
+    /// </summary>
+    public double LauncherWindowWidth { get; set; } = 1240;
+
+    public double LauncherWindowHeight { get; set; } = 600;
+
+    /// <summary>Mode compact (v1.8.0, bouton "⤢" de la barre de titre) mémorisé entre deux lancements.</summary>
+    public bool IsCompactMode { get; set; }
+
+    /// <summary>
+    /// Autorise ou non DesktopNotificationService (bulle Windows native) à s'afficher, ex. quand le
+    /// serveur repasse en ligne — activé par défaut, mais certains joueurs préfèrent un launcher
+    /// entièrement silencieux.
+    /// </summary>
+    public bool DesktopNotificationsEnabled { get; set; } = true;
 }

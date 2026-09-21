@@ -106,6 +106,19 @@ public sealed class SettingsManager
             settings.ServerPort = new LauncherSettings().ServerPort;
         }
 
+        // En-dessous de MainWindow.MinWidth/MinHeight (voir MainWindow.xaml) : une valeur plus
+        // petite persistée par erreur (ou éditée à la main) ne doit pas redonner une fenêtre plus
+        // petite que son minimum utilisable déclaré.
+        if (settings.LauncherWindowWidth < 620)
+        {
+            settings.LauncherWindowWidth = new LauncherSettings().LauncherWindowWidth;
+        }
+
+        if (settings.LauncherWindowHeight < 480)
+        {
+            settings.LauncherWindowHeight = new LauncherSettings().LauncherWindowHeight;
+        }
+
         return settings;
     }
 

@@ -152,4 +152,32 @@
         <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
     </Style>
 
+    <!-- Case à cocher (Paramètres) : carré filaire + coche cyan, à la place du chrome Windows par
+         défaut qui jurerait avec le reste de la charte (même logique que AppTextBoxStyle/PrimaryButtonStyle). -->
+    <Style x:Key="AppCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="16" Height="16" BorderThickness="1" BorderBrush="{StaticResource LineBrush}"
+                                Background="{StaticResource InputBrush}" VerticalAlignment="Center">
+                            <Path x:Name="CheckMark" Data="M2,7 L6,11 L14,2" Stroke="{StaticResource CyanBrush}"
+                                  StrokeThickness="2" Margin="1" Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

@@ -4,10 +4,6 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <!-- Uniquement pour System.Windows.Forms.NotifyIcon (notifications desktop natives Windows,
-         Services/Notifications/DesktopNotificationService.cs) : aucune fenêtre WinForms n'est créée,
-         WPF+WinForms hybride est une combinaison supportée nativement par le SDK .NET. -->
-    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MinecraftLauncherPerso</RootNamespace>
@@ -27,6 +23,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Référence directe à l'assembly WinForms (plutôt que <UseWindowsForms>true</UseWindowsForms>)
+         pour System.Windows.Forms.NotifyIcon (notifications desktop, DesktopNotificationService.cs) :
+         UseWindowsForms ajoute en plus des "implicit usings" globaux pour System.Windows.Forms, qui
+         entrent en collision avec System.Windows (WPF) sur des noms comme Application/TextBox/
+         KeyEventArgs utilisés sans préfixe partout ailleurs dans le projet (CS0104, référence
+         ambiguë). Cette référence seule donne accès au type sans ce comportement global. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <!-- Gère la version vanilla, le classpath et le lancement du jeu (arguments JVM/jeu). -->
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->
