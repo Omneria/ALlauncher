@@ -47,8 +47,10 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       ├── App.xaml(.cs)                   # bootstrap : ouvre SplashWindow au démarrage
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
-│       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu)
+│       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu, maintenance)
 │       ├── LegalWindow.xaml(.cs)           # mentions légales + dépendances open source
+│       ├── WelcomeWindow.xaml(.cs)         # assistant de premier lancement (v1.9.0)
+│       ├── LogViewerWindow.xaml(.cs)       # visualiseur de logs intégré (v1.9.0, Paramètres)
 │       ├── AppTheme.xaml                   # charte graphique (couleurs, polices, styles de contrôles)
 │       ├── Assets/
 │       │   ├── Fonts/                      # Chakra Petch / Inter / JetBrains Mono (OFL), embarquées
@@ -94,7 +96,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── Configuration/
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
-│               └── Logger.cs               # journal fichier (launcher.log) pour les échecs "avalés"
+│               ├── Logger.cs               # journal fichier (launcher.log) pour les échecs "avalés"
+│               └── CrashDiagnosisService.cs # diagnostic best-effort d'un crash du jeu (v1.9.0)
 ├── tests/
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager
 ├── README.md
@@ -194,6 +197,22 @@ par `If-Range` sur l'ETag connu : si le serveur ignore `Range` (renvoie `200` co
 `.part` est abandonné et le téléchargement repart intégralement de zéro plutôt que de produire un
 zip corrompu par concaténation de deux versions différentes.
 
+**Préchargement en arrière-plan (v1.9.0) :** `IModSyncService.PrefetchAsync`, appelé dès
+`MainWindow_Loaded` (best-effort, silencieux), vérifie si une mise à jour du modpack est disponible
+et, si oui, commence à la télécharger tout de suite plutôt que d'attendre le clic sur "JOUER" —
+directement dans le même fichier `.part` que `SyncAsync` (chemin partagé, dérivé du hash de l'URL,
+voir ci-dessus), pour qu'un clic sur "JOUER" trouve le téléchargement déjà fait (ou bien avancé) au
+lieu de repartir de zéro. Si "JOUER" est cliqué pendant que ce préchargement tourne encore,
+`MainWindow` l'annule et attend sa fin avant de démarrer la vraie synchro, pour ne jamais avoir deux
+écritures simultanées sur le même fichier `.part`.
+
+**Réparation rapide (v1.9.0, Paramètres → Maintenance) :** `IModSyncService.RepairAsync` supprime le
+cache ETag local puis relance une synchro complète, forçant un retéléchargement même si le contenu
+distant n'a pas changé. Utile quand c'est un fichier *local* qui a été corrompu ou supprimé par
+erreur (le cache ETag dirait alors "à jour" à tort, `SyncAsync` seul ne retéléchargerait rien).
+Accessible manuellement via un bouton dans les Paramètres, ou proposé directement après un crash du
+jeu si le diagnostic (voir "Lancement du jeu" ci-dessus) l'identifie comme cause probable.
+
 ## Actus (news)
 
 Fichiers : `Services/News/NewsService.cs`, `Services/News/NewsHistoryStore.cs`, `MainWindow.xaml.cs`
@@ -280,6 +299,15 @@ statut tant que la fenêtre reste ouverte.
 affiche un bouton "VOIR LES LOGS" qui ouvre `{GameDirectory}/logs/latest.log` (ou le dossier
 `logs/` si le fichier n'existe pas encore) avec l'application associée par défaut — évite de devoir
 chercher soi-même où sont les logs pour diagnostiquer un crash.
+
+**Diagnostic automatique (v1.9.0) :** `Services/Diagnostics/CrashDiagnosisService.cs` cherche, dans
+la sortie console du jeu déjà capturée (tampon borné aux 400 dernières lignes, `MainWindow`), un
+motif connu et fréquent sur ce modpack précis : RAM insuffisante (`OutOfMemoryError`), version Java
+incompatible, mod ou fichier `.jar` corrompu/manquant. Volontairement limité à ces quelques cas
+(pas un moteur générique de diagnostic multi-modpack) : quand un motif est reconnu, une boîte de
+dialogue explique la cause probable et, si elle suggère un fichier corrompu, propose d'ouvrir
+directement les Paramètres pour lancer une réparation (voir ci-dessous). Aucun motif reconnu = pas
+de diagnostic affiché, plutôt que d'inventer une explication non fiable.
 
 ### Serveur unique (Astral Nexus)
 
@@ -428,8 +456,9 @@ lui-même est ignorée, pour ne jamais devenir une nouvelle source de plantage.
 
 **Tests unitaires :** `tests/MinecraftLauncherPerso.Tests` (xUnit) couvre la logique la plus
 risquée à la main : encodage/décodage VarInt du ping serveur, écriture NBT de `servers.dat`,
-parsing des tags `vX.Y.Z` et de la sortie `java -version`, et la récupération de
-`SettingsManager` face à un fichier corrompu ou des valeurs invalides. Quelques membres
+parsing des tags `vX.Y.Z` et de la sortie `java -version`, la récupération de `SettingsManager`
+face à un fichier corrompu ou des valeurs invalides, et la reconnaissance de motifs de
+`CrashDiagnosisService`. Quelques membres
 normalement `private` sont exposés en `internal` (voir `[InternalsVisibleTo]` dans
 `AssemblyInfo.cs`) uniquement pour rester testables sans passer par le réseau ou le disque. Lancé
 en CI (`dotnet test`) avant la publication des artefacts.
@@ -464,6 +493,15 @@ encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle
 **Notifications desktop :** case à cocher "NOTIFICATIONS DESKTOP (SERVEUR EN LIGNE)"
 (`DesktopNotificationsEnabled`, activée par défaut) contrôle si `DesktopNotificationService` (voir
 section "Statut du serveur") a le droit de s'afficher au retour en ligne du serveur.
+
+**Maintenance (v1.9.0) :** deux boutons dans cette fenêtre.
+- "RÉPARER LE MODPACK" déclenche `IModSyncService.RepairAsync` (voir "Synchronisation mods/config"
+  ci-dessus) avec le statut de progression affiché directement sous les boutons.
+- "VOIR LES LOGS" ouvre `LogViewerWindow.xaml(.cs)`, un visualiseur intégré qui bascule entre
+  `launcher.log` (`Logger.LogFilePath`) et `{GameDirectory}/logs/latest.log` (jeu), avec une
+  recherche texte simple (filtre par ligne, insensible à la casse) et un bouton "COPIER" qui met le
+  contenu affiché dans le presse-papier — pratique pour coller un extrait sur Discord quand un
+  joueur demande de l'aide, sans avoir à aller fouiller `%AppData%` à la main.
 
 **Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
 — rappel du statut non officiel du launcher, et surtout la liste des dépendances open source
@@ -563,6 +601,13 @@ launcher tiers public).
 Pour ajuster RAM, URL du modpack, adresse du serveur (`ServerHost`/`ServerPort`) ou dossier de jeu
 sans passer par l'UI, modifier
 ce même fichier.
+
+**Assistant de premier lancement (v1.9.0) :** `WelcomeWindow.xaml(.cs)`, affiché une seule fois —
+`SettingsManager.SettingsFileExists()` (appelé avant `Load()`, qui crée le fichier) indique à
+`MainWindow` si c'est la toute première exécution sur cette machine. Trois pages courtes (accueil,
+choix du dossier de jeu avec la valeur par défaut déjà pré-remplie, orientation vers "SE
+CONNECTER"/"JOUER") plutôt qu'un flux de connexion dupliqué dans l'assistant lui-même. Fermable à
+tout moment (✕) sans perdre les valeurs déjà choisies.
 
 ## Avertissement
 

@@ -32,6 +32,11 @@ public sealed class SettingsManager
         ["astranexusmc.duckdns.org"] = "astralnexusmc.duckdns.org",
     };
 
+    /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
+    /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
+    /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
+    public bool SettingsFileExists() => File.Exists(_settingsFilePath);
+
     public LauncherSettings Load()
     {
         if (!File.Exists(_settingsFilePath))

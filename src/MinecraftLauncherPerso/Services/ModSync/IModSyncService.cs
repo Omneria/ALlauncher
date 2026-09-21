@@ -24,4 +24,32 @@ public interface IModSyncService
     /// "déjà à jour"), lu depuis le cache local sans requête réseau. Null si jamais synchronisé.
     /// </summary>
     DateTimeOffset? GetLastSyncedAt(string gameDirectory);
+
+    /// <summary>
+    /// "Réparation rapide" (Paramètres) : force un retéléchargement complet du modpack en ignorant
+    /// le cache ETag/Last-Modified, même si celui-ci indique "déjà à jour" — utile quand un fichier
+    /// local a été corrompu ou supprimé par erreur sans que le contenu distant ait changé (auquel
+    /// cas SyncAsync seul ne détecterait rien à faire).
+    /// </summary>
+    Task RepairAsync(
+        string modpackZipUrl,
+        string gameDirectory,
+        IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Télécharge par avance, en arrière-plan, le modpack à jour dans un fichier temporaire partagé
+    /// avec SyncAsync (voir DownloadAsync/GetPartialDownloadPath) sans l'extraire — SyncAsync,
+    /// appelé plus tard au clic sur "Jouer", retrouve ce téléchargement déjà effectué (ou partiel,
+    /// repris) au lieu de repartir de zéro, rendant le clic sur "Jouer" quasi instantané côté sync.
+    /// Ne fait rien si le modpack est déjà à jour ou si le VPS est injoignable (best-effort, jamais
+    /// d'erreur propagée à l'appelant).
+    /// </summary>
+    Task PrefetchAsync(
+        string modpackZipUrl,
+        string gameDirectory,
+        IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
+        CancellationToken cancellationToken = default);
 }

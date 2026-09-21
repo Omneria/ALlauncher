@@ -35,6 +35,20 @@ public sealed class SettingsManagerTests : IDisposable
     }
 
     [Fact]
+    public void SettingsFileExists_distingue_premier_lancement_et_lancements_suivants()
+    {
+        // Utilisé par MainWindow (WelcomeWindow, v1.8.0) pour décider d'afficher l'assistant de
+        // premier lancement : doit rester false tant que rien n'a jamais été sauvegardé, y compris
+        // après un simple Load() (qui ne crée le fichier que s'il a dû corriger quelque chose).
+        var manager = new SettingsManager(_settingsPath);
+        Assert.False(manager.SettingsFileExists());
+
+        manager.Save(new LauncherSettings());
+
+        Assert.True(manager.SettingsFileExists());
+    }
+
+    [Fact]
     public void Save_puis_Load_redonne_les_memes_valeurs()
     {
         var manager = new SettingsManager(_settingsPath);

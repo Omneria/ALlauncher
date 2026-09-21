@@ -15,6 +15,7 @@ using CmlLib.Core.ProcessBuilder;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
 using MinecraftLauncherPerso.Services.Configuration;
+using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Forge;
 using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
@@ -72,11 +73,24 @@ public partial class MainWindow : Window
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
     private ProcessWrapper? _activeGame;
 
+    // Tampon borné de la sortie console du jeu (stdout/stderr), pour CrashDiagnosisService sur une
+    // sortie anormale — pas la peine de le relire depuis le disque, gameOutput passe déjà par ici.
+    private const int CrashBufferMaxLines = 400;
+    private readonly Queue<string> _gameOutputBuffer = new();
+
+    // Préchargement du modpack en arrière-plan (v1.9.0) : lancé dès MainWindow_Loaded si une mise à
+    // jour est détectée, annulé si le joueur clique sur JOUER avant la fin pour éviter que les deux
+    // n'écrivent en même temps dans le même fichier .part (voir ModSyncService.PrefetchAsync).
+    private CancellationTokenSource? _prefetchCts;
+    private Task? _prefetchTask;
+    private readonly bool _isFirstLaunch;
+
     public MainWindow()
     {
         InitializeComponent();
 
         _settingsManager = new SettingsManager();
+        _isFirstLaunch = !_settingsManager.SettingsFileExists();
         _settings = _settingsManager.Load();
 
         // Taille de fenêtre et mode compact mémorisés d'un lancement à l'autre (v1.8.0) : sans ça,
@@ -143,6 +157,10 @@ public partial class MainWindow : Window
     /// <summary>Mémorise la taille de fenêtre et le mode compact courants pour le prochain lancement.</summary>
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        // Un préchargement du modpack en arrière-plan (StartModpackPrefetch) ne doit pas continuer
+        // à écrire sur le disque après la fermeture du launcher ni bloquer la fermeture.
+        _prefetchCts?.Cancel();
+
         // WindowState.Normal uniquement : si la fenêtre est minimisée/maximisée à la fermeture,
         // Width/Height ne reflètent pas sa taille "normale" réelle, ça écraserait la valeur utile
         // avec la taille minimisée/maximisée au prochain démarrage.
@@ -163,6 +181,17 @@ public partial class MainWindow : Window
         VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
         RefreshLastSyncText();
 
+        // Assistant de premier lancement (v1.9.0) : seulement si settings.json n'existait pas
+        // encore au tout début du constructeur (voir _isFirstLaunch) — après ce point, Load() l'a
+        // déjà créé (comportement existant), donc ce drapeau ne redeviendra jamais vrai.
+        if (_isFirstLaunch)
+        {
+            var welcome = new WelcomeWindow(_settings.ServerName, _settings.GameDirectory) { Owner = this };
+            welcome.ShowDialog();
+            _settings.GameDirectory = welcome.GameDirectory;
+            _settingsManager.Save(_settings);
+        }
+
         await ShowNewsAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
@@ -180,6 +209,27 @@ public partial class MainWindow : Window
         {
             ShowConnectedPlayer(cachedSession);
         }
+
+        StartModpackPrefetch();
+    }
+
+    /// <summary>
+    /// Précharge le modpack en arrière-plan dès qu'une mise à jour est détectée, plutôt que
+    /// d'attendre le clic sur JOUER pour commencer le téléchargement — voir
+    /// IModSyncService.PrefetchAsync. Best-effort et silencieux (pas de barre de progression
+    /// dédiée) : PlayButton_Click annule ce préchargement avant de démarrer sa propre synchro pour
+    /// éviter que les deux n'écrivent en même temps dans le même fichier partiel.
+    /// </summary>
+    private void StartModpackPrefetch()
+    {
+        _prefetchCts = new CancellationTokenSource();
+        var token = _prefetchCts.Token;
+        _prefetchTask = _modSyncService.PrefetchAsync(_settings.ModpackZipUrl, _settings.GameDirectory, cancellationToken: token);
+        _ = _prefetchTask.ContinueWith(
+            t => Logger.Warn("MainWindow", $"Préchargement du modpack interrompu : {t.Exception?.GetBaseException().Message}"),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 
     private async Task ShowNewsAsync()
@@ -267,9 +317,30 @@ public partial class MainWindow : Window
         PlayButton.IsEnabled = false;
         ViewLogsButton.Visibility = Visibility.Collapsed;
         StatusLogTextBox.Clear();
+        _gameOutputBuffer.Clear();
         ProgressBar.IsIndeterminate = false;
         ProgressBar.Value = 0;
         LoadingPanel.Visibility = Visibility.Visible;
+
+        // Un préchargement en arrière-plan a pu démarrer depuis MainWindow_Loaded (voir
+        // StartModpackPrefetch) : on l'annule et on attend sa fin avant de lancer la vraie synchro
+        // ci-dessous, pour éviter que les deux n'ouvrent le même fichier .part en même temps
+        // (FileShare.None côté ModSyncService).
+        if (_prefetchTask is not null)
+        {
+            _prefetchCts?.Cancel();
+            try
+            {
+                await _prefetchTask;
+            }
+            catch (Exception)
+            {
+                // Peu importe pourquoi le préchargement s'est arrêté (annulation normale ou
+                // véritable échec réseau) : SyncAsync ci-dessous a sa propre gestion d'erreur.
+            }
+
+            _prefetchTask = null;
+        }
 
         try
         {
@@ -366,7 +437,11 @@ public partial class MainWindow : Window
 
             // 6. Lancement
             AppendLog("Lancement du jeu...");
-            var gameOutput = new Progress<string>(AppendLog);
+            var gameOutput = new Progress<string>(line =>
+            {
+                AppendLog(line);
+                BufferGameOutput(line);
+            });
             try
             {
                 _activeGame = await _gameLauncher.LaunchAsync(launcher, versionId, session, javaPath, _settings, gameOutput);
@@ -417,10 +492,59 @@ public partial class MainWindow : Window
                 AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
                 ViewLogsButton.Visibility = Visibility.Visible;
                 SystemSounds.Hand.Play();
+                ShowCrashDiagnosisIfAny();
             }
 
             LoadingPanel.Visibility = Visibility.Collapsed;
         });
+    }
+
+    /// <summary>
+    /// Sortie anormale du jeu (code non nul) : jusqu'ici, seul le code de sortie brut était
+    /// affiché, sans aucune piste pour l'utilisateur. Cherche un motif connu (RAM insuffisante,
+    /// mod corrompu...) dans la sortie console déjà bufferisée (voir BufferGameOutput) et
+    /// propose une réparation directement si le diagnostic la suggère.
+    /// </summary>
+    private void ShowCrashDiagnosisIfAny()
+    {
+        var diagnosis = CrashDiagnosisService.Diagnose(_gameOutputBuffer);
+        if (diagnosis is null)
+        {
+            return;
+        }
+
+        AppendLog($"Diagnostic : {diagnosis.Message}");
+
+        if (!diagnosis.SuggestsRepair)
+        {
+            MessageBox.Show(diagnosis.Message, "Le jeu s'est arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"{diagnosis.Message}\n\nLancer une réparation du modpack maintenant ?",
+            "Le jeu s'est arrêté",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            SettingsButton_Click(this, new RoutedEventArgs());
+        }
+    }
+
+    private void BufferGameOutput(string line)
+    {
+        if (string.IsNullOrEmpty(line))
+        {
+            return;
+        }
+
+        _gameOutputBuffer.Enqueue(line);
+        while (_gameOutputBuffer.Count > CrashBufferMaxLines)
+        {
+            _gameOutputBuffer.Dequeue();
+        }
     }
 
     /// <summary>
@@ -718,7 +842,7 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = new SettingsWindow(_settings) { Owner = this };
+        var window = new SettingsWindow(_settings, _modSyncService) { Owner = this };
         window.ShowDialog();
 
         if (window.SettingsSaved)
