@@ -1,15 +1,15 @@
 <Window x:Class="MinecraftLauncherPerso.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Algaron Launcher"
-        Width="860" Height="560"
+        Title="Omnéria Launcher"
+        Width="900" Height="600"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource VoidBrush}"
         FontFamily="{StaticResource BodyFontFamily}"
         Foreground="{StaticResource InkBrush}"
-        Icon="/Assets/Images/algaron-mark.png">
+        Icon="/Assets/Images/omneria-mark.png">
     <Window.Triggers>
         <!-- Halos en respiration lente et continue (dérive + pulsation d'opacité) : signature
              discrète, jamais assez rapide pour distraire de l'UI. -->
@@ -33,7 +33,7 @@
         </EventTrigger>
     </Window.Triggers>
     <Grid>
-        <!-- Halo de fond (signature Algaron) : deux dégradés radiaux, violet et cyan. -->
+        <!-- Halo de fond (signature Omnéria) : deux dégradés radiaux, violet et cyan. -->
         <Canvas IsHitTestVisible="False">
             <Ellipse x:Name="VioletHalo" Canvas.Left="380" Canvas.Top="-260" Width="620" Height="480">
                 <Ellipse.RenderTransform>
@@ -65,182 +65,256 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Barre de titre personnalisée (fenêtre sans chrome Windows) -->
+            <!-- Barre de titre personnalisée (fenêtre sans chrome Windows) : plus de marque ici,
+                 elle vit désormais dans la barre latérale ci-dessous (piste "Fusion" v1.5.0). -->
             <Grid x:Name="TitleBar" Grid.Row="0" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
-                    <Image Source="/Assets/Images/algaron-mark.png" Width="18" Height="18" Stretch="Uniform" Margin="0,0,10,0" />
-                    <TextBlock Text="A L G A R O N   L A U N C H E R" VerticalAlignment="Center"
-                               FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
-                               Foreground="{StaticResource InkDimBrush}" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button x:Name="SettingsButton" Content="⚙" Style="{StaticResource GhostButtonStyle}" Click="SettingsButton_Click" />
                     <Button Content="—" Style="{StaticResource GhostButtonStyle}" Click="MinimizeButton_Click" />
                     <Button Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
                 </StackPanel>
             </Grid>
 
-            <!-- Contenu principal -->
-            <Grid Grid.Row="1" Margin="32,0,32,28">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <!-- Contenu principal : barre latérale fixe + tableau de bord deux colonnes. -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="208" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <!-- Bloc marque : logo Algaron officiel (hexagone + mot-symbole). Superposé, dans la
-                     même ligne de grille : le profil connecté (ou le bouton de connexion), aligné
-                     en haut à droite, sous la barre de titre. -->
-                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,8,0,12">
-                    <Image Source="/Assets/Images/algaron-lockup.png" Width="220" Stretch="Uniform" />
-                    <TextBlock Text="L A U N C H E R" HorizontalAlignment="Center" Margin="0,4,0,0"
-                               FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
-                               Foreground="{StaticResource CyanBrush}" />
-                </StackPanel>
-
-                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right"
-                            VerticalAlignment="Top" Margin="0,4,0,0">
-                    <Button x:Name="LoginButton" Content="SE CONNECTER" Margin="0,0,12,0"
-                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
-                            FontSize="11" Foreground="{StaticResource CyanBrush}"
-                            Click="LoginButton_Click" />
-                    <Border x:Name="PlayerAvatarBorder" Width="26" Height="26" Margin="0,0,8,0"
-                            BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            Cursor="Hand" ToolTip="Modifier mon skin Minecraft"
-                            MouseLeftButtonUp="PlayerAvatarBorder_MouseLeftButtonUp"
-                            Visibility="Collapsed">
-                        <Image x:Name="PlayerAvatarImage" />
-                    </Border>
-                    <TextBlock x:Name="PlayerNameText" VerticalAlignment="Center"
-                               FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
-                               Foreground="{StaticResource InkDimBrush}" />
-                    <TextBlock x:Name="AvatarErrorHint" Text="⚠" Margin="6,0,0,0" VerticalAlignment="Center"
-                               FontSize="12" Foreground="{StaticResource MagentaBrush}"
-                               Visibility="Collapsed" Cursor="Help" />
-                </StackPanel>
-
-                <!-- Barre de statut : état du serveur à gauche, bandeau MAJ à droite. -->
-                <Grid Grid.Row="1" Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock x:Name="ServerStatusText" Grid.Column="0" VerticalAlignment="Center"
-                               Text="Vérification du serveur..." FontFamily="{StaticResource MonoFontFamily}"
-                               FontSize="12" Foreground="{StaticResource InkDimBrush}" />
-
-                    <Button x:Name="UpdateBannerButton" Grid.Column="1" Content="MISE À JOUR DISPONIBLE"
-                            Visibility="Collapsed"
-                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
-                            FontSize="11" Foreground="{StaticResource AmberBrush}"
-                            Click="UpdateBannerButton_Click" />
-                </Grid>
-
-                <!-- Panneau actus (news.txt optionnel) : masqué (Visibility=Collapsed, pas d'espace
-                     réservé) tant qu'aucune actu n'est disponible. -->
-                <Border x:Name="NewsPanel" Grid.Row="2" Style="{StaticResource CardBorderStyle}"
-                        Margin="0,0,0,16" Visibility="Collapsed" MaxHeight="110">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="📰 ACTUS" Style="{StaticResource EyebrowTextStyle}"
-                                   Margin="16,12,16,4" />
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <TextBlock x:Name="NewsText" Margin="16,0,16,12" TextWrapping="Wrap"
-                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
-                                       Foreground="{StaticResource InkBrush}" />
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-
-                <!-- Panneau de chargement : masqué au repos, affiche un spinner + le statut de
-                     l'étape en cours pendant le lancement (remplace l'ancien journal brut). Le
-                     TextBox de journal est conservé hors-écran : AppendLog y écrit toujours,
-                     consultable via VOIR LES LOGS en cas d'erreur. -->
-                <Border x:Name="LoadingPanel" Grid.Row="3" Style="{StaticResource CardBorderStyle}"
-                        Margin="0,0,0,16" Visibility="Collapsed">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="2" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <Rectangle Grid.Row="0">
-                            <Rectangle.Fill>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="{StaticResource ColorCyan}" Offset="0" />
-                                    <GradientStop Color="{StaticResource ColorViolet}" Offset="0.5" />
-                                    <GradientStop Color="{StaticResource ColorMagenta}" Offset="1" />
-                                </LinearGradientBrush>
-                            </Rectangle.Fill>
-                        </Rectangle>
-                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Ellipse x:Name="LoadingSpinner" Width="34" Height="34" StrokeThickness="3"
-                                     Stroke="{StaticResource CyanBrush}" StrokeDashArray="4,3"
-                                     RenderTransformOrigin="0.5,0.5">
-                                <Ellipse.RenderTransform>
-                                    <RotateTransform x:Name="LoadingSpinnerRotation" />
-                                </Ellipse.RenderTransform>
-                                <Ellipse.Triggers>
-                                    <EventTrigger RoutedEvent="Loaded">
-                                        <BeginStoryboard>
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <DoubleAnimation Storyboard.TargetName="LoadingSpinnerRotation"
-                                                                  Storyboard.TargetProperty="Angle"
-                                                                  From="0" To="360" Duration="0:0:1.1" />
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </EventTrigger>
-                                </Ellipse.Triggers>
-                            </Ellipse>
-                            <TextBlock x:Name="LoadingStatusText" Margin="0,14,0,0"
-                                       HorizontalAlignment="Center"
-                                       FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
-                                       Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
-                        </StackPanel>
-                        <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
-                                 IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                 Visibility="Collapsed" />
-                    </Grid>
-                </Border>
-
-                <!-- Barre de contrôle : progression, bouton Jouer (RAM déplacée dans Paramètres) -->
-                <Grid Grid.Row="4">
+                <!-- Barre latérale : marque, navigation (seul JOUER est un vrai écran pour
+                     l'instant ; ACTUS/SERVEUR restent décoratifs, PARAMÈTRES ouvre la fenêtre
+                     existante), profil connecté en bas. -->
+                <Grid Grid.Column="0" Background="{StaticResource SidebarBrush}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                    <Border Grid.RowSpan="4" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" />
 
-                    <ProgressBar x:Name="ProgressBar" Grid.Row="0" Grid.ColumnSpan="3" Height="4" Margin="0,0,0,14"
-                                 Minimum="0" Maximum="100"
-                                 Background="{StaticResource Surface2Brush}" BorderThickness="0"
-                                 Foreground="{StaticResource CyanBrush}" />
+                    <Border Grid.Row="0" HorizontalAlignment="Center" Margin="0,14,0,18">
+                        <Image Source="/Assets/Images/omneria-mark.png" Width="130" Height="130" Stretch="Uniform" />
+                    </Border>
 
-                    <Button x:Name="ViewLogsButton" Grid.Row="1" Grid.Column="1" Content="VOIR LES LOGS"
-                            Visibility="Collapsed" Margin="0,0,12,0"
-                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,4"
-                            VerticalAlignment="Bottom" FontSize="11" Foreground="{StaticResource MagentaBrush}"
-                            Click="ViewLogsButton_Click" />
+                    <StackPanel Grid.Row="1">
+                        <Border x:Name="NavJouer" Padding="14,10" BorderThickness="2,0,0,0"
+                                BorderBrush="{StaticResource CyanBrush}" Background="#1200E5C7">
+                            <TextBlock Text="JOUER" Style="{StaticResource NavItemActiveTextStyle}" />
+                        </Border>
+                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent">
+                            <TextBlock Text="ACTUS" Style="{StaticResource NavItemTextStyle}" />
+                        </Border>
+                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent">
+                            <TextBlock Text="SERVEUR" Style="{StaticResource NavItemTextStyle}" />
+                        </Border>
+                        <Border Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
+                                Cursor="Hand" MouseLeftButtonUp="ParametresNavItem_MouseLeftButtonUp">
+                            <TextBlock Text="PARAMÈTRES" Style="{StaticResource NavItemTextStyle}" />
+                        </Border>
+                    </StackPanel>
 
-                    <Button x:Name="PlayButton" Grid.Row="1" Grid.Column="2" Content="JOUER"
-                            Style="{StaticResource PrimaryButtonStyle}" VerticalAlignment="Bottom"
-                            Click="PlayButton_Click" />
+                    <!-- Bloc profil connecté (agrandi) : SE CONNECTER tant qu'aucun compte n'est
+                         actif, remplacé par avatar + pseudo + badge une fois connecté. -->
+                    <Grid Grid.Row="3" Margin="0,0,0,0">
+                        <Border Padding="18,16" BorderThickness="0,1,0,0" BorderBrush="{StaticResource LineBrush}"
+                                Background="#0A00E5C7">
+                            <StackPanel>
+                                <Button x:Name="LoginButton" Content="SE CONNECTER" HorizontalAlignment="Stretch"
+                                        Style="{StaticResource GhostButtonStyle}" Width="Auto" Height="Auto"
+                                        Padding="0,10" FontSize="11" Foreground="{StaticResource CyanBrush}"
+                                        Click="LoginButton_Click" />
+
+                                <StackPanel x:Name="SidebarAccountPanel" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border x:Name="PlayerAvatarBorder" Width="44" Height="44" Margin="0,0,12,0"
+                                                BorderBrush="{StaticResource CyanBrush}" BorderThickness="1"
+                                                Cursor="Hand" ToolTip="Modifier mon skin Minecraft"
+                                                MouseLeftButtonUp="PlayerAvatarBorder_MouseLeftButtonUp"
+                                                Visibility="Collapsed">
+                                            <Image x:Name="PlayerAvatarImage" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock x:Name="PlayerNameText" FontSize="14" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource InkBrush}" />
+                                                <TextBlock x:Name="AvatarErrorHint" Text="⚠" Margin="6,0,0,0"
+                                                           VerticalAlignment="Center" FontSize="12"
+                                                           Foreground="{StaticResource MagentaBrush}"
+                                                           Visibility="Collapsed" Cursor="Help" />
+                                            </StackPanel>
+                                            <Border Margin="0,5,0,0" BorderBrush="{StaticResource CyanBrush}"
+                                                    BorderThickness="1" Padding="6,2" HorizontalAlignment="Left">
+                                                <TextBlock Text="CONNECTÉ" FontFamily="{StaticResource MonoFontFamily}"
+                                                           FontSize="9" Foreground="{StaticResource CyanBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <TextBlock x:Name="VersionText" Margin="0,12,0,0"
+                                           FontFamily="{StaticResource MonoFontFamily}" FontSize="10"
+                                           Foreground="{StaticResource InkDimBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- Tableau de bord : en-tête (serveur + bandeau MAJ), puis deux colonnes
+                     (actus/changelog à gauche, statut serveur + lancement à droite). -->
+                <Grid Grid.Column="1" Margin="26,22,26,24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ServerEyebrowText" Grid.Column="0" Style="{StaticResource EyebrowTextStyle}"
+                                   VerticalAlignment="Center" Text="ASTRAL NEXUS" />
+                        <Button x:Name="UpdateBannerButton" Grid.Column="1" Content="MISE À JOUR DISPONIBLE"
+                                Visibility="Collapsed"
+                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
+                                FontSize="11" Foreground="{StaticResource AmberBrush}"
+                                Click="UpdateBannerButton_Click" />
+                    </Grid>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.3*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Colonne actus (news.txt optionnel) : carte toujours visible, avec un
+                             état vide explicite plutôt que de disparaître entièrement (la mise en
+                             page deux colonnes suppose sa présence). -->
+                        <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="ACTUS &amp; CHANGELOG" Style="{StaticResource EyebrowTextStyle}"
+                                           Margin="18,16,18,8" />
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <TextBlock x:Name="NewsText" Margin="18,0,18,16" TextWrapping="Wrap"
+                                               FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                                               Foreground="{StaticResource InkBrush}"
+                                               Text="Aucune actualité pour le moment." />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <!-- Colonne serveur + lancement -->
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Carte statut serveur : crest à droite, occupant toute la hauteur
+                                 disponible, jamais coincé au niveau du texte "EN LIGNE". -->
+                            <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Padding="14" Margin="0,0,0,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Ellipse x:Name="ServerStatusDot" Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{StaticResource CyanBrush}" Margin="0,0,8,0" />
+                                            <TextBlock x:Name="ServerStatusText" VerticalAlignment="Center"
+                                                       Text="Vérification..." FontFamily="{StaticResource MonoFontFamily}"
+                                                       FontSize="11" Foreground="{StaticResource InkDimBrush}" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="ServerCountText" FontFamily="{StaticResource DisplayFontFamily}"
+                                                   FontSize="28" FontWeight="Bold" Foreground="{StaticResource CyanBrush}" />
+                                        <TextBlock Text="JOUEURS CONNECTÉS" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
+                                                   Foreground="{StaticResource InkDimBrush}" />
+                                    </StackPanel>
+                                    <Image Grid.Column="2" Source="/Assets/Images/astral-nexus-crest.png"
+                                           Width="116" Height="116" Stretch="UniformToFill" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Panneau de chargement : masqué au repos, affiche un spinner + le
+                                 statut de l'étape en cours pendant le lancement/la mise à jour. -->
+                            <Border x:Name="LoadingPanel" Grid.Row="1" Style="{StaticResource CardBorderStyle}"
+                                    Margin="0,0,0,14" Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="2" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <Rectangle Grid.Row="0">
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="{StaticResource ColorCyan}" Offset="0" />
+                                                <GradientStop Color="{StaticResource ColorViolet}" Offset="0.5" />
+                                                <GradientStop Color="{StaticResource ColorMagenta}" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                Margin="12">
+                                        <Ellipse x:Name="LoadingSpinner" Width="30" Height="30" StrokeThickness="3"
+                                                 Stroke="{StaticResource CyanBrush}" StrokeDashArray="4,3"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform x:Name="LoadingSpinnerRotation" />
+                                            </Ellipse.RenderTransform>
+                                            <Ellipse.Triggers>
+                                                <EventTrigger RoutedEvent="Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetName="LoadingSpinnerRotation"
+                                                                              Storyboard.TargetProperty="Angle"
+                                                                              From="0" To="360" Duration="0:0:1.1" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Ellipse.Triggers>
+                                        </Ellipse>
+                                        <TextBlock x:Name="LoadingStatusText" Margin="0,12,0,0"
+                                                   HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                                                   Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
+                                    </StackPanel>
+                                    <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
+                                             IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                             Visibility="Collapsed" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Barre de contrôle : progression, bouton Jouer, logs -->
+                            <StackPanel Grid.Row="2">
+                                <ProgressBar x:Name="ProgressBar" Height="4" Margin="0,0,0,14"
+                                             Minimum="0" Maximum="100"
+                                             Background="{StaticResource Surface2Brush}" BorderThickness="0"
+                                             Foreground="{StaticResource CyanBrush}" />
+
+                                <Button x:Name="PlayButton" Content="JOUER" HorizontalAlignment="Center"
+                                        Style="{StaticResource PrimaryButtonStyle}" Click="PlayButton_Click" />
+
+                                <Button x:Name="ViewLogsButton" Content="VOIR LES LOGS" Margin="0,10,0,0"
+                                        HorizontalAlignment="Center"
+                                        Visibility="Collapsed"
+                                        Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,6"
+                                        FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                                        Click="ViewLogsButton_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                 </Grid>
             </Grid>
         </Grid>

@@ -14,12 +14,12 @@
            - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
     <DebugType>None</DebugType>
-    <ApplicationIcon>Assets\Images\algaron-mark.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\Images\omneria-mark.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Polices embarquées (charte Algaron) : Chakra Petch (titres), Inter (corps), JetBrains Mono
+    <!-- Polices embarquées (charte Omnéria) : Chakra Petch (titres), Inter (corps), JetBrains Mono
          (données/RAM/logs). Licence SIL Open Font License, textes conservés à côté des .ttf.
          None Remove évite un conflit avec le glob implicite du SDK (sinon inclus deux fois). -->
     <None Remove="Assets\Fonts\*.ttf" />
@@ -44,8 +44,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Logo Algaron (fourni par l'utilisateur), recadré en deux versions :
-         algaron-mark.png (hexagone seul, icône) et algaron-lockup.png (hexagone + mot-symbole). -->
+    <!-- Logo Omnéria et crest du serveur Astral Nexus (fournis par l'utilisateur), recadrés en
+         carré et retouchés (contraste/saturation/netteté) : omneria-mark.png/.ico (marque, aussi
+         icône de l'exécutable) et astral-nexus-crest.png (badge serveur). -->
     <None Remove="Assets\Images\*.png" />
     <Resource Include="Assets\Images\*.png" />
   </ItemGroup>

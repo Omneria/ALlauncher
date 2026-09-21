@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Media;
 using System.Net.Http;
+using System.Reflection;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -91,6 +93,10 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        ServerEyebrowText.Text = _settings.ServerName.ToUpperInvariant();
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
+
         await ShowNewsAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
@@ -111,6 +117,9 @@ public partial class MainWindow : Window
 
     private async Task ShowNewsAsync()
     {
+        // La carte actus reste toujours visible (mise en page deux colonnes de la barre
+        // latérale) ; seul son contenu change — le texte par défaut ("Aucune actualité pour le
+        // moment.") posé dans le XAML reste affiché tant qu'aucun news.txt n'est disponible.
         var news = await _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
         if (news is null)
         {
@@ -118,7 +127,6 @@ public partial class MainWindow : Window
         }
 
         NewsText.Text = news;
-        NewsPanel.Visibility = Visibility.Visible;
     }
 
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
@@ -249,17 +257,34 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(_settings.ServerHost))
         {
-            ServerStatusText.Text = "";
+            ServerStatusText.Text = "Non configuré";
+            ServerStatusDot.Fill = (Brush)FindResource("InkDimBrush");
+            ServerCountText.Inlines.Clear();
+            ServerCountText.Inlines.Add(new Run("—"));
             return;
         }
 
         var status = await _serverStatusService.PingAsync(_settings.ServerHost, _settings.ServerPort);
         _lastServerStatus = status;
 
-        ServerStatusText.Text = status.IsOnline
-            ? $"● En ligne — {status.OnlinePlayers}/{status.MaxPlayers} joueurs"
-            : "● Hors ligne";
-        ServerStatusText.Foreground = (Brush)FindResource(status.IsOnline ? "CyanBrush" : "MagentaBrush");
+        ServerStatusText.Text = status.IsOnline ? "EN LIGNE" : "HORS LIGNE";
+        var statusBrush = (Brush)FindResource(status.IsOnline ? "CyanBrush" : "MagentaBrush");
+        ServerStatusDot.Fill = statusBrush;
+
+        ServerCountText.Inlines.Clear();
+        if (status.IsOnline)
+        {
+            ServerCountText.Inlines.Add(new Run(status.OnlinePlayers.ToString()));
+            ServerCountText.Inlines.Add(new Run($"/{status.MaxPlayers}")
+            {
+                FontSize = 16,
+                Foreground = (Brush)FindResource("InkDimBrush"),
+            });
+        }
+        else
+        {
+            ServerCountText.Inlines.Add(new Run("—") { Foreground = statusBrush });
+        }
     }
 
     private async Task CheckForUpdateAsync()
@@ -339,6 +364,7 @@ public partial class MainWindow : Window
     private void ShowConnectedPlayer(MinecraftSession session)
     {
         LoginButton.Visibility = Visibility.Collapsed;
+        SidebarAccountPanel.Visibility = Visibility.Visible;
         PlayerNameText.Text = session.Username;
         _ = LoadPlayerAvatarAsync(session.Uuid);
     }
@@ -420,6 +446,12 @@ public partial class MainWindow : Window
             _settingsManager.Save(_settings);
         }
     }
+
+    // Item "PARAMÈTRES" de la barre latérale : simple relais vers le même handler que l'icône ⚙
+    // de la barre de titre (MouseLeftButtonUp, pas Click, car ce n'est pas un Button mais un
+    // Border cliquable comme les autres items de nav).
+    private void ParametresNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
+        SettingsButton_Click(sender, e);
 
     // Fenêtre sans chrome Windows (WindowStyle="None") : on réimplémente le déplacement et les
     // boutons réduire/fermer nous-mêmes.
