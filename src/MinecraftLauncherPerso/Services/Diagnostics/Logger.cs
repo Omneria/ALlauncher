@@ -13,7 +13,9 @@ namespace MinecraftLauncherPerso.Services.Diagnostics;
 /// </summary>
 public static class Logger
 {
-    private static readonly string LogFilePath = Path.Combine(
+    /// <summary>Exposé pour LogViewerWindow (onglet Paramètres) : lecture directe du fichier, pas de
+    /// méthode d'accès dédiée pour un simple chemin constant.</summary>
+    public static readonly string LogFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MinecraftLauncherPerso", "launcher.log");
 

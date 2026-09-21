@@ -82,7 +82,7 @@ public sealed class ModSyncService : IModSyncService
 
         try
         {
-            await DownloadAsync(modpackZipUrl, tempZipPath, remoteMetadata?.ETag, progress, downloadProgress, cancellationToken);
+            await DownloadAsync(modpackZipUrl, tempZipPath, remoteMetadata?.ETag, remoteMetadata?.ContentLength, progress, downloadProgress, cancellationToken);
 
             progress?.Report("Extraction du modpack (mods/config)...");
             Directory.CreateDirectory(gameDirectory);
@@ -106,6 +106,71 @@ public sealed class ModSyncService : IModSyncService
 
     public DateTimeOffset? GetLastSyncedAt(string gameDirectory) =>
         LoadCache(Path.Combine(gameDirectory, CacheFileName))?.SyncedAt;
+
+    /// <summary>
+    /// Supprime le cache ETag local avant de resynchroniser : SyncAsync le traite alors forcément
+    /// comme "pas à jour", même si le contenu distant n'a pas changé — seul moyen de forcer un
+    /// retéléchargement complet quand c'est un fichier local qui a été corrompu/supprimé, pas le
+    /// serveur qui a changé de version.
+    /// </summary>
+    public Task RepairAsync(
+        string modpackZipUrl,
+        string gameDirectory,
+        IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var cachePath = Path.Combine(gameDirectory, CacheFileName);
+        if (File.Exists(cachePath))
+        {
+            File.Delete(cachePath);
+        }
+
+        progress?.Report("Réparation : retéléchargement complet du modpack...");
+        return SyncAsync(modpackZipUrl, gameDirectory, progress, downloadProgress, cancellationToken);
+    }
+
+    public async Task PrefetchAsync(
+        string modpackZipUrl,
+        string gameDirectory,
+        IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(modpackZipUrl))
+        {
+            return;
+        }
+
+        RemoteZipMetadata? remoteMetadata;
+        try
+        {
+            remoteMetadata = await FetchRemoteMetadataAsync(modpackZipUrl, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            // Best-effort : un HEAD indisponible ici ne doit pas faire échouer quoi que ce soit,
+            // SyncAsync (au clic sur Jouer) retentera de toute façon avec sa propre gestion d'échec.
+            return;
+        }
+
+        var cachePath = Path.Combine(gameDirectory, CacheFileName);
+        var cached = LoadCache(cachePath);
+        var upToDate = remoteMetadata is not null && cached is not null && cached.Matches(remoteMetadata);
+        if (upToDate)
+        {
+            return;
+        }
+
+        progress?.Report("Préchargement du modpack en arrière-plan...");
+
+        // N'extrait pas et n'écrit pas le cache : seul le fichier .part partagé avec SyncAsync
+        // (même chemin, dérivé du hash de l'URL) est complété ici. SyncAsync, appelé plus tard au
+        // clic sur "Jouer", le retrouvera déjà téléchargé (ou partiellement) et n'aura plus qu'à le
+        // déplacer/extraire, rendant ce clic quasi instantané côté téléchargement.
+        await EnsurePartialDownloadedAsync(
+            modpackZipUrl, remoteMetadata?.ETag, remoteMetadata?.ContentLength, progress, downloadProgress, cancellationToken);
+    }
 
     /// <summary>
     /// Affiche le contenu d'un éventuel changelog.txt hébergé à côté du zip du modpack (même
@@ -243,12 +308,45 @@ public sealed class ModSyncService : IModSyncService
         string url,
         string destinationPath,
         string? etag,
+        long? expectedLength,
+        IProgress<string>? progress,
+        IProgress<double>? downloadProgress,
+        CancellationToken cancellationToken)
+    {
+        var partialPath = await EnsurePartialDownloadedAsync(url, etag, expectedLength, progress, downloadProgress, cancellationToken);
+
+        // Téléchargement complet réussi : le .part devient le zip final, prêt pour extraction. En
+        // cas d'échec avant ce point (exception ci-dessus), le .part reste en place tel quel pour
+        // permettre une reprise à la prochaine tentative.
+        File.Move(partialPath, destinationPath, overwrite: true);
+    }
+
+    /// <summary>
+    /// Cœur du téléchargement reprenable, partagé par DownloadAsync (SyncAsync, au clic sur
+    /// "Jouer") et PrefetchAsync (arrière-plan) : les deux écrivent dans le même fichier .part
+    /// (chemin stable dérivé du hash de l'URL), donc un préchargement en arrière-plan complété (ou
+    /// partiel) profite directement à SyncAsync appelé plus tard, sans repartir de zéro.
+    /// </summary>
+    /// <returns>Chemin du fichier .part, entièrement téléchargé.</returns>
+    private async Task<string> EnsurePartialDownloadedAsync(
+        string url,
+        string? etag,
+        long? expectedLength,
         IProgress<string>? progress,
         IProgress<double>? downloadProgress,
         CancellationToken cancellationToken)
     {
         var partialPath = GetPartialDownloadPath(url);
         var resumeFrom = File.Exists(partialPath) ? new FileInfo(partialPath).Length : 0L;
+
+        if (expectedLength is > 0 && resumeFrom == expectedLength.Value)
+        {
+            // Déjà entièrement téléchargé (ex. par un PrefetchAsync précédent) : rien à refaire.
+            // Sans ce court-circuit, une requête Range exactement en fin de fichier renverrait
+            // souvent 416 Range Not Satisfiable côté serveur au lieu d'un corps vide.
+            downloadProgress?.Report(1.0);
+            return partialPath;
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (resumeFrom > 0)
@@ -305,10 +403,10 @@ public sealed class ModSyncService : IModSyncService
             }
         }
 
-        // Téléchargement complet réussi : le .part devient le zip final, prêt pour extraction. En
-        // cas d'échec avant ce point (exception ci-dessus), le .part reste en place tel quel pour
-        // permettre une reprise à la prochaine tentative.
-        File.Move(partialPath, destinationPath, overwrite: true);
+        // Téléchargement complet réussi. En cas d'échec avant ce point (exception ci-dessus), le
+        // .part reste en place tel quel pour permettre une reprise à la prochaine tentative (par
+        // DownloadAsync ou un nouveau PrefetchAsync).
+        return partialPath;
     }
 
     private static string GetPartialDownloadPath(string url)

@@ -1,0 +1,64 @@
+<Window x:Class="MinecraftLauncherPerso.LogViewerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Journaux"
+        Width="720" Height="520"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource VoidBrush}"
+        FontFamily="{StaticResource BodyFontFamily}"
+        Foreground="{StaticResource InkBrush}"
+        Icon="/Assets/Images/omneria-mark.png">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Barre de titre personnalisée (fenêtre sans chrome Windows), comme les autres fenêtres du launcher -->
+        <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="J O U R N A U X" VerticalAlignment="Center" Margin="16,0,0,0"
+                       FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                       Foreground="{StaticResource InkDimBrush}" />
+
+            <Button Grid.Column="1" Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
+        </Grid>
+
+        <!-- Barre d'outils : bascule launcher.log / latest.log du jeu, recherche, copier -->
+        <Grid Grid.Row="1" Margin="20,0,20,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="LauncherLogButton" Grid.Column="0" Content="LAUNCHER" Style="{StaticResource GhostButtonStyle}"
+                    Width="Auto" Padding="12,7" FontSize="11" Click="LauncherLogButton_Click" />
+            <Button x:Name="GameLogButton" Grid.Column="1" Content="JEU" Style="{StaticResource GhostButtonStyle}"
+                    Width="Auto" Padding="12,7" FontSize="11" Margin="4,0,0,0" Click="GameLogButton_Click" />
+
+            <TextBox x:Name="SearchTextBox" Grid.Column="3" Style="{StaticResource AppTextBoxStyle}"
+                     VerticalAlignment="Center" Padding="10,6" TextChanged="SearchTextBox_TextChanged" />
+
+            <Button Grid.Column="5" Content="COPIER" Style="{StaticResource GhostButtonStyle}" Width="Auto"
+                    Padding="12,7" FontSize="11" Click="CopyButton_Click" />
+        </Grid>
+
+        <TextBox x:Name="LogTextBox" Grid.Row="2" Margin="20,0,20,20" Style="{StaticResource StatusLogStyle}"
+                 Background="{StaticResource InputBrush}" BorderBrush="{StaticResource LineBrush}"
+                 BorderThickness="1" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                 TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                 FontSize="11" />
+    </Grid>
+</Window>

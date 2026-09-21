@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Hardware;
+using MinecraftLauncherPerso.Services.ModSync;
 
 namespace MinecraftLauncherPerso;
 
@@ -15,6 +16,7 @@ public partial class SettingsWindow : Window
     private const double ThumbSize = 14;
 
     private readonly LauncherSettings _settings;
+    private readonly IModSyncService _modSyncService;
     private double _ramFloorMb = 512;
     private double _ramCeilingMb = 16384;
     private double _minRamMb;
@@ -23,10 +25,11 @@ public partial class SettingsWindow : Window
     /// <summary>True si l'utilisateur a cliqué "Enregistrer" (par opposition à fermer sans sauver).</summary>
     public bool SettingsSaved { get; private set; }
 
-    public SettingsWindow(LauncherSettings settings)
+    public SettingsWindow(LauncherSettings settings, IModSyncService modSyncService)
     {
         InitializeComponent();
         _settings = settings;
+        _modSyncService = modSyncService;
 
         // Borne haute du slider RAM = RAM physique réelle de la machine (au lieu d'un plafond
         // arbitraire) : impossible de configurer plus que ce que la machine peut physiquement
@@ -183,6 +186,42 @@ public partial class SettingsWindow : Window
         {
             box.BorderBrush = (Brush)FindResource("MagentaBrush");
         }
+    }
+
+    /// <summary>
+    /// "Réparation rapide" (v1.9.0) : jusqu'ici, un fichier de mod corrompu/supprimé par erreur
+    /// n'était détecté qu'au clic sur JOUER (et seulement si un manifest.json existe côté VPS), sans
+    /// aucun moyen manuel de le forcer. Ignore le cache ETag (IModSyncService.RepairAsync) pour
+    /// retélécharger le modpack complet, même si le serveur affirme que rien n'a changé.
+    /// </summary>
+    private async void RepairButton_Click(object sender, RoutedEventArgs e)
+    {
+        RepairButton.IsEnabled = false;
+        RepairStatusText.Visibility = Visibility.Visible;
+        RepairStatusText.Foreground = (Brush)FindResource("InkDimBrush");
+        RepairStatusText.Text = "Réparation en cours...";
+
+        var progress = new Progress<string>(message => RepairStatusText.Text = message);
+
+        try
+        {
+            await _modSyncService.RepairAsync(_settings.ModpackZipUrl, _settings.GameDirectory, progress);
+            RepairStatusText.Text = "Modpack réparé.";
+        }
+        catch (Exception ex)
+        {
+            RepairStatusText.Foreground = (Brush)FindResource("MagentaBrush");
+            RepairStatusText.Text = $"Échec de la réparation : {ex.Message}";
+        }
+        finally
+        {
+            RepairButton.IsEnabled = true;
+        }
+    }
+
+    private void ViewLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        new LogViewerWindow(_settings.GameDirectory) { Owner = this }.ShowDialog();
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
