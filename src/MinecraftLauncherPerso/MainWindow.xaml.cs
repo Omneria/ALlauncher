@@ -61,8 +61,6 @@ public partial class MainWindow : Window
         _updateService = new GitHubUpdateService();
         _newsService = new NewsService();
 
-        MaxRamTextBox.Text = _settings.MaxRamMb.ToString();
-
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
 
@@ -110,12 +108,7 @@ public partial class MainWindow : Window
         StatusLogTextBox.Clear();
         ProgressBar.IsIndeterminate = false;
         ProgressBar.Value = 0;
-
-        if (int.TryParse(MaxRamTextBox.Text, out var maxRamMb))
-        {
-            _settings.MaxRamMb = maxRamMb;
-            _settingsManager.Save(_settings);
-        }
+        LoadingPanel.Visibility = Visibility.Visible;
 
         try
         {
@@ -165,6 +158,7 @@ public partial class MainWindow : Window
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;
             AppendLog("Jeu lancé.");
+            LoadingPanel.Visibility = Visibility.Collapsed;
             // Bouton laissé désactivé tant que cette partie tourne : le jeu n'empêche pas
             // plusieurs instances de lui-même, seul GameLauncher.GameExited le réactive (voir
             // ci-dessous), pour éviter de pouvoir lancer un deuxième Minecraft par-dessus.
@@ -174,6 +168,7 @@ public partial class MainWindow : Window
         {
             ProgressBar.IsIndeterminate = false;
             AppendLog($"Erreur : {ex.Message}");
+            ShowLoadingError($"Erreur : {ex.Message}");
         }
 
         PlayButton.IsEnabled = true;
@@ -197,6 +192,8 @@ public partial class MainWindow : Window
                 ViewLogsButton.Visibility = Visibility.Visible;
                 SystemSounds.Hand.Play();
             }
+
+            LoadingPanel.Visibility = Visibility.Collapsed;
         });
     }
 
@@ -296,7 +293,6 @@ public partial class MainWindow : Window
         if (window.SettingsSaved)
         {
             _settingsManager.Save(_settings);
-            MaxRamTextBox.Text = _settings.MaxRamMb.ToString();
         }
     }
 
@@ -327,5 +323,19 @@ public partial class MainWindow : Window
         // thread d'arrière-plan (ex. lecture de la sortie du jeu) — pas besoin de Dispatcher ici.
         StatusLogTextBox.AppendText(message + Environment.NewLine);
         StatusLogTextBox.ScrollToEnd();
+
+        // Le journal brut reste hors-écran (StatusLogTextBox) ; seul le dernier message est
+        // affiché, façon écran de chargement, dans le panneau visible (LoadingPanel).
+        LoadingSpinner.Visibility = Visibility.Visible;
+        LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
+        LoadingStatusText.Text = message;
+    }
+
+    private void ShowLoadingError(string message)
+    {
+        LoadingPanel.Visibility = Visibility.Visible;
+        LoadingSpinner.Visibility = Visibility.Collapsed;
+        LoadingStatusText.Foreground = (Brush)FindResource("MagentaBrush");
+        LoadingStatusText.Text = message;
     }
 }

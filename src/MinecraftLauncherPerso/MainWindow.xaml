@@ -152,8 +152,12 @@
                     </Grid>
                 </Border>
 
-                <!-- Panneau journal (liseré cyan -> violet -> magenta en haut, réservé au bloc principal) -->
-                <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,16">
+                <!-- Panneau de chargement : masqué au repos, affiche un spinner + le statut de
+                     l'étape en cours pendant le lancement (remplace l'ancien journal brut). Le
+                     TextBox de journal est conservé hors-écran : AppendLog y écrit toujours,
+                     consultable via VOIR LES LOGS en cas d'erreur. -->
+                <Border x:Name="LoadingPanel" Grid.Row="3" Style="{StaticResource CardBorderStyle}"
+                        Margin="0,0,0,16" Visibility="Collapsed">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="2" />
@@ -168,41 +172,60 @@
                                 </LinearGradientBrush>
                             </Rectangle.Fill>
                         </Rectangle>
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Ellipse x:Name="LoadingSpinner" Width="34" Height="34" StrokeThickness="3"
+                                     Stroke="{StaticResource CyanBrush}" StrokeDashArray="4,3"
+                                     RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform x:Name="LoadingSpinnerRotation" />
+                                </Ellipse.RenderTransform>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetName="LoadingSpinnerRotation"
+                                                                  Storyboard.TargetProperty="Angle"
+                                                                  From="0" To="360" Duration="0:0:1.1" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
+                            </Ellipse>
+                            <TextBlock x:Name="LoadingStatusText" Margin="0,14,0,0"
+                                       HorizontalAlignment="Center"
+                                       FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                       Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
+                        </StackPanel>
                         <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
-                                 IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                 IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                 Visibility="Collapsed" />
                     </Grid>
                 </Border>
 
-                <!-- Barre de contrôle : progression, RAM, bouton Jouer -->
+                <!-- Barre de contrôle : progression, bouton Jouer (RAM déplacée dans Paramètres) -->
                 <Grid Grid.Row="4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <ProgressBar x:Name="ProgressBar" Grid.Row="0" Grid.ColumnSpan="4" Height="4" Margin="0,0,0,14"
+                    <ProgressBar x:Name="ProgressBar" Grid.Row="0" Grid.ColumnSpan="3" Height="4" Margin="0,0,0,14"
                                  Minimum="0" Maximum="100"
                                  Background="{StaticResource Surface2Brush}" BorderThickness="0"
                                  Foreground="{StaticResource CyanBrush}" />
 
-                    <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Bottom">
-                        <TextBlock Text="RAM (MO)" Style="{StaticResource EyebrowTextStyle}" Margin="2,0,0,4" />
-                        <TextBox x:Name="MaxRamTextBox" Style="{StaticResource AlgaronTextBoxStyle}" Width="110" Text="6144" />
-                    </StackPanel>
-
-                    <Button x:Name="ViewLogsButton" Grid.Row="1" Grid.Column="2" Content="VOIR LES LOGS"
+                    <Button x:Name="ViewLogsButton" Grid.Row="1" Grid.Column="1" Content="VOIR LES LOGS"
                             Visibility="Collapsed" Margin="0,0,12,0"
                             Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,4"
                             VerticalAlignment="Bottom" FontSize="11" Foreground="{StaticResource MagentaBrush}"
                             Click="ViewLogsButton_Click" />
 
-                    <Button x:Name="PlayButton" Grid.Row="1" Grid.Column="3" Content="JOUER"
+                    <Button x:Name="PlayButton" Grid.Row="1" Grid.Column="2" Content="JOUER"
                             Style="{StaticResource PrimaryButtonStyle}" VerticalAlignment="Bottom"
                             Click="PlayButton_Click" />
                 </Grid>
