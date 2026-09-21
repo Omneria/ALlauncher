@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 using MinecraftLauncherPerso.Models;
 
 namespace MinecraftLauncherPerso.Services.Java;
@@ -13,7 +14,8 @@ namespace MinecraftLauncherPerso.Services.Java;
 ///
 /// Ordre de résolution :
 ///   1. Java 8 déjà installé par ce launcher (portable, sous %AppData%/MinecraftLauncherPerso/runtime/java8).
-///   2. Java 8 déjà présent sur la machine (JAVA_HOME, PATH, dossiers d'installation courants).
+///   2. Java 8 déjà présent sur la machine (JAVA_HOME, PATH, dossiers d'installation courants, registre
+///      Windows — un installeur Java officiel s'y enregistre toujours, même dans un dossier non standard).
 ///   3. Téléchargement + extraction d'une build Temurin 8 (JRE) via l'API Adoptium.
 ///
 /// Forge 1.16.5 exige explicitement Java 8 : les JDK 11+ ne sont pas acceptés même s'ils sont
@@ -102,9 +104,69 @@ public sealed class JavaManager : IJavaManager
             }
         }
 
+        foreach (var javaHome in GetRegistryJavaHomes())
+        {
+            candidates.Add(GetJavaExecutablePath(javaHome));
+        }
+
         return candidates.Distinct().Select(TryGetJavaVersion)
             .FirstOrDefault(info => info?.MajorVersion == RequiredMajorVersion)
             ?.ExecutablePath;
+    }
+
+    /// <summary>
+    /// Lit les emplacements d'installation Java enregistrés dans le registre Windows par les
+    /// installeurs officiels (Oracle, Eclipse Adoptium/Foundation) — plus fiable qu'un simple scan
+    /// de dossiers puisque ça rattrape une installation faite dans un chemin non standard. Les deux
+    /// vues du registre (64/32 bits) sont vérifiées, un installeur 32 bits n'apparaissant que sous
+    /// WOW6432Node vu depuis un process 64 bits.
+    /// </summary>
+    private static IEnumerable<string> GetRegistryJavaHomes()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            yield break;
+        }
+
+        string[] registryRoots =
+        {
+            @"SOFTWARE\JavaSoft\Java Runtime Environment",
+            @"SOFTWARE\JavaSoft\JRE",
+            @"SOFTWARE\JavaSoft\JDK",
+            @"SOFTWARE\Eclipse Adoptium\JRE",
+            @"SOFTWARE\Eclipse Adoptium\JDK",
+            @"SOFTWARE\Eclipse Foundation\JDK",
+        };
+
+        foreach (var registryRoot in registryRoots)
+        {
+            foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+            {
+                using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+                using var key = baseKey.OpenSubKey(registryRoot);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var versionName in key.GetSubKeyNames())
+                {
+                    using var versionKey = key.OpenSubKey(versionName);
+                    if (versionKey?.GetValue("JavaHome") is string javaHome && !string.IsNullOrWhiteSpace(javaHome))
+                    {
+                        yield return javaHome;
+                        continue;
+                    }
+
+                    // Eclipse Adoptium/Foundation stockent le chemin sous une sous-clé "hotspot\MSI".
+                    using var msiKey = versionKey?.OpenSubKey(@"hotspot\MSI");
+                    if (msiKey?.GetValue("Path") is string msiPath && !string.IsNullOrWhiteSpace(msiPath))
+                    {
+                        yield return msiPath;
+                    }
+                }
+            }
+        }
     }
 
     private static IEnumerable<string> GetCommonInstallRoots()

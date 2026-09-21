@@ -106,9 +106,12 @@ Ordre de résolution dans `EnsureJava8Async` :
 1. **Java 8 portable déjà installé par ce launcher** : recherche récursive d'un exécutable
    `java(.exe)` sous `%AppData%/MinecraftLauncherPerso/runtime/java8`, validé en exécutant
    `java -version` et en vérifiant que la version majeure vaut bien 8.
-2. **Java 8 déjà présent sur la machine** : `JAVA_HOME`, `java` sur le `PATH`, puis les dossiers
+2. **Java 8 déjà présent sur la machine** : `JAVA_HOME`, `java` sur le `PATH`, les dossiers
    d'installation courants sous Windows (`Program Files\Java`, `...\Eclipse Adoptium`,
-   `...\AdoptOpenJDK`).
+   `...\AdoptOpenJDK`), puis le **registre Windows** (`HKLM\SOFTWARE\JavaSoft\...`,
+   `...\Eclipse Adoptium\...`, `...\Eclipse Foundation\...`, vues 64 et 32 bits) — tout installeur
+   Java officiel s'y enregistre, ce qui rattrape une installation faite dans un dossier non
+   standard que le scan de dossiers seul manquerait.
 3. **Téléchargement automatique** : si aucun Java 8 valide n'est trouvé, interrogation de l'API
    [Adoptium](https://api.adoptium.net) (`/v3/assets/latest/8/hotspot`) pour récupérer la dernière
    build Temurin 8 (JRE) correspondant à l'OS/architecture de la machine, téléchargement avec
