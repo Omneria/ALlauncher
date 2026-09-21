@@ -104,9 +104,9 @@ public sealed class JavaManager : IJavaManager
             }
         }
 
-        foreach (var javaHome in GetRegistryJavaHomes())
+        foreach (var registryJavaHome in GetRegistryJavaHomes())
         {
-            candidates.Add(GetJavaExecutablePath(javaHome));
+            candidates.Add(GetJavaExecutablePath(registryJavaHome));
         }
 
         return candidates.Distinct().Select(TryGetJavaVersion)
