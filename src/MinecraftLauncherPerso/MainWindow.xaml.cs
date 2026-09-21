@@ -268,7 +268,10 @@ public partial class MainWindow : Window
         _lastServerStatus = status;
 
         ServerStatusText.Text = status.IsOnline ? "EN LIGNE" : "HORS LIGNE";
-        ServerStatusText.ToolTip = status.IsOnline ? null : status.ErrorDetail;
+        // Sur toute la ligne (pastille + texte), pas juste le texte : cible de survol trop étroite
+        // sinon pour qu'on tombe dessus de façon fiable.
+        ServerStatusRow.ToolTip = status.IsOnline ? null : status.ErrorDetail;
+        ServerStatusRow.Cursor = status.IsOnline ? null : Cursors.Help;
         var statusBrush = (Brush)FindResource(status.IsOnline ? "CyanBrush" : "MagentaBrush");
         ServerStatusDot.Fill = statusBrush;
 
