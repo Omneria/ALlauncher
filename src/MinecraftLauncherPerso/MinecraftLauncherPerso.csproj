@@ -4,6 +4,10 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- Uniquement pour System.Windows.Forms.NotifyIcon (notifications desktop natives Windows,
+         Services/Notifications/DesktopNotificationService.cs) : aucune fenêtre WinForms n'est créée,
+         WPF+WinForms hybride est une combinaison supportée nativement par le SDK .NET. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MinecraftLauncherPerso</RootNamespace>

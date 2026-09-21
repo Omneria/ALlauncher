@@ -83,7 +83,10 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── GitHubUpdateService.cs
 │           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
 │           │   ├── INewsService.cs
-│           │   └── NewsService.cs
+│           │   ├── NewsService.cs
+│           │   └── NewsHistoryStore.cs     # historique local des actus (news.txt lui-même n'en garde aucun)
+│           ├── Notifications/
+│           │   └── DesktopNotificationService.cs  # bulle Windows native (NotifyIcon), ex. serveur de retour en ligne
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
 │           ├── Configuration/
@@ -166,18 +169,35 @@ fichier manquant ou dont le hash ne correspond plus (corruption disque, modifica
 accidentelle d'un mod) force un retéléchargement complet du zip, même si l'ETag n'a pas changé.
 Comme pour le changelog, absence du manifest = aucune vérification, pas d'erreur.
 
+**Vraie barre de progression, pas un indicateur indéterminé :** `SyncAsync` accepte désormais un
+second `IProgress<double>` (fraction 0.0-1.0, en plus du message texte existant) rapporté pendant
+le téléchargement effectif du zip — `MainWindow` l'utilise pour piloter `ProgressBar.Value`
+directement plutôt que de basculer sur une barre indéterminée le temps de toute l'étape (même
+principe pour Forge, dont CmlLib exposait déjà cette progression en octets, jusqu'ici seulement
+transformée en texte).
+
+**Indicateur de dernière synchro :** `GetLastSyncedAt` lit l'horodatage `syncedAt` du cache local
+(mis à jour à chaque `SyncAsync`, que le modpack ait été retéléchargé ou juste confirmé à jour)
+sans requête réseau — affiché en bas de la barre latérale ("SYNCHRO : IL Y A X MIN"), rafraîchi au
+démarrage et après chaque tentative de lancement.
+
 ## Actus (news)
 
-Fichiers : `Services/News/NewsService.cs`, `MainWindow.xaml.cs`
+Fichiers : `Services/News/NewsService.cs`, `Services/News/NewsHistoryStore.cs`, `MainWindow.xaml.cs`
 
-Au démarrage, le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` :
-même dossier que le zip du modpack sur le VPS), avant même que le joueur ait cliqué sur "Jouer" —
+Au démarrage puis toutes les 5 minutes (`DispatcherTimer`), le launcher tente de récupérer
+`news.txt` (même convention que `changelog.txt` : même dossier que le zip du modpack sur le VPS) —
 pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
-silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord depuis la
-v1.5.0, typographie normale — pas le `StatusLogTextBox` en monospace qui, lui, reste réservé à la
-progression du lancement et aux erreurs) affiche un texte par défaut ("Aucune actualité pour le
-moment.") tant qu'aucun `news.txt` n'est disponible, plutôt que de disparaître entièrement (la mise
-en page deux colonnes suppose sa présence).
+silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord) affiche un
+texte par défaut ("Aucune actualité pour le moment.") tant qu'aucun `news.txt` n'est disponible,
+plutôt que de disparaître entièrement (la mise en page deux colonnes suppose sa présence).
+
+**Historique, pas juste la dernière actu :** `news.txt` côté VPS est un simple fichier "à plat" —
+il ne garde lui-même aucun historique, chaque requête ne renvoie que son contenu actuel. Pour
+afficher un historique malgré tout, `NewsHistoryStore` horodate et conserve localement
+(`%AppData%/MinecraftLauncherPerso/news-history.json`, plafonné à 20 entrées) chaque contenu
+distinct observé, dédupliqué sur les rafraîchissements consécutifs identiques : la carte affiche
+la liste complète, la plus récente en tête, plutôt que de se contenter d'écraser le texte affiché.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -286,6 +306,13 @@ DNS invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
 cliquer sur "Jouer", une boîte de dialogue demande confirmation avant de continuer (le joueur peut
 choisir de lancer quand même — utile si le ping échoue à tort, ex. pare-feu bloquant juste le port
 de status tout en laissant passer le jeu).
+
+**Notification desktop au retour en ligne :** `Services/Notifications/DesktopNotificationService.cs`
+affiche une bulle native Windows (`System.Windows.Forms.NotifyIcon`, pas de dépendance toast dédiée
+— celles-ci supposent généralement une identité de paquet MSIX que cet exe autonome n'a pas) sur
+une vraie transition hors ligne → en ligne détectée par le polling ci-dessus, pour le remarquer
+même si le launcher est réduit ou en arrière-plan. Ne se déclenche jamais au tout premier check
+(statut "inconnu" au démarrage, pas "hors ligne").
 
 ## Lancement unique (anti double-instance)
 
@@ -444,11 +471,16 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
   géométrie à coins vifs/biseautés (jamais de `CornerRadius`), polices Chakra Petch / Inter /
   JetBrains Mono embarquées (licence OFL) pour un rendu identique sans installation côté joueur.
 - **Fenêtre principale** (v1.5.0, refonte "Fusion") : chrome Windows par défaut désactivé
-  (`WindowStyle="None"`), barre de titre réduite aux boutons réduire/fermer/paramètres (la marque
+  (`WindowStyle="None"`), barre de titre réduite aux boutons réduire/fermer/mode compact (la marque
   vit désormais dans la barre latérale). Disposition en tableau de bord : barre latérale fixe
   (logo Omnéria, navigation, profil connecté) + zone principale à deux colonnes (actus/changelog à
   gauche, statut du serveur Astral Nexus avec son crest + lancement à droite). Voir
   `MainWindow.xaml.cs` pour l'orchestration Java → Forge → Sync → Auth → Lancement, inchangée.
+- **Redimensionnable + mode compact** (v1.8.0) : `WindowChrome` (`System.Windows.Shell`,
+  `CaptionHeight="0"`) restaure des bords redimensionnables à la souris sur cette fenêtre sans
+  chrome natif — un simple `ResizeMode="CanResize"` seul n'en donne aucun. Le bouton "⤢" de la
+  barre de titre bascule un mode compact qui masque la colonne ACTUS pour ne garder que le statut
+  serveur + lancement, avec la fenêtre rétrécie en conséquence (utile sur petit écran).
 - **Écran de démarrage** (`SplashWindow`) : affiche le logo Omnéria (`omneria-mark.png`) avec une
   entrée animée (rotation + zoom, easing à rebond) avant de céder la place à la fenêtre principale ;
   ouvert par `App.xaml.cs` au lancement, à la place de `MainWindow` directement.

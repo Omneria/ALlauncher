@@ -32,6 +32,7 @@ public sealed class ModSyncService : IModSyncService
         string modpackZipUrl,
         string gameDirectory,
         IProgress<string>? progress = null,
+        IProgress<double>? downloadProgress = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(modpackZipUrl))
@@ -64,6 +65,13 @@ public sealed class ModSyncService : IModSyncService
         if (upToDate && await VerifyIntegrityAsync(modpackZipUrl, gameDirectory, progress, cancellationToken))
         {
             progress?.Report("Modpack déjà à jour.");
+            // Rafraîchit SyncedAt même sans nouveau téléchargement : "dernière synchro" reflète la
+            // dernière fois où on a confirmé être à jour, pas seulement le dernier vrai téléchargement.
+            if (remoteMetadata is not null)
+            {
+                SaveCache(cachePath, remoteMetadata);
+            }
+
             return;
         }
 
@@ -74,7 +82,7 @@ public sealed class ModSyncService : IModSyncService
 
         try
         {
-            await DownloadAsync(modpackZipUrl, tempZipPath, progress, cancellationToken);
+            await DownloadAsync(modpackZipUrl, tempZipPath, progress, downloadProgress, cancellationToken);
 
             progress?.Report("Extraction du modpack (mods/config)...");
             Directory.CreateDirectory(gameDirectory);
@@ -95,6 +103,9 @@ public sealed class ModSyncService : IModSyncService
 
         progress?.Report("Modpack mis à jour.");
     }
+
+    public DateTimeOffset? GetLastSyncedAt(string gameDirectory) =>
+        LoadCache(Path.Combine(gameDirectory, CacheFileName))?.SyncedAt;
 
     /// <summary>
     /// Affiche le contenu d'un éventuel changelog.txt hébergé à côté du zip du modpack (même
@@ -216,7 +227,12 @@ public sealed class ModSyncService : IModSyncService
         };
     }
 
-    private async Task DownloadAsync(string url, string destinationPath, IProgress<string>? progress, CancellationToken cancellationToken)
+    private async Task DownloadAsync(
+        string url,
+        string destinationPath,
+        IProgress<string>? progress,
+        IProgress<double>? downloadProgress,
+        CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -242,6 +258,7 @@ public sealed class ModSyncService : IModSyncService
                 {
                     lastReportedPercent = percent;
                     progress?.Report($"Téléchargement du modpack... {percent}%");
+                    downloadProgress?.Report(totalRead / (double)totalBytes);
                 }
             }
         }
@@ -273,6 +290,10 @@ public sealed class ModSyncService : IModSyncService
             Directory.CreateDirectory(directory);
         }
 
+        // Toujours l'heure de CETTE sauvegarde (pas celle éventuellement déjà présente dans
+        // metadata) : SaveCache est appelée aussi bien après un vrai téléchargement qu'après une
+        // simple confirmation "déjà à jour", et dans les deux cas "dernière synchro" doit avancer.
+        metadata.SyncedAt = DateTimeOffset.Now;
         File.WriteAllText(cachePath, JsonSerializer.Serialize(metadata));
     }
 
@@ -286,6 +307,9 @@ public sealed class ModSyncService : IModSyncService
 
         [JsonPropertyName("contentLength")]
         public long? ContentLength { get; set; }
+
+        [JsonPropertyName("syncedAt")]
+        public DateTimeOffset? SyncedAt { get; set; }
 
         public bool Matches(RemoteZipMetadata other)
         {
