@@ -319,6 +319,12 @@ rendait toute mise à jour indétectable).
 Dans les deux derniers cas, les champs à droite de celui incrémenté repartent à `0` (semver
 classique) : `v1.2.6` → `v1.3.0` (pas `v1.3.6`), `v1.2.6` → `v2.0.0` (pas `v2.2.6`).
 
+**À chaque modification** (commit, PR), préciser explicitement le tag qui en résulterait d'après ce
+tableau (ex. « → prochain tag : `v1.2.7` ») — que le tag soit posé tout de suite ou plus tard, ça
+évite la dérive qui a cassé l'auto-update sur `v1.2.5` (`<Version>` du csproj en avance sur les
+releases réellement publiées, sans que personne ne s'en aperçoive avant que l'auto-update cesse de
+fonctionner).
+
 ## Paramètres
 
 Fichiers : `SettingsWindow.xaml(.cs)`
