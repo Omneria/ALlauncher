@@ -14,7 +14,7 @@
            - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
-    <Version>1.5.0</Version>
+    <Version>1.5.1</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
