@@ -12,4 +12,13 @@ public interface IAuthService
     /// elle a expiré ou n'existe pas encore.
     /// </summary>
     Task<MinecraftSession> GetActiveSessionAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Variante silencieuse : tente de réutiliser une session Microsoft déjà en cache (même
+    /// mécanisme que GetActiveSessionAsync) mais n'ouvre jamais de navigateur — retourne null si
+    /// aucun compte n'est en cache ou si le token a expiré/été révoqué. Utilisée au démarrage du
+    /// launcher pour réafficher automatiquement le profil connecté sans forcer une reconnexion
+    /// interactive à chaque lancement.
+    /// </summary>
+    Task<MinecraftSession?> TryGetCachedSessionAsync(CancellationToken cancellationToken = default);
 }

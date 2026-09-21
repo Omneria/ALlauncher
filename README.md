@@ -188,6 +188,13 @@ expérience que CurseForge/Paladium) :
    interactive (`AcquireTokenInteractive`, scopes `XboxLive.signin` + `offline_access`). Une fois
    connecté une première fois, les lancements suivants renouvellent la session en silence tant que
    le refresh token Microsoft reste valide (habituellement des mois).
+
+   **Reconnexion automatique à l'écran :** `IAuthService.TryGetCachedSessionAsync` (appelée au
+   chargement de `MainWindow`) tente cette même reconnexion silencieuse — jamais de navigateur
+   ouvert, retourne `null` sans erreur si aucun compte n'est en cache ou si le token a
+   expiré/été révoqué — pour réafficher automatiquement le profil connecté (avatar + pseudo) au
+   redémarrage du launcher, au lieu de faire réapparaître le bouton `SE CONNECTER` alors que la
+   session Microsoft elle-même était toujours valide en arrière-plan.
 2. Échange le token Microsoft contre un token Xbox Live (`user.auth.xboxlive.com/user/authenticate`).
 3. Autorise ce token via XSTS (`xsts.auth.xboxlive.com/xsts/authorize`, `RelyingParty` Minecraft
    Services) — les erreurs `XErr` connues (pas de compte Xbox, région non supportée, vérification
@@ -287,9 +294,13 @@ ferme immédiatement, plutôt que de risquer deux instances qui écrivent en mê
 
 Fichiers : `Services/Update/GitHubUpdateService.cs`, workflow `.github/workflows/build-windows.yml`
 
-Au démarrage, le launcher interroge `GET /repos/Omneria/ALlauncher/releases/latest` (API GitHub
-publique, pas d'authentification nécessaire) et compare le tag de la dernière release (`vX.Y.Z`) à
-`MinecraftLauncherPerso.csproj` → `<Version>`. Si une version plus récente existe, un bouton
+Au démarrage puis toutes les **60 secondes** (`DispatcherTimer` dans `MainWindow`, même principe que
+le ping du statut serveur), le launcher interroge `GET /repos/Omneria/ALlauncher/releases/latest`
+(API GitHub publique, pas d'authentification nécessaire) et compare le tag de la dernière release
+(`vX.Y.Z`) à `MinecraftLauncherPerso.csproj` → `<Version>` — inutile de fermer/rouvrir le launcher
+pour savoir si une mise à jour est sortie entre-temps. Dès qu'une mise à jour est détectée, les
+vérifications suivantes ne font plus rien (pas de nouvel appel GitHub, pas de son/notification
+répétés) tant qu'elle n'a pas été appliquée. Si une version plus récente existe, un bouton
 "MISE À JOUR X.Y.Z DISPONIBLE" apparaît à côté du statut serveur ; un clic télécharge l'exe joint à
 la release, puis :
 

@@ -59,6 +59,57 @@ public sealed class MicrosoftAuthService : IAuthService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var app = await BuildAppAsync();
+
+        progress?.Report("Connexion à Microsoft...");
+        var microsoftAccessToken = await AcquireMicrosoftTokenAsync(app, progress, cancellationToken);
+
+        return await CompleteMinecraftLoginAsync(microsoftAccessToken, progress, cancellationToken);
+    }
+
+    public async Task<MinecraftSession?> TryGetCachedSessionAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_clientId))
+        {
+            return null;
+        }
+
+        var app = await BuildAppAsync();
+        var accounts = await app.GetAccountsAsync();
+        var account = accounts.FirstOrDefault();
+        if (account is null)
+        {
+            return null;
+        }
+
+        string microsoftAccessToken;
+        try
+        {
+            var silentResult = await app.AcquireTokenSilent(Scopes, account).ExecuteAsync(cancellationToken);
+            microsoftAccessToken = silentResult.AccessToken;
+        }
+        catch (MsalUiRequiredException)
+        {
+            // Session Microsoft en cache expirée/révoquée : jamais de navigateur ici, on laisse
+            // l'appelant proposer une reconnexion interactive explicite (bouton SE CONNECTER).
+            return null;
+        }
+
+        try
+        {
+            return await CompleteMinecraftLoginAsync(microsoftAccessToken, progress: null, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Best-effort : un profil Minecraft/Xbox Live indisponible ponctuellement (réseau,
+            // service en maintenance) ne doit pas empêcher le launcher de démarrer normalement,
+            // l'utilisateur pourra toujours se reconnecter via le bouton SE CONNECTER.
+            return null;
+        }
+    }
+
+    private async Task<IPublicClientApplication> BuildAppAsync()
+    {
         if (string.IsNullOrWhiteSpace(_clientId))
         {
             throw new InvalidOperationException(
@@ -72,10 +123,14 @@ public sealed class MicrosoftAuthService : IAuthService
             .Build();
 
         await EnableTokenCacheSerializationAsync(app.UserTokenCache);
+        return app;
+    }
 
-        progress?.Report("Connexion à Microsoft...");
-        var microsoftAccessToken = await AcquireMicrosoftTokenAsync(app, progress, cancellationToken);
-
+    private async Task<MinecraftSession> CompleteMinecraftLoginAsync(
+        string microsoftAccessToken,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
         progress?.Report("Authentification Xbox Live...");
         var xbl = await AuthenticateWithXboxLiveAsync(microsoftAccessToken, cancellationToken);
 
