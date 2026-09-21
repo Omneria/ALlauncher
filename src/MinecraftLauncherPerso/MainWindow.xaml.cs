@@ -315,29 +315,54 @@ public partial class MainWindow : Window
         _ = LoadPlayerAvatarAsync(session.Uuid);
     }
 
+    /// <summary>
+    /// Deux services de rendu d'avatar indépendants (crafatar puis minotar en secours) : si l'un
+    /// des deux est temporairement indisponible/bloqué, l'autre a de bonnes chances de fonctionner
+    /// quand même plutôt que de laisser tomber l'avatar entièrement.
+    /// </summary>
+    private static readonly Func<string, string>[] AvatarUrlBuilders =
+    {
+        uuid => $"https://crafatar.com/avatars/{uuid}?size=40&overlay",
+        uuid => $"https://minotar.net/avatar/{uuid}/40.png",
+    };
+
     private async Task LoadPlayerAvatarAsync(string uuid)
     {
-        try
-        {
-            var bytes = await SkinHttpClient.GetByteArrayAsync($"https://crafatar.com/avatars/{uuid}?size=40&overlay");
+        var errors = new List<string>();
 
-            var image = new BitmapImage();
-            using var stream = new MemoryStream(bytes);
-            image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.StreamSource = stream;
-            image.EndInit();
-            image.Freeze();
-
-            PlayerAvatarImage.Source = image;
-            PlayerAvatarBorder.Visibility = Visibility.Visible;
-        }
-        catch (Exception ex)
+        foreach (var buildUrl in AvatarUrlBuilders)
         {
-            // Service d'avatar indisponible : pas bloquant, on garde juste le pseudo texte, mais
-            // on le trace (au lieu d'échouer en silence complet) pour pouvoir diagnostiquer.
-            AppendLog($"Avatar Minecraft indisponible : {ex.Message}");
+            var url = buildUrl(uuid);
+            try
+            {
+                var bytes = await SkinHttpClient.GetByteArrayAsync(url);
+
+                var image = new BitmapImage();
+                using var stream = new MemoryStream(bytes);
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = stream;
+                image.EndInit();
+                image.Freeze();
+
+                PlayerAvatarImage.Source = image;
+                PlayerAvatarBorder.Visibility = Visibility.Visible;
+                AvatarErrorHint.Visibility = Visibility.Collapsed;
+                return;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{url} : {ex.Message}");
+            }
         }
+
+        // Les deux services ont échoué : pas bloquant, on garde le pseudo texte, mais on le
+        // rend visible (au lieu du silence complet d'avant) via un indicateur survolable, en
+        // plus du journal, pour pouvoir diagnostiquer sans avoir à rouvrir le code.
+        var combinedError = string.Join(Environment.NewLine, errors);
+        AppendLog($"Avatar Minecraft indisponible :{Environment.NewLine}{combinedError}");
+        AvatarErrorHint.ToolTip = combinedError;
+        AvatarErrorHint.Visibility = Visibility.Visible;
     }
 
     /// <summary>
