@@ -9,7 +9,11 @@
     <RootNamespace>MinecraftLauncherPerso</RootNamespace>
     <AssemblyName>AL Launcher</AssemblyName>
     <!-- Comparée par GitHubUpdateService à la dernière release GitHub (tag v*.*.*) pour l'auto-update.
-         À incrémenter à chaque tag/release. -->
+         À incrémenter au même commit que chaque tag/release (règle de versionnage détaillée dans
+         le README, section "Mise à jour automatique du launcher") :
+           - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
+           - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
+           - gros ajout structurel, changement cassant             -> major (X.0.0) -->
     <Version>1.2.6</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>

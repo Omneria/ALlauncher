@@ -303,9 +303,21 @@ la release, puis :
 publie en plus une **GitHub Release** (avec l'exe self-contained en pièce jointe) uniquement quand
 un tag `v*.*.*` est poussé sur le dépôt (`git tag v1.2.0 && git push origin v1.2.0`, ou via "Draft a
 new release" sur github.com — le job `release` complète l'exe automatiquement dans les deux cas).
-Penser à incrémenter `<Version>` dans le `.csproj` avant de tagger, sinon l'auto-update ne détectera
-rien de nouveau. Versionnage semver classique : `X.Y.Z` où `Z` (patch) pour un correctif de bug,
-`Y` (minor) pour une nouvelle fonctionnalité, `X` (major) réservé à un changement cassant.
+Penser à incrémenter `<Version>` dans le `.csproj` **au même commit** que le tag, sinon l'auto-update
+ne détectera rien de nouveau (voir l'incident documenté dans l'historique git autour de `v1.2.5` :
+`<Version>` était monté à `1.3.2` sans qu'aucune release `v1.3.x` n'ait jamais été taguée, ce qui
+rendait toute mise à jour indétectable).
+
+**Règle de versionnage (semver `X.Y.Z`)** — à appliquer à chaque tag/release :
+
+| Nature du changement | Exemple | Champ incrémenté | Exemple de tag |
+|---|---|---|---|
+| Petit correctif (bugfix, pas de nouveau comportement) | fix crash, typo, ajustement mineur | `Z` (patch) | `v1.2.6` → `v1.2.7` |
+| Ajout non structurel (nouvelle fonctionnalité, sans casser l'existant) | nouvel écran, nouveau réglage | `Y` (minor), `Z` remis à `0` | `v1.2.6` → `v1.3.0` |
+| Gros ajout structurel (changement cassant, refonte majeure) | changement de format de settings, refonte de l'auth | `X` (major), `Y`/`Z` remis à `0` | `v1.2.6` → `v2.0.0` |
+
+Dans les deux derniers cas, les champs à droite de celui incrémenté repartent à `0` (semver
+classique) : `v1.2.6` → `v1.3.0` (pas `v1.3.6`), `v1.2.6` → `v2.0.0` (pas `v2.2.6`).
 
 ## Paramètres
 
