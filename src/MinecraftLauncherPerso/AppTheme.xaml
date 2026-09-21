@@ -152,48 +152,4 @@
         <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
     </Style>
 
-    <!-- Slider RAM (Paramètres) : piste fine cyan/atténuée + poignée circulaire, à la place du
-         chrome Windows par défaut qui jurerait avec le reste de la charte. -->
-    <Style x:Key="AppSliderStyle" TargetType="Slider">
-        <Setter Property="Height" Value="20" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Slider">
-                    <Grid VerticalAlignment="Center">
-                        <Border Height="4" Background="{StaticResource Surface2Brush}" />
-                        <Track x:Name="PART_Track">
-                            <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="Slider.DecreaseLarge">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Height="4" Background="{StaticResource CyanBrush}" />
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.DecreaseRepeatButton>
-                            <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="Slider.IncreaseLarge">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent" />
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.IncreaseRepeatButton>
-                            <Track.Thumb>
-                                <Thumb Width="14" Height="14" Cursor="Hand">
-                                    <Thumb.Template>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <Ellipse Fill="{StaticResource CyanBrush}" />
-                                        </ControlTemplate>
-                                    </Thumb.Template>
-                                </Thumb>
-                            </Track.Thumb>
-                        </Track>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
 </ResourceDictionary>

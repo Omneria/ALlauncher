@@ -397,12 +397,14 @@ sélection via `Microsoft.Win32.OpenFolderDialog`, natif WPF depuis .NET 8, pas 
 WinForms). "Enregistrer" persiste dans `settings.json` et ferme la fenêtre ; fermer sans enregistrer
 (✕) n'écrit rien.
 
-**RAM en sliders, pas en champs texte :** `MinRamSlider`/`MaxRamSlider` (style `AppSliderStyle`,
-`AppTheme.xaml`) remplacent les anciens `TextBox` — bornés à `[512, RAM physique totale de la
-machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`), calés sur des paliers de 256 Mo
-(`IsSnapToTickEnabled`). RAM min > RAM max est rendu impossible par construction (chaque
-`ValueChanged` pousse l'autre slider plutôt que de valider après coup), au lieu de devoir
-détecter/rejeter la valeur invalide comme avec des champs texte libres.
+**RAM en un slider à deux poignées, pas en champs texte :** `RamMinThumb`/`RamMaxThumb` (deux
+`Thumb` sur un `Canvas`, `RamRangeCanvas`) remplacent les anciens `TextBox` — et depuis v1.8.0,
+les deux sliders min/max séparés de la v1.7.0, fusionnés en un seul contrôle à deux poignées.
+Bornées à `[512, RAM physique totale de la machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`),
+calées sur des paliers de 256 Mo. RAM min > RAM max est rendu impossible par construction (chaque
+poignée ne peut pas dépasser l'autre, `RamMinThumb_DragDelta`/`RamMaxThumb_DragDelta` dans
+`SettingsWindow.xaml.cs`), au lieu de devoir détecter/rejeter la valeur invalide comme avec des
+champs texte libres.
 
 **RAM par défaut adaptée à la machine :** `LauncherSettings.MaxRamMb` n'est plus une valeur fixe
 identique pour tout le monde — `Services/Hardware/SystemInfo.cs` interroge la RAM physique totale

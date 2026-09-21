@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using MinecraftLauncherPerso.Models;
@@ -9,7 +10,15 @@ namespace MinecraftLauncherPerso;
 
 public partial class SettingsWindow : Window
 {
+    // Palier d'incrément (et de "snap") du slider RAM fusionné, en Mo.
+    private const double RamStepMb = 256;
+    private const double ThumbSize = 14;
+
     private readonly LauncherSettings _settings;
+    private double _ramFloorMb = 512;
+    private double _ramCeilingMb = 16384;
+    private double _minRamMb;
+    private double _maxRamMb;
 
     /// <summary>True si l'utilisateur a cliqué "Enregistrer" (par opposition à fermer sans sauver).</summary>
     public bool SettingsSaved { get; private set; }
@@ -19,54 +28,82 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _settings = settings;
 
-        // Borne haute des sliders RAM = RAM physique réelle de la machine (au lieu d'un plafond
+        // Borne haute du slider RAM = RAM physique réelle de la machine (au lieu d'un plafond
         // arbitraire) : impossible de configurer plus que ce que la machine peut physiquement
         // fournir. Repli sur 16384 Mo si indétectable (même valeur de repli que
         // LauncherSettings.RecommendMaxRamMb).
-        var totalRamMb = SystemInfo.GetTotalPhysicalMemoryMb() ?? 16384;
-        MinRamSlider.Maximum = totalRamMb;
-        MaxRamSlider.Maximum = totalRamMb;
+        _ramCeilingMb = SystemInfo.GetTotalPhysicalMemoryMb() ?? 16384;
 
         // Clamp au cas où settings.json contiendrait une valeur au-delà de cette RAM détectée
         // (ex. settings copiés depuis une autre machine plus puissante).
-        MinRamSlider.Value = Math.Clamp(_settings.MinRamMb, MinRamSlider.Minimum, totalRamMb);
-        MaxRamSlider.Value = Math.Clamp(_settings.MaxRamMb, MaxRamSlider.Minimum, totalRamMb);
+        _minRamMb = Math.Clamp(_settings.MinRamMb, _ramFloorMb, _ramCeilingMb);
+        _maxRamMb = Math.Clamp(_settings.MaxRamMb, _ramFloorMb, _ramCeilingMb);
 
         ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
         ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
         GameDirectoryTextBox.Text = _settings.GameDirectory;
     }
 
-    // Empêche par construction RAM min > RAM max (au lieu de valider seulement à l'enregistrement) :
-    // pousse l'autre slider plutôt que de laisser l'utilisateur configurer une plage invalide.
-    private void MinRamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    // Un seul slider à deux poignées (au lieu de deux sliders min/max distincts, remplacé v1.8.0) :
+    // positionne les deux poignées + la portion pleine entre elles selon _minRamMb/_maxRamMb.
+    // Ne peut se faire qu'une fois la largeur du Canvas connue (0 tant qu'aucun layout n'a eu
+    // lieu), d'où l'appel depuis SizeChanged plutôt que juste dans le constructeur.
+    private void RamRangeCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateRamRangeVisual();
+
+    private double ValueToX(double valueMb)
     {
-        if (MaxRamSlider is null) // se déclenche aussi pendant InitializeComponent, avant que MaxRamSlider existe
+        var trackWidth = RamRangeCanvas.ActualWidth - ThumbSize;
+        if (trackWidth <= 0 || _ramCeilingMb <= _ramFloorMb)
         {
-            return;
+            return 0;
         }
 
-        if (MinRamSlider.Value > MaxRamSlider.Value)
-        {
-            MaxRamSlider.Value = MinRamSlider.Value;
-        }
-
-        MinRamValueText.Text = $"{(int)MinRamSlider.Value} Mo";
+        return (valueMb - _ramFloorMb) / (_ramCeilingMb - _ramFloorMb) * trackWidth;
     }
 
-    private void MaxRamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private double XToValue(double x)
     {
-        if (MinRamSlider is null)
+        var trackWidth = RamRangeCanvas.ActualWidth - ThumbSize;
+        if (trackWidth <= 0)
         {
-            return;
+            return _ramFloorMb;
         }
 
-        if (MaxRamSlider.Value < MinRamSlider.Value)
-        {
-            MinRamSlider.Value = MaxRamSlider.Value;
-        }
+        var raw = _ramFloorMb + x / trackWidth * (_ramCeilingMb - _ramFloorMb);
+        var snapped = _ramFloorMb + Math.Round((raw - _ramFloorMb) / RamStepMb) * RamStepMb;
+        return Math.Clamp(snapped, _ramFloorMb, _ramCeilingMb);
+    }
 
-        MaxRamValueText.Text = $"{(int)MaxRamSlider.Value} Mo";
+    private void UpdateRamRangeVisual()
+    {
+        var minX = ValueToX(_minRamMb);
+        var maxX = ValueToX(_maxRamMb);
+
+        Canvas.SetLeft(RamMinThumb, minX);
+        Canvas.SetLeft(RamMaxThumb, maxX);
+
+        var thumbCenter = ThumbSize / 2;
+        Canvas.SetLeft(RamRangeFill, minX + thumbCenter);
+        RamRangeFill.Width = Math.Max(0, maxX - minX);
+
+        RamRangeValueText.Text = $"{(int)_minRamMb} – {(int)_maxRamMb} Mo";
+    }
+
+    // Empêche par construction RAM min > RAM max : une poignée ne peut pas dépasser l'autre,
+    // au lieu de valider seulement à l'enregistrement.
+    private void RamMinThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        var proposedX = Math.Clamp(Canvas.GetLeft(RamMinThumb) + e.HorizontalChange, 0, Canvas.GetLeft(RamMaxThumb));
+        _minRamMb = Math.Min(XToValue(proposedX), _maxRamMb);
+        UpdateRamRangeVisual();
+    }
+
+    private void RamMaxThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        var trackWidth = RamRangeCanvas.ActualWidth - ThumbSize;
+        var proposedX = Math.Clamp(Canvas.GetLeft(RamMaxThumb) + e.HorizontalChange, Canvas.GetLeft(RamMinThumb), trackWidth);
+        _maxRamMb = Math.Max(XToValue(proposedX), _minRamMb);
+        UpdateRamRangeVisual();
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -92,8 +129,8 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        // RAM min/max n'a plus besoin d'être validée ici : les sliders l'empêchent déjà par
-        // construction (MinRamSlider_ValueChanged/MaxRamSlider_ValueChanged ci-dessus), contrairement
+        // RAM min/max n'a plus besoin d'être validée ici : le slider double poignée l'empêche déjà
+        // par construction (RamMinThumb_DragDelta/RamMaxThumb_DragDelta ci-dessus), contrairement
         // aux champs texte libres restants ci-dessous.
         ValidationErrorText.Visibility = Visibility.Collapsed;
         var errors = new List<string>();
@@ -119,8 +156,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        _settings.MinRamMb = (int)MinRamSlider.Value;
-        _settings.MaxRamMb = (int)MaxRamSlider.Value;
+        _settings.MinRamMb = (int)_minRamMb;
+        _settings.MaxRamMb = (int)_maxRamMb;
         _settings.ScreenWidth = width;
         _settings.ScreenHeight = height;
 

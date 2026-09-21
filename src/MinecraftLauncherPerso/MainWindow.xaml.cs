@@ -103,7 +103,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        ServerEyebrowText.Text = _settings.ServerName.ToUpperInvariant();
+        ServerNameText.Text = _settings.ServerName.ToUpperInvariant();
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
 
