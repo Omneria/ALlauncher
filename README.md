@@ -49,10 +49,10 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
 │       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu)
 │       ├── LegalWindow.xaml(.cs)           # mentions légales + dépendances open source
-│       ├── AlgaronTheme.xaml               # charte graphique (couleurs, polices, styles de contrôles)
+│       ├── AppTheme.xaml                   # charte graphique (couleurs, polices, styles de contrôles)
 │       ├── Assets/
 │       │   ├── Fonts/                      # Chakra Petch / Inter / JetBrains Mono (OFL), embarquées
-│       │   └── Images/                     # logo Algaron (mark/lockup) + icône .ico du launcher
+│       │   └── Images/                     # logo Omnéria, crest Astral Nexus, icône .ico du launcher
 │       ├── Models/
 │       │   ├── LauncherSettings.cs         # préférences persistées (RAM, dossier de jeu, URL modpack...)
 │       │   ├── JavaVersionInfo.cs
@@ -150,7 +150,7 @@ directement dans `GameDirectory`, en écrasant les fichiers existants.
 
 **Changelog optionnel :** quand une mise à jour du modpack est détectée (avant de télécharger le
 nouveau zip), le launcher tente de récupérer `changelog.txt` dans le même dossier que le zip sur
-le VPS (ex. si `ModpackZipUrl` est `.../modpack/Algaron-modded.zip`, il cherche
+le VPS (ex. si `ModpackZipUrl` est `.../modpack/Omneria-modded.zip`, il cherche
 `.../modpack/changelog.txt`) et en affiche le contenu ligne par ligne dans le journal de statut.
 Fichier entièrement optionnel : absent (404) ou VPS injoignable, le launcher l'ignore
 silencieusement et continue la synchro normalement.
@@ -169,9 +169,11 @@ Fichiers : `Services/News/NewsService.cs`, `MainWindow.xaml.cs`
 Au démarrage, le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` :
 même dossier que le zip du modpack sur le VPS), avant même que le joueur ait cliqué sur "Jouer" —
 pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
-silencieux si absent : le panneau `NewsPanel` (carte dédiée, typographie normale — pas le
-`StatusLogTextBox` en monospace qui, lui, reste réservé à la progression du lancement et aux
-erreurs) ne prend aucune place tant qu'il n'y a rien à afficher.
+silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord depuis la
+v1.5.0, typographie normale — pas le `StatusLogTextBox` en monospace qui, lui, reste réservé à la
+progression du lancement et aux erreurs) affiche un texte par défaut ("Aucune actualité pour le
+moment.") tant qu'aucun `news.txt` n'est disponible, plutôt que de disparaître entièrement (la mise
+en page deux colonnes suppose sa présence).
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -271,9 +273,10 @@ Implémente le protocole *Server List Ping* de Minecraft (le même que l'écran 
 utilise pour afficher joueurs connectés/latence à côté de chaque serveur) : handshake puis requête
 status sur une connexion TCP brute vers `ServerHost:ServerPort`, sans authentification, réponse
 JSON parsée pour en extraire `players.online`/`players.max`. `MainWindow` l'interroge au démarrage
-puis toutes les 30 secondes (`DispatcherTimer`) et affiche "● En ligne — X/8 joueurs" ou
-"● Hors ligne" au-dessus du journal de statut. N'importe quel échec (timeout, port fermé, DNS
-invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
+puis toutes les 30 secondes (`DispatcherTimer`) et affiche le statut dans la carte serveur de la
+colonne droite (v1.5.0) : pastille + libellé "EN LIGNE"/"HORS LIGNE", et le nombre de joueurs en
+gros chiffres mono (`X/8`) à côté du crest du serveur. N'importe quel échec (timeout, port fermé,
+DNS invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
 
 **Avertissement avant de jouer :** si le dernier statut connu est "hors ligne" au moment de
 cliquer sur "Jouer", une boîte de dialogue demande confirmation avant de continuer (le joueur peut
@@ -364,33 +367,39 @@ utilisées (nom, licence, lien GitHub) : `CmlLib.Core`, `CmlLib.Core.Installer.F
 ## Profil connecté
 
 Après authentification réussie (bouton `SE CONNECTER` ou clic direct sur `JOUER`), le launcher
-affiche le pseudo et un rendu de tête (avatar) en haut à droite de la fenêtre, sous la barre de
-titre — récupéré depuis [crafatar.com](https://crafatar.com) (`https://crafatar.com/avatars/{uuid}`,
-service public gratuit de rendu de skins Minecraft, requête avec un `User-Agent` explicite comme les
-autres appels HTTP du launcher, certains services renvoyant un 403 silencieux sans ça). Best-effort :
-si crafatar est indisponible, seul le pseudo texte s'affiche, sans erreur bloquante (mais l'échec est
-tracé dans le journal de statut pour rester diagnosticable, au lieu d'échouer en silence complet).
+affiche le pseudo et un rendu de tête (avatar) dans le bloc profil en bas de la barre latérale
+(v1.5.0 : ce bloc a remplacé la zone "SE CONNECTER" au même endroit) — récupéré depuis
+[crafatar.com](https://crafatar.com) (`https://crafatar.com/avatars/{uuid}`, service public gratuit
+de rendu de skins Minecraft, requête avec un `User-Agent` explicite comme les autres appels HTTP du
+launcher, certains services renvoyant un 403 silencieux sans ça ; minotar.net en secours si crafatar
+échoue). Best-effort : si les deux échouent, seul le pseudo texte s'affiche, avec un indicateur ⚠
+survolable (tooltip = message d'erreur exact) au lieu d'un échec silencieux.
 
 **Modifier son skin :** cliquer sur l'avatar ouvre la page officielle de changement de skin
 (`minecraft.net/en-us/msaprofile/mygames/editskin`) dans le navigateur par défaut — pas d'éditeur de
 skin intégré au launcher, minecraft.net gère déjà l'upload/la prévisualisation via la session du
 navigateur.
 
-## Identité visuelle (branding Algaron)
+## Identité visuelle (branding Omnéria)
 
-Fichiers : `AlgaronTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets/`
+Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets/`
 
-- **Thème** (`AlgaronTheme.xaml`) : palette néon sur fond bleu-nuit (cyan `#00E5C7` en accent unique),
+- **Thème** (`AppTheme.xaml`) : palette néon sur fond bleu-nuit (cyan `#00E5C7` en accent unique),
   géométrie à coins vifs/biseautés (jamais de `CornerRadius`), polices Chakra Petch / Inter /
   JetBrains Mono embarquées (licence OFL) pour un rendu identique sans installation côté joueur.
-- **Fenêtre principale** : chrome Windows par défaut désactivé (`WindowStyle="None"`), barre de titre
-  et boutons réduire/fermer personnalisés, dessinés dans le thème.
-- **Écran de démarrage** (`SplashWindow`) : affiche le logo Algaron (`algaron-lockup.png`) avec une
+- **Fenêtre principale** (v1.5.0, refonte "Fusion") : chrome Windows par défaut désactivé
+  (`WindowStyle="None"`), barre de titre réduite aux boutons réduire/fermer/paramètres (la marque
+  vit désormais dans la barre latérale). Disposition en tableau de bord : barre latérale fixe
+  (logo Omnéria, navigation, profil connecté) + zone principale à deux colonnes (actus/changelog à
+  gauche, statut du serveur Astral Nexus avec son crest + lancement à droite). Voir
+  `MainWindow.xaml.cs` pour l'orchestration Java → Forge → Sync → Auth → Lancement, inchangée.
+- **Écran de démarrage** (`SplashWindow`) : affiche le logo Omnéria (`omneria-mark.png`) avec une
   entrée animée (rotation + zoom, easing à rebond) avant de céder la place à la fenêtre principale ;
   ouvert par `App.xaml.cs` au lancement, à la place de `MainWindow` directement.
-- **Icône/exécutable** : l'exécutable publié s'appelle `AL Launcher.exe` (`AssemblyName`), porte une
-  icône Windows multi-résolutions générée depuis le logo (`Assets/Images/algaron-mark.ico`), et ne
-  génère plus de fichier `.pdb` (`DebugType=None`).
+- **Icône/exécutable** : l'exécutable publié s'appelle `AL Launcher.exe` (`AssemblyName`, inchangé
+  pour ne pas casser le workflow de release), porte une icône Windows multi-résolutions générée
+  depuis le logo (`Assets/Images/omneria-mark.ico`), et ne génère plus de fichier `.pdb`
+  (`DebugType=None`).
 - **Fond animé** : les deux halos radiaux (violet/cyan) de la fenêtre principale dérivent lentement
   et pulsent en opacité en boucle infinie (`Storyboard` déclenché sur `Window.Loaded`,
   `AutoReverse="True"`, durées de 9 à 17s) — signature discrète, jamais assez rapide pour distraire

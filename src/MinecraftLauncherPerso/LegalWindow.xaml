@@ -9,7 +9,7 @@
         Background="{StaticResource VoidBrush}"
         FontFamily="{StaticResource BodyFontFamily}"
         Foreground="{StaticResource InkBrush}"
-        Icon="/Assets/Images/algaron-mark.png">
+        Icon="/Assets/Images/omneria-mark.png">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="44" />
