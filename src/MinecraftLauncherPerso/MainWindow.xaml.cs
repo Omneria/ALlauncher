@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private readonly INewsService _newsService;
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
+    private readonly DispatcherTimer _updateCheckTimer;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
@@ -78,6 +79,13 @@ public partial class MainWindow : Window
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
 
+        // Re-vérifie une éventuelle mise à jour du launcher toutes les minutes : sans ça, il
+        // fallait fermer/rouvrir le launcher pour la détecter (elle n'était vérifiée qu'au
+        // démarrage). CheckForUpdateAsync ne fait rien de plus si une mise à jour est déjà
+        // détectée et en attente, pour ne pas re-notifier/re-sonner toutes les minutes.
+        _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _updateCheckTimer.Tick += async (_, _) => await CheckForUpdateAsync();
+
         Loaded += MainWindow_Loaded;
     }
 
@@ -85,8 +93,20 @@ public partial class MainWindow : Window
     {
         await ShowNewsAsync();
         _serverStatusTimer.Start();
+        _updateCheckTimer.Start();
         await RefreshServerStatusAsync();
         await CheckForUpdateAsync();
+
+        // Réaffiche automatiquement le profil connecté si une session Microsoft valide est déjà
+        // en cache (silencieux : jamais de navigateur ouvert ici) — sans ça, "SE CONNECTER"
+        // réapparaissait à chaque redémarrage du launcher même une fois déjà connecté, alors que
+        // la session elle-même survivait bien (msal-cache-v2.bin), seul l'état affiché à l'écran
+        // était perdu.
+        var cachedSession = await _authService.TryGetCachedSessionAsync();
+        if (cachedSession is not null)
+        {
+            ShowConnectedPlayer(cachedSession);
+        }
     }
 
     private async Task ShowNewsAsync()
@@ -244,6 +264,14 @@ public partial class MainWindow : Window
 
     private async Task CheckForUpdateAsync()
     {
+        if (_pendingUpdate is not null)
+        {
+            // Déjà détectée (et en attente ou en cours de téléchargement) lors d'un appel
+            // précédent : pas la peine de re-solliciter l'API GitHub ni de rejouer le son/la
+            // notification toutes les minutes.
+            return;
+        }
+
         var update = await _updateService.CheckForUpdateAsync();
         if (update is null)
         {
