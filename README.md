@@ -352,10 +352,18 @@ utilisées (nom, licence, lien GitHub) : `CmlLib.Core`, `CmlLib.Core.Installer.F
 
 ## Profil connecté
 
-Après authentification réussie, le launcher affiche le pseudo et un rendu de tête (avatar)
-récupéré depuis [crafatar.com](https://crafatar.com) (`https://crafatar.com/avatars/{uuid}`, service
-public gratuit de rendu de skins Minecraft) à côté du statut serveur. Best-effort : si crafatar est
-indisponible, seul le pseudo texte s'affiche, sans erreur bloquante.
+Après authentification réussie (bouton `SE CONNECTER` ou clic direct sur `JOUER`), le launcher
+affiche le pseudo et un rendu de tête (avatar) en haut à droite de la fenêtre, sous la barre de
+titre — récupéré depuis [crafatar.com](https://crafatar.com) (`https://crafatar.com/avatars/{uuid}`,
+service public gratuit de rendu de skins Minecraft, requête avec un `User-Agent` explicite comme les
+autres appels HTTP du launcher, certains services renvoyant un 403 silencieux sans ça). Best-effort :
+si crafatar est indisponible, seul le pseudo texte s'affiche, sans erreur bloquante (mais l'échec est
+tracé dans le journal de statut pour rester diagnosticable, au lieu d'échouer en silence complet).
+
+**Modifier son skin :** cliquer sur l'avatar ouvre la page officielle de changement de skin
+(`minecraft.net/en-us/msaprofile/mygames/editskin`) dans le navigateur par défaut — pas d'éditeur de
+skin intégré au launcher, minecraft.net gère déjà l'upload/la prévisualisation via la session du
+navigateur.
 
 ## Identité visuelle (branding Algaron)
 

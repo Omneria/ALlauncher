@@ -24,7 +24,21 @@ namespace MinecraftLauncherPerso;
 
 public partial class MainWindow : Window
 {
-    private static readonly HttpClient SkinHttpClient = new();
+    private const string SkinEditorUrl = "https://www.minecraft.net/en-us/msaprofile/mygames/editskin";
+
+    private static readonly HttpClient SkinHttpClient = CreateSkinHttpClient();
+
+    private static HttpClient CreateSkinHttpClient()
+    {
+        var client = new HttpClient();
+        // Comme pour l'API GitHub et Xbox Live ailleurs dans ce fichier : certains services
+        // rejettent (403) les requêtes sans User-Agent, traitées comme du trafic automatisé
+        // suspect. Sans ça, un avatar qui échouait à charger le faisait silencieusement (le
+        // catch ci-dessous n'affichait rien), donnant l'impression que la connexion Microsoft
+        // n'avait tout simplement pas récupéré le skin.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("MinecraftLauncherPerso/1.0");
+        return client;
+    }
 
     private readonly IJavaManager _javaManager;
     private readonly IForgeManager _forgeManager;
@@ -250,13 +264,20 @@ public partial class MainWindow : Window
         }
 
         UpdateBannerButton.IsEnabled = false;
+        // Sans ça, la progression (téléchargement, redémarrage) n'apparaissait nulle part :
+        // AppendLog met bien à jour le texte du panneau de chargement, mais le panneau lui-même
+        // restait masqué tant que PlayButton_Click ne l'avait pas explicitement affiché.
+        LoadingPanel.Visibility = Visibility.Visible;
+        ProgressBar.IsIndeterminate = true;
         try
         {
             await _updateService.ApplyUpdateAndRestartAsync(_pendingUpdate, new Progress<string>(AppendLog));
         }
         catch (Exception ex)
         {
+            ProgressBar.IsIndeterminate = false;
             AppendLog($"Échec de la mise à jour : {ex.Message}");
+            ShowLoadingError($"Échec de la mise à jour : {ex.Message}");
             UpdateBannerButton.IsEnabled = true;
         }
     }
@@ -311,9 +332,28 @@ public partial class MainWindow : Window
             PlayerAvatarImage.Source = image;
             PlayerAvatarBorder.Visibility = Visibility.Visible;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Service d'avatar indisponible : pas grave, on garde juste le pseudo texte.
+            // Service d'avatar indisponible : pas bloquant, on garde juste le pseudo texte, mais
+            // on le trace (au lieu d'échouer en silence complet) pour pouvoir diagnostiquer.
+            AppendLog($"Avatar Minecraft indisponible : {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Clic sur l'avatar du profil connecté : ouvre la page officielle de modification du skin
+    /// dans le navigateur par défaut (pas d'éditeur intégré au launcher — minecraft.net gère déjà
+    /// l'upload/la prévisualisation, la session de connexion du navigateur suffit).
+    /// </summary>
+    private void PlayerAvatarBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(SkinEditorUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Impossible d'ouvrir l'éditeur de skin : {ex.Message}");
         }
     }
 

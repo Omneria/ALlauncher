@@ -97,7 +97,9 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Bloc marque : logo Algaron officiel (hexagone + mot-symbole) -->
+                <!-- Bloc marque : logo Algaron officiel (hexagone + mot-symbole). Superposé, dans la
+                     même ligne de grille : le profil connecté (ou le bouton de connexion), aligné
+                     en haut à droite, sous la barre de titre. -->
                 <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,8,0,12">
                     <Image Source="/Assets/Images/algaron-lockup.png" Width="220" Stretch="Uniform" />
                     <TextBlock Text="L A U N C H E R" HorizontalAlignment="Center" Margin="0,4,0,0"
@@ -105,7 +107,25 @@
                                Foreground="{StaticResource CyanBrush}" />
                 </StackPanel>
 
-                <!-- Barre de statut : état du serveur à gauche, profil connecté à droite, bandeau MAJ. -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Top" Margin="0,4,0,0">
+                    <Button x:Name="LoginButton" Content="SE CONNECTER" Margin="0,0,12,0"
+                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
+                            FontSize="11" Foreground="{StaticResource CyanBrush}"
+                            Click="LoginButton_Click" />
+                    <Border x:Name="PlayerAvatarBorder" Width="26" Height="26" Margin="0,0,8,0"
+                            BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                            Cursor="Hand" ToolTip="Modifier mon skin Minecraft"
+                            MouseLeftButtonUp="PlayerAvatarBorder_MouseLeftButtonUp"
+                            Visibility="Collapsed">
+                        <Image x:Name="PlayerAvatarImage" />
+                    </Border>
+                    <TextBlock x:Name="PlayerNameText" VerticalAlignment="Center"
+                               FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                               Foreground="{StaticResource InkDimBrush}" />
+                </StackPanel>
+
+                <!-- Barre de statut : état du serveur à gauche, bandeau MAJ à droite. -->
                 <Grid Grid.Row="1" Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -116,25 +136,11 @@
                                Text="Vérification du serveur..." FontFamily="{StaticResource MonoFontFamily}"
                                FontSize="12" Foreground="{StaticResource InkDimBrush}" />
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="UpdateBannerButton" Content="MISE À JOUR DISPONIBLE"
-                                Visibility="Collapsed" Margin="0,0,12,0"
-                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
-                                FontSize="11" Foreground="{StaticResource AmberBrush}"
-                                Click="UpdateBannerButton_Click" />
-                        <Button x:Name="LoginButton" Content="SE CONNECTER" Margin="0,0,12,0"
-                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
-                                FontSize="11" Foreground="{StaticResource CyanBrush}"
-                                Click="LoginButton_Click" />
-                        <Border x:Name="PlayerAvatarBorder" Width="26" Height="26" Margin="0,0,8,0"
-                                BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                Visibility="Collapsed">
-                            <Image x:Name="PlayerAvatarImage" />
-                        </Border>
-                        <TextBlock x:Name="PlayerNameText" VerticalAlignment="Center"
-                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
-                                   Foreground="{StaticResource InkDimBrush}" />
-                    </StackPanel>
+                    <Button x:Name="UpdateBannerButton" Grid.Column="1" Content="MISE À JOUR DISPONIBLE"
+                            Visibility="Collapsed"
+                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
+                            FontSize="11" Foreground="{StaticResource AmberBrush}"
+                            Click="UpdateBannerButton_Click" />
                 </Grid>
 
                 <!-- Panneau actus (news.txt optionnel) : masqué (Visibility=Collapsed, pas d'espace
