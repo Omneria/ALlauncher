@@ -32,6 +32,28 @@ public sealed class SettingsManager
         ["astranexusmc.duckdns.org"] = "astralnexusmc.duckdns.org",
     };
 
+    /// <summary>
+    /// Migration 1.16.5 -> 1.20.1 (v1.9.0) : un settings.json déjà écrit par une version antérieure
+    /// du launcher contient explicitement les anciennes valeurs par défaut ("1.16.5"/"36.2.34"), qui
+    /// ne seraient jamais remplacées par les nouvelles sans cette migration (Load() désérialise ces
+    /// valeurs telles quelles, le nouvel initialiseur C# ne s'applique qu'à un settings.json absent).
+    /// Ne migre que si les DEUX valeurs correspondent exactement à l'ancien défaut : un joueur ayant
+    /// délibérément configuré une autre version (cas rare sur un serveur privé mono-modpack, mais
+    /// pas impossible) garde son choix plutôt que de se le faire écraser silencieusement.
+    /// </summary>
+    private const string LegacyMinecraftVersion = "1.16.5";
+    private const string LegacyForgeVersion = "36.2.34";
+
+    private static void MigrateMinecraftVersion(LauncherSettings settings)
+    {
+        if (settings.MinecraftVersion == LegacyMinecraftVersion && settings.ForgeVersion == LegacyForgeVersion)
+        {
+            var defaults = new LauncherSettings();
+            settings.MinecraftVersion = defaults.MinecraftVersion;
+            settings.ForgeVersion = defaults.ForgeVersion;
+        }
+    }
+
     /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
     /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
     /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
@@ -67,6 +89,8 @@ public sealed class SettingsManager
         {
             settings.ServerHost = correctedServerHost;
         }
+
+        MigrateMinecraftVersion(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

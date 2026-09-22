@@ -7,9 +7,9 @@ namespace MinecraftLauncherPerso.Models;
 /// <summary>Préférences utilisateur persistées entre deux lancements (settings.json).</summary>
 public sealed class LauncherSettings
 {
-    public string MinecraftVersion { get; set; } = "1.16.5";
+    public string MinecraftVersion { get; set; } = "1.20.1";
 
-    public string ForgeVersion { get; set; } = "36.2.34";
+    public string ForgeVersion { get; set; } = "47.3.0";
 
     /// <summary>
     /// URL directe de l'archive .zip du modpack (mods/ + config/ à sa racine) hébergée sur le VPS.
@@ -23,6 +23,22 @@ public sealed class LauncherSettings
     private static string DecodeDefaultModpackUrl() =>
         Encoding.UTF8.GetString(Convert.FromBase64String(
             "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svQWxnYXJvbi1tb2RkZWQuemlw"));
+
+    /// <summary>
+    /// URL du manifest par fichier (JSON, voir ModpackManifest.cs), en alternative à
+    /// <see cref="ModpackZipUrl"/> : permet des mises à jour incrémentales (ne retélécharger que
+    /// les fichiers qui ont changé) au lieu de tout le zip à chaque mise à jour du pack. Vide par
+    /// défaut = le launcher reste sur l'ancien flux zip unique, pour rester compatible avec un VPS
+    /// qui n'a pas encore ce manifest ; le configurer dans settings.json active le mode incrémental.
+    /// </summary>
+    public string ModpackManifestUrl { get; set; } = "";
+
+    /// <summary>
+    /// URL d'un fichier texte optionnel (maintenance.txt sur le VPS) : son contenu, s'il existe et
+    /// n'est pas vide, s'affiche en bandeau sur le dashboard. Vide par défaut = bannière jamais
+    /// affichée, comportement identique à un VPS qui ne sert pas ce fichier.
+    /// </summary>
+    public string MaintenanceMessageUrl { get; set; } = "";
 
     /// <summary>
     /// "Application (client) ID" de l'app Azure AD enregistrée pour ce launcher (identifie

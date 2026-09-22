@@ -6,15 +6,15 @@ Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé
 
 ## Contexte serveur
 
-- Minecraft **1.16.5**, Forge **36.2.34**
-- 87 mods (Botania, Create, Quark, Minecolonies, Twilight Forest, Biomes O'Plenty, ...)
-- **Java 8 obligatoire** (Forge 1.16.5 est incompatible avec Java 11+)
+- Minecraft **1.20.1**, Forge **47.3.0** (migré depuis 1.16.5/Forge 36.2.34, voir `MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`)
+- Liste de mods gérée côté VPS (voir manifeste ci-dessous) — plus de liste figée dans ce README depuis la migration
+- **Java 17 obligatoire** (Minecraft ne démarre plus sur un JRE antérieur à 17 depuis la 1.18, et Forge 1.20.1 l'exige explicitement)
 - Mods/config hébergés sur un VPS perso, accessibles en HTTP direct (voir manifeste ci-dessous)
 
 ## Ce que fait le launcher
 
-1. Vérifie/installe Java 8 (build Temurin/Adoptium si absent) — **implémenté**
-2. Installe Forge 1.16.5-36.2.34 via CmlLib.Core.Installer.Forge — **implémenté**
+1. Vérifie/installe Java 17 (build Temurin/Adoptium si absent) — **implémenté**
+2. Installe Forge 1.20.1-47.3.0 via CmlLib.Core.Installer.Forge — **implémenté**
 3. Synchronise `mods/` et `config/` depuis le VPS (par hash, pas à chaque lancement), affiche un
    changelog optionnel quand une mise à jour est détectée — **implémenté**
 4. Authentifie via OAuth Microsoft direct (navigateur système, sans dépendre du launcher officiel)
@@ -35,6 +35,16 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 > du launcher officiel via
 > `launcher_accounts.json`) reste disponible dans l'historique git (commit `b97b6fa` et avant) et
 > peut être restauré temporairement.
+
+> **Migration 1.20.1 :** le serveur et le modpack sont passés de 1.16.5/Forge 36.2.34 à
+> 1.20.1/Forge 47.3.0 (`MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`) — Java 8 n'est
+> plus utilisable, `JavaManager` installe désormais Java 17 (Minecraft ne démarre plus sur un JRE
+> antérieur à 17 depuis la 1.18). Un joueur passant d'une ancienne version du launcher verra son
+> Java 8 portable (`runtime/java8`) ignoré au profit d'un Java 17 fraîchement téléchargé
+> (`runtime/java17`) — l'ancien dossier n'est pas supprimé automatiquement, il peut être nettoyé à
+> la main si besoin. `SettingsManager` migre aussi automatiquement `MinecraftVersion`/`ForgeVersion`
+> dans un `settings.json` existant qui contenait encore les anciennes valeurs par défaut exactes
+> (`1.16.5`/`36.2.34`) — un joueur ayant délibérément configuré une autre version garde son choix.
 
 ## Structure du repo
 
@@ -60,16 +70,17 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       │   ├── JavaVersionInfo.cs
 │       │   └── JavaSetupProgress.cs
 │       └── Services/
-│           ├── Java/                       # détection + installation Java 8
+│           ├── Java/                       # détection + installation Java 17
 │           │   ├── IJavaManager.cs
 │           │   ├── JavaManager.cs
 │           │   └── AdoptiumApiClient.cs
 │           ├── Forge/                      # installation Forge (CmlLib.Core.Installer.Forge)
 │           │   ├── IForgeManager.cs
 │           │   └── ForgeManager.cs
-│           ├── ModSync/                    # synchro du modpack .zip depuis le VPS (ETag/Last-Modified)
+│           ├── ModSync/                    # synchro du modpack : zip unique (ETag) ou manifest par fichier (v1.9.0)
 │           │   ├── IModSyncService.cs
-│           │   └── ModSyncService.cs
+│           │   ├── ModSyncService.cs
+│           │   └── ModpackManifest.cs      # format du manifest incrémental (chemin -> URL + sha256)
 │           ├── Auth/                       # OAuth Microsoft direct (MSAL.NET) -> Xbox Live -> XSTS -> Minecraft
 │           │   ├── IAuthService.cs
 │           │   └── MicrosoftAuthService.cs
@@ -89,6 +100,9 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── NewsHistoryStore.cs     # historique local des actus (news.txt lui-même n'en garde aucun)
 │           ├── Notifications/
 │           │   └── DesktopNotificationService.cs  # bulle Windows native (NotifyIcon), ex. serveur de retour en ligne
+│           ├── Maintenance/                # bannière de maintenance optionnelle (v1.9.0)
+│           │   ├── IMaintenanceService.cs
+│           │   └── MaintenanceService.cs
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
 │           ├── Http/
@@ -97,7 +111,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
 │               ├── Logger.cs               # journal fichier (launcher.log) pour les échecs "avalés"
-│               └── CrashDiagnosisService.cs # diagnostic best-effort d'un crash du jeu (v1.8.0)
+│               ├── CrashDiagnosisService.cs # diagnostic best-effort d'un crash du jeu (v1.8.0)
+│               └── DiskSpaceChecker.cs     # vérification d'espace disque avant un téléchargement
 ├── tests/
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager
 ├── README.md
@@ -109,29 +124,32 @@ service derrière une interface (`IJavaManager`, `IForgeManager`, `IModSyncServi
 `IAuthService`, `IGameLauncher`), injectées dans `MainWindow` qui orchestre l'enchaînement complet
 au clic sur "Jouer".
 
-## Logique de vérification/installation de Java 8
+## Logique de vérification/installation de Java 17
 
 Fichier : `src/MinecraftLauncherPerso/Services/Java/JavaManager.cs`
 
-Ordre de résolution dans `EnsureJava8Async` :
+Ordre de résolution dans `EnsureJavaAsync` :
 
-1. **Java 8 portable déjà installé par ce launcher** : recherche récursive d'un exécutable
-   `java(.exe)` sous `%AppData%/MinecraftLauncherPerso/runtime/java8`, validé en exécutant
-   `java -version` et en vérifiant que la version majeure vaut bien 8.
-2. **Java 8 déjà présent sur la machine** : `JAVA_HOME`, `java` sur le `PATH`, les dossiers
+1. **Java 17 portable déjà installé par ce launcher** : recherche récursive d'un exécutable
+   `java(.exe)` sous `%AppData%/MinecraftLauncherPerso/runtime/java17`, validé en exécutant
+   `java -version` et en vérifiant que la version majeure vaut bien 17.
+2. **Java 17 déjà présent sur la machine** : `JAVA_HOME`, `java` sur le `PATH`, les dossiers
    d'installation courants sous Windows (`Program Files\Java`, `...\Eclipse Adoptium`,
    `...\AdoptOpenJDK`), puis le **registre Windows** (`HKLM\SOFTWARE\JavaSoft\...`,
    `...\Eclipse Adoptium\...`, `...\Eclipse Foundation\...`, vues 64 et 32 bits) — tout installeur
    Java officiel s'y enregistre, ce qui rattrape une installation faite dans un dossier non
    standard que le scan de dossiers seul manquerait.
-3. **Téléchargement automatique** : si aucun Java 8 valide n'est trouvé, interrogation de l'API
-   [Adoptium](https://api.adoptium.net) (`/v3/assets/latest/8/hotspot`) pour récupérer la dernière
-   build Temurin 8 (JRE) correspondant à l'OS/architecture de la machine, téléchargement avec
-   suivi de progression, puis extraction dans le dossier `runtime/java8` ci-dessus.
+3. **Téléchargement automatique** : si aucun Java 17 valide n'est trouvé, interrogation de l'API
+   [Adoptium](https://api.adoptium.net) (`/v3/assets/latest/17/hotspot`) pour récupérer la dernière
+   build Temurin 17 (JRE) correspondant à l'OS/architecture de la machine, téléchargement avec
+   suivi de progression, puis extraction dans le dossier `runtime/java17` ci-dessus.
+   `AdoptiumApiClient.GetLatestJreAsync` prend la version majeure en paramètre (17 ici) plutôt que
+   d'être câblé en dur sur Java 8, pour rester réutilisable si une future version de Minecraft exige
+   encore un autre Java.
 
 La détection de version parse la sortie de `java -version` (`version "1.8.0_392"` →
 version majeure 8 ; `version "17.0.9"` → version majeure 17), ce qui permet de rejeter tout
-Java déjà installé qui ne serait pas une version 8, même si un JDK plus récent est présent.
+Java déjà installé qui ne serait pas une version 17, même si un JDK plus ancien ou plus récent est présent.
 
 ## Installation de Forge
 
@@ -139,7 +157,7 @@ Fichier : `src/MinecraftLauncherPerso/Services/Forge/ForgeManager.cs`
 
 Utilise le package `CmlLib.Core.Installer.Forge` :
 `ForgeInstaller.Install(minecraftVersion, forgeVersion, options)` installe/mappe le profil de
-version composé (vanilla + Forge) et retourne son identifiant (ex. `1.16.5-forge-36.2.34`).
+version composé (vanilla + Forge) et retourne son identifiant (ex. `1.20.1-forge-47.3.0`).
 Ce mapping seul ne télécharge pas les fichiers de la version : `MinecraftLauncher.InstallAsync`
 est appelé juste après pour installer réellement le jar, les libs et les assets vanilla dont
 Forge dépend.
@@ -147,6 +165,12 @@ Forge dépend.
 ## Synchronisation mods/config (VPS)
 
 Fichier : `src/MinecraftLauncherPerso/Services/ModSync/ModSyncService.cs`
+
+**Deux modes**, selon que `ModpackManifestUrl` est configuré ou non dans `settings.json` :
+
+- **Mode manifest (incrémental, recommandé, v1.9.0)** : voir la section dédiée ci-dessous.
+- **Mode zip (historique, par défaut si `ModpackManifestUrl` est vide)** : décrit dans le reste de
+  cette section.
 
 Le launcher pointe sur une archive `.zip` unique du pack complet, hébergée sur le VPS
 (`ModpackZipUrl`), qui doit
@@ -211,7 +235,78 @@ cache ETag local puis relance une synchro complète, forçant un retéléchargem
 distant n'a pas changé. Utile quand c'est un fichier *local* qui a été corrompu ou supprimé par
 erreur (le cache ETag dirait alors "à jour" à tort, `SyncAsync` seul ne retéléchargerait rien).
 Accessible manuellement via un bouton dans les Paramètres, ou proposé directement après un crash du
-jeu si le diagnostic (voir "Lancement du jeu" ci-dessus) l'identifie comme cause probable.
+jeu si le diagnostic (voir "Lancement du jeu" ci-dessus) l'identifie comme cause probable. En mode
+manifest, "Réparer" et une synchro normale font exactement la même chose (voir ci-dessous).
+
+### Mode manifest (synchro incrémentale, v1.9.0)
+
+Fichier : `Services/ModSync/ModpackManifest.cs`
+
+Configurer `ModpackManifestUrl` (settings.json) bascule `SyncAsync` sur un mode par fichier plutôt
+que par zip unique : au lieu de retélécharger tout le pack dès qu'un seul mod change, seuls les
+fichiers dont le hash diffère du manifest sont retéléchargés.
+
+**Format du manifest** (JSON, hébergé sur le VPS à l'URL configurée) :
+
+```json
+{
+  "files": {
+    "mods/create-0.5.1.jar": {
+      "url": "https://vps/modpack/files/mods/create-0.5.1.jar",
+      "sha256": "3a7bd3e2360a...",
+      "size": 8421376
+    },
+    "config/create.toml": {
+      "url": "https://vps/modpack/files/config/create.toml",
+      "sha256": "1b2c3d4e5f6a..."
+    }
+  }
+}
+```
+
+`url` est une URL absolue par fichier (peut pointer n'importe où, un CDN par exemple, pas
+nécessairement à côté du manifest) ; `sha256` est comparé au hash local pour décider si le fichier
+doit être retéléchargé ; `size` est optionnel, utilisé uniquement pour dimensionner la barre de
+progression globale (le total des tailles des fichiers à mettre à jour).
+
+À chaque synchro, le launcher télécharge un `GET` sur `ModpackManifestUrl`, calcule le SHA-256 de
+chaque fichier local correspondant à une entrée du manifest et ne retélécharge que ceux qui
+manquent ou dont le hash diffère — **auto-réparateur par construction** : un fichier corrompu ou
+supprimé par erreur est détecté et retéléchargé à la prochaine synchro, sans action de l'utilisateur
+ni notion de cache "à jour" à invalider (contrairement au mode zip, où le cache ETag doit être
+explicitement supprimé par `RepairAsync` pour forcer une revérification).
+
+**Générer ce manifest côté VPS** est hors du périmètre de ce dépôt (script à écrire côté serveur :
+parcourir `mods/`/`config/`, calculer un SHA-256 par fichier, publier le JSON à une URL stable) —
+ce launcher se contente de le consommer.
+
+### Retour en arrière d'un cran (v1.9.0, Paramètres → Maintenance)
+
+Avant d'écraser `mods/`/`config/` (mode zip ou manifest, `BackupCurrentModpackAsync`), le contenu
+courant est copié dans `.rollback-mods`/`.rollback-config` à la racine du dossier de jeu, écrasant
+la sauvegarde précédente — **un seul cran de recul**, pas un historique complet. "REVENIR EN
+ARRIÈRE" (désactivé tant qu'aucune sauvegarde n'existe) restaure ce contenu.
+
+**Effet volontairement temporaire, pas un vrai pin de version** : le cache de synchro n'est pas
+touché par ce rollback. En mode zip, si le contenu distant n'a pas changé depuis, une synchro
+normale ultérieure considère toujours "à jour" via le cache ETag et laisse le rollback en place ;
+en mode manifest en revanche, une synchro normale revérifie systématiquement chaque fichier par
+hash et retélécharge/annule le rollback tant que le VPS sert toujours la version problématique —
+une vraie protection durable demanderait que le VPS lui-même serve une version antérieure. Une
+sauvegarde d'`options.txt` (réglages perso du joueur) encadre aussi "RÉPARER LE MODPACK", en filet
+de sécurité même si ni le mode zip ni le mode manifest ne sont censés y toucher.
+
+### Vérification d'espace disque
+
+Fichier : `Services/Diagnostics/DiskSpaceChecker.cs`
+
+Avant tout téléchargement volumineux (modpack, JRE Temurin), le launcher vérifie l'espace disque
+disponible et échoue avec un message clair (`Espace disque insuffisant pour...`) plutôt que de
+laisser un `IOException` générique survenir en pleine extraction. Marge large par prudence (x3 en
+mode zip pour le zip temporaire + l'extraction + la sauvegarde de rollback qui coexistent
+brièvement, x2 en mode manifest, 500 Mo fixes pour Java faute de connaître la taille exacte de
+l'archive à l'avance) : mieux vaut refuser une mise à jour qui aurait en réalité tenu de justesse
+que laisser un disque presque plein dans un état corrompu.
 
 ## Actus (news)
 
@@ -329,6 +424,17 @@ une session déjà lancée (l'écran multijoueur vanilla le permet nativement, e
 launcher n'implémentent de restriction côté client type mod/whitelist) — seule la liste au
 prochain lancement est remise à zéro. Suffisant pour un usage privé entre amis, pas une vraie
 sandbox contre un joueur déterminé à contourner.
+
+## Bannière de maintenance (v1.9.0)
+
+Fichiers : `Services/Maintenance/MaintenanceService.cs`, `MainWindow.xaml(.cs)`
+
+`MaintenanceMessageUrl` (settings.json, vide par défaut = jamais affichée) pointe vers un
+`maintenance.txt` optionnel sur le VPS : s'il existe et n'est pas vide, son contenu s'affiche en
+bandeau sur le dashboard (accent ambre, icône d'alerte), pour prévenir les joueurs d'une coupure
+programmée sans dépendre de Discord. Absence de fichier (404) ou VPS injoignable = pas de bandeau,
+même logique que le changelog optionnel du modpack. Revérifié toutes les 5 minutes (même cadence
+que les actus), pas seulement au démarrage.
 
 ## Statut du serveur
 
@@ -494,14 +600,21 @@ encore créé) : une fois modifiée, la valeur choisie par le joueur reste celle
 (`DesktopNotificationsEnabled`, activée par défaut) contrôle si `DesktopNotificationService` (voir
 section "Statut du serveur") a le droit de s'afficher au retour en ligne du serveur.
 
-**Maintenance (v1.8.0) :** deux boutons dans cette fenêtre.
+**Maintenance (v1.8.0/v1.9.0) :** quatre boutons dans cette fenêtre.
 - "RÉPARER LE MODPACK" déclenche `IModSyncService.RepairAsync` (voir "Synchronisation mods/config"
-  ci-dessus) avec le statut de progression affiché directement sous les boutons.
+  ci-dessus) avec le statut de progression affiché directement sous les boutons, encadré d'une
+  sauvegarde/restauration d'`options.txt` en filet de sécurité.
 - "VOIR LES LOGS" ouvre `LogViewerWindow.xaml(.cs)`, un visualiseur intégré qui bascule entre
   `launcher.log` (`Logger.LogFilePath`) et `{GameDirectory}/logs/latest.log` (jeu), avec une
   recherche texte simple (filtre par ligne, insensible à la casse) et un bouton "COPIER" qui met le
   contenu affiché dans le presse-papier — pratique pour coller un extrait sur Discord quand un
   joueur demande de l'aide, sans avoir à aller fouiller `%AppData%` à la main.
+- "REVENIR EN ARRIÈRE" (v1.9.0) restaure le dernier cran de recul du modpack — voir "Retour en
+  arrière d'un cran" ci-dessus. Désactivé tant qu'aucune sauvegarde n'existe.
+- "SIGNALER UN PROBLÈME" (v1.9.0) copie dans le presse-papier un rapport prêt à coller sur Discord :
+  version du launcher, RAM configurée, serveur, dernière synchro et les 30 dernières lignes de
+  `launcher.log` (`SettingsWindow.BuildProblemReportAsync`) — évite de devoir demander à chaque
+  joueur de recopier ces infos à la main quand il demande de l'aide.
 
 **Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
 — rappel du statut non officiel du launcher, et surtout la liste des dépendances open source

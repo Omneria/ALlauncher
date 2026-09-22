@@ -4,10 +4,12 @@ using Xunit;
 namespace MinecraftLauncherPerso.Tests;
 
 /// <summary>
-/// Forge 1.16.5 exige explicitement Java 8 (JavaManager vérifie la version majeure exacte, pas
-/// juste ">= 8") : un bug dans le parsing de "java -version" ferait accepter un Java 11/17 comme
-/// étant du Java 8 (ou l'inverse, rejeter un vrai Java 8), avec un échec de lancement du jeu
+/// Forge 1.20.1 exige explicitement Java 17 (JavaManager vérifie la version majeure exacte, pas
+/// juste ">= 17") : un bug dans le parsing de "java -version" ferait accepter un Java 11/21 comme
+/// étant du Java 17 (ou l'inverse, rejeter un vrai Java 17), avec un échec de lancement du jeu
 /// difficile à relier à sa vraie cause. Ce parsing n'était jusqu'ici couvert par aucun test.
+/// Les cas Java 8 (ancien schéma de version) restent testés : ParseMajorVersion doit rester
+/// correct pour toutes les versions majeures, pas seulement 17.
 /// </summary>
 public sealed class JavaManagerTests
 {

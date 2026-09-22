@@ -118,4 +118,32 @@ public sealed class SettingsManagerTests : IDisposable
 
         Assert.Equal("astralnexusmc.duckdns.org", settings.ServerHost);
     }
+
+    [Fact]
+    public void Load_migre_1_16_5_vers_1_20_1_si_valeurs_par_defaut_intactes()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MinecraftVersion": "1.16.5", "ForgeVersion": "36.2.34" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(new LauncherSettings().MinecraftVersion, settings.MinecraftVersion);
+        Assert.Equal(new LauncherSettings().ForgeVersion, settings.ForgeVersion);
+    }
+
+    [Fact]
+    public void Load_ne_migre_pas_une_version_personnalisee_par_le_joueur()
+    {
+        // Seul MinecraftVersion a été changé à la main (ForgeVersion reste l'ancien défaut) : pas
+        // une combinaison "jamais touchée", donc pas de migration automatique qui écraserait un
+        // choix délibéré.
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MinecraftVersion": "1.19.2", "ForgeVersion": "36.2.34" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal("1.19.2", settings.MinecraftVersion);
+    }
 }

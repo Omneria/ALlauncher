@@ -20,6 +20,7 @@ using MinecraftLauncherPerso.Services.Forge;
 using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
+using MinecraftLauncherPerso.Services.Maintenance;
 using MinecraftLauncherPerso.Services.ModSync;
 using MinecraftLauncherPerso.Services.News;
 using MinecraftLauncherPerso.Services.Notifications;
@@ -55,10 +56,12 @@ public partial class MainWindow : Window
     private readonly IUpdateService _updateService;
     private readonly INewsService _newsService;
     private readonly NewsHistoryStore _newsHistoryStore;
+    private readonly IMaintenanceService _maintenanceService;
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _newsRefreshTimer;
+    private readonly DispatcherTimer _maintenanceRefreshTimer;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
@@ -117,6 +120,7 @@ public partial class MainWindow : Window
         _newsService = new NewsService(SharedHttpClient.Instance);
         _newsHistoryStore = new NewsHistoryStore();
         _newsHistory = _newsHistoryStore.Load();
+        _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
 
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
@@ -134,6 +138,11 @@ public partial class MainWindow : Window
         // change rarement).
         _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
+
+        // Même cadence que les actus : une maintenance annoncée pendant que le launcher est déjà
+        // ouvert doit apparaître sans avoir à redémarrer le launcher.
+        _maintenanceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _maintenanceRefreshTimer.Tick += async (_, _) => await RefreshMaintenanceBannerAsync();
 
         // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
         // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
@@ -193,9 +202,11 @@ public partial class MainWindow : Window
         }
 
         await ShowNewsAsync();
+        await RefreshMaintenanceBannerAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
         _newsRefreshTimer.Start();
+        _maintenanceRefreshTimer.Start();
         await RefreshServerStatusAsync();
         await CheckForUpdateAsync();
 
@@ -224,7 +235,7 @@ public partial class MainWindow : Window
     {
         _prefetchCts = new CancellationTokenSource();
         var token = _prefetchCts.Token;
-        _prefetchTask = _modSyncService.PrefetchAsync(_settings.ModpackZipUrl, _settings.GameDirectory, cancellationToken: token);
+        _prefetchTask = _modSyncService.PrefetchAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, cancellationToken: token);
         _ = _prefetchTask.ContinueWith(
             t => Logger.Warn("MainWindow", $"Préchargement du modpack interrompu : {t.Exception?.GetBaseException().Message}"),
             CancellationToken.None,
@@ -252,6 +263,23 @@ public partial class MainWindow : Window
 
     /// <summary>Vue d'affichage d'une NewsHistoryEntry, avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
     private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
+
+    /// <summary>
+    /// Bannière de maintenance (v1.9.0) : affiche/masque MaintenanceBanner selon qu'un
+    /// maintenance.txt non vide est servi à MaintenanceMessageUrl. Ne fait rien si ce réglage n'est
+    /// pas configuré (comportement identique à ModpackManifestUrl : optionnel, désactivé par défaut).
+    /// </summary>
+    private async Task RefreshMaintenanceBannerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.MaintenanceMessageUrl))
+        {
+            return;
+        }
+
+        var message = await _maintenanceService.FetchMaintenanceMessageAsync(_settings.MaintenanceMessageUrl);
+        MaintenanceBannerText.Text = message;
+        MaintenanceBanner.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
     // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
@@ -349,7 +377,7 @@ public partial class MainWindow : Window
             // mods ? auth ?) avait échoué — impossible à diagnostiquer pour l'utilisateur sans
             // aller lire StatusLogTextBox en détail.
 
-            // 1. Java 8 : seule étape avec une progression chiffrée (téléchargement), pilote la barre.
+            // 1. Java 17 : seule étape avec une progression chiffrée (téléchargement), pilote la barre.
             var javaProgress = new Progress<JavaSetupProgress>(report =>
             {
                 ProgressBar.Value = report.PercentComplete;
@@ -358,13 +386,13 @@ public partial class MainWindow : Window
             string javaPath;
             try
             {
-                javaPath = await _javaManager.EnsureJava8Async(javaProgress);
+                javaPath = await _javaManager.EnsureJavaAsync(javaProgress);
             }
             catch (Exception ex)
             {
-                throw new LauncherStepException("Préparation de Java 8", ex);
+                throw new LauncherStepException("Préparation de Java 17", ex);
             }
-            AppendLog($"Java 8 prêt : {javaPath}");
+            AppendLog($"Java 17 prêt : {javaPath}");
 
             var minecraftPath = new MinecraftPath(_settings.GameDirectory);
             var launcher = new MinecraftLauncher(minecraftPath);
@@ -397,7 +425,7 @@ public partial class MainWindow : Window
             var syncDownloadProgress = new Progress<double>(fraction => ProgressBar.Value = fraction * 100);
             try
             {
-                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.GameDirectory, syncProgress, syncDownloadProgress);
+                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, syncProgress, syncDownloadProgress);
             }
             catch (Exception ex)
             {
