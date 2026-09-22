@@ -268,6 +268,9 @@ public partial class MainWindow : Window
     /// Bannière de maintenance (v1.9.0) : affiche/masque MaintenanceBanner selon qu'un
     /// maintenance.txt non vide est servi à MaintenanceMessageUrl. Ne fait rien si ce réglage n'est
     /// pas configuré (comportement identique à ModpackManifestUrl : optionnel, désactivé par défaut).
+    /// Première ligne du fichier affichée en titre, le reste (s'il y en a) en sous-titre atténué —
+    /// permet un message court en une ligne comme un message détaillé sur plusieurs, sans format
+    /// imposé côté VPS (pas de "champ titre" séparé à gérer).
     /// </summary>
     private async Task RefreshMaintenanceBannerAsync()
     {
@@ -277,8 +280,26 @@ public partial class MainWindow : Window
         }
 
         var message = await _maintenanceService.FetchMaintenanceMessageAsync(_settings.MaintenanceMessageUrl);
-        MaintenanceBannerText.Text = message;
-        MaintenanceBanner.Visibility = message is null ? Visibility.Collapsed : Visibility.Visible;
+        if (message is null)
+        {
+            MaintenanceBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var lines = message.Split('\n', 2, StringSplitOptions.TrimEntries);
+        MaintenanceBannerTitle.Text = lines[0];
+
+        if (lines.Length > 1 && !string.IsNullOrWhiteSpace(lines[1]))
+        {
+            MaintenanceBannerSubtitle.Text = lines[1];
+            MaintenanceBannerSubtitle.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            MaintenanceBannerSubtitle.Visibility = Visibility.Collapsed;
+        }
+
+        MaintenanceBanner.Visibility = Visibility.Visible;
     }
 
     // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord

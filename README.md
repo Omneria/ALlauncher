@@ -431,10 +431,13 @@ Fichiers : `Services/Maintenance/MaintenanceService.cs`, `MainWindow.xaml(.cs)`
 
 `MaintenanceMessageUrl` (settings.json, vide par défaut = jamais affichée) pointe vers un
 `maintenance.txt` optionnel sur le VPS : s'il existe et n'est pas vide, son contenu s'affiche en
-bandeau sur le dashboard (accent ambre, icône d'alerte), pour prévenir les joueurs d'une coupure
-programmée sans dépendre de Discord. Absence de fichier (404) ou VPS injoignable = pas de bandeau,
-même logique que le changelog optionnel du modpack. Revérifié toutes les 5 minutes (même cadence
-que les actus), pas seulement au démarrage.
+carte sur le dashboard (filet magenta, icône d'alerte — même esprit que les autres cartes mais
+volontairement plus marquée), pour prévenir les joueurs d'une coupure programmée sans dépendre de
+Discord. Première ligne du fichier affichée en titre, le reste (s'il y en a) en sous-titre atténué
+— un message court tient sur une ligne, un message détaillé peut s'étaler sur plusieurs, sans format
+imposé côté VPS. Absence de fichier (404) ou VPS injoignable = pas de carte, même logique que le
+changelog optionnel du modpack. Revérifiée toutes les 5 minutes (même cadence que les actus), pas
+seulement au démarrage.
 
 ## Statut du serveur
 
