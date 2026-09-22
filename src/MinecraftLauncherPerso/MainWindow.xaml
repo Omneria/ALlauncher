@@ -207,34 +207,35 @@
                                 Click="UpdateBannerButton_Click" />
                     </Grid>
 
-                    <!-- Bannière de maintenance (v1.9.0, optionnelle) : accent ambre à gauche façon
-                         alerte, plutôt qu'une simple ligne de texte perdue dans le dashboard — même
-                         esprit que les autres cartes (coins vifs, jamais de CornerRadius) mais
-                         volontairement plus visible (fond Surface2 + filet ambre) puisqu'elle porte
-                         une information dont l'absence de lecture a un vrai coût (jouer alors que le
-                         serveur va couper). Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
-                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="4" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Grid.ColumnSpan="2" Background="{StaticResource Surface2Brush}"
-                                BorderBrush="{StaticResource AmberBrush}" BorderThickness="1" />
-                        <Rectangle Grid.Column="0" Fill="{StaticResource AmberBrush}" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                    Margin="20,12,20,12">
-                            <Path Data="M12 9v4 M12 17h.01 M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
-                                  Stroke="{StaticResource AmberBrush}" StrokeThickness="1.6"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                  Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" />
-                            <StackPanel Margin="14,0,0,0">
-                                <TextBlock Text="MAINTENANCE" Style="{StaticResource EyebrowTextStyle}"
-                                           Foreground="{StaticResource AmberBrush}" FontSize="11" />
-                                <TextBlock x:Name="MaintenanceBannerText" Foreground="{StaticResource InkBrush}"
-                                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    <!-- Bannière de maintenance (v1.9.0, optionnelle) : "carte console" magenta
+                         (option B retenue) — plus imposante que les bandeaux discrets déjà en place
+                         (mise à jour du launcher, etc.) puisqu'elle porte une information dont
+                         l'absence de lecture a un vrai coût (jouer alors que le serveur va couper).
+                         Filet magenta 1.5px + fond Surface (comme les autres cartes du dashboard,
+                         CardBorderStyle) plutôt que Surface2 seul, pour vraiment se détacher.
+                         Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
+                    <Border x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16"
+                            Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource MagentaBrush}"
+                            BorderThickness="1.5" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Margin="24,18,24,18">
+                            <Border Width="26" Height="26" VerticalAlignment="Top" Margin="0,2,0,0">
+                                <Path Data="M12 8v4 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                                      Stroke="{StaticResource MagentaBrush}" StrokeThickness="1.8"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Width="24" Height="24" Stretch="Uniform" />
+                            </Border>
+                            <StackPanel Margin="16,0,0,0">
+                                <TextBlock Text="SERVEUR EN MAINTENANCE" Style="{StaticResource EyebrowTextStyle}"
+                                           Foreground="{StaticResource MagentaBrush}" FontSize="11" />
+                                <TextBlock x:Name="MaintenanceBannerTitle" FontFamily="{StaticResource DisplayFontFamily}"
+                                           FontWeight="Bold" FontSize="18" Foreground="{StaticResource InkBrush}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <TextBlock x:Name="MaintenanceBannerSubtitle" FontSize="12"
+                                           Foreground="{StaticResource InkDimBrush}" TextWrapping="Wrap"
+                                           Margin="0,4,0,0" Visibility="Collapsed" />
                             </StackPanel>
                         </StackPanel>
-                    </Grid>
+                    </Border>
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
