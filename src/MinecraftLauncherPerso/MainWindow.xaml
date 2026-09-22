@@ -191,6 +191,7 @@
                 <Grid Grid.Column="1" Margin="26,22,26,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -206,7 +207,36 @@
                                 Click="UpdateBannerButton_Click" />
                     </Grid>
 
-                    <Grid Grid.Row="1">
+                    <!-- Bannière de maintenance (v1.9.0, optionnelle) : accent ambre à gauche façon
+                         alerte, plutôt qu'une simple ligne de texte perdue dans le dashboard — même
+                         esprit que les autres cartes (coins vifs, jamais de CornerRadius) mais
+                         volontairement plus visible (fond Surface2 + filet ambre) puisqu'elle porte
+                         une information dont l'absence de lecture a un vrai coût (jouer alors que le
+                         serveur va couper). Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
+                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.ColumnSpan="2" Background="{StaticResource Surface2Brush}"
+                                BorderBrush="{StaticResource AmberBrush}" BorderThickness="1" />
+                        <Rectangle Grid.Column="0" Fill="{StaticResource AmberBrush}" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                    Margin="20,12,20,12">
+                            <Path Data="M12 9v4 M12 17h.01 M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+                                  Stroke="{StaticResource AmberBrush}" StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" />
+                            <StackPanel Margin="14,0,0,0">
+                                <TextBlock Text="MAINTENANCE" Style="{StaticResource EyebrowTextStyle}"
+                                           Foreground="{StaticResource AmberBrush}" FontSize="11" />
+                                <TextBlock x:Name="MaintenanceBannerText" Foreground="{StaticResource InkBrush}"
+                                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <!-- x:Name sur les 3 colonnes : le mode compact (CompactModeButton_Click)
                                  réduit NewsColumn/GapColumn à 0 pour ne garder que la colonne serveur,

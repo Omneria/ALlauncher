@@ -33,8 +33,8 @@ public static class CrashDiagnosisService
                          || l.Contains("has been compiled by a more recent version", StringComparison.OrdinalIgnoreCase)))
         {
             return new CrashDiagnosis(
-                "Version de Java incompatible détectée. Ce modpack nécessite Java 8 — si une autre " +
-                "version est forcée via JAVA_HOME, elle peut prendre le pas sur le Java 8 du launcher.",
+                "Version de Java incompatible détectée. Ce modpack nécessite Java 17 — si une autre " +
+                "version est forcée via JAVA_HOME, elle peut prendre le pas sur le Java 17 du launcher.",
                 SuggestsRepair: false);
         }
 

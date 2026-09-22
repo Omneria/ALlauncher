@@ -5,10 +5,10 @@ namespace MinecraftLauncherPerso.Services.Forge;
 public interface IForgeManager
 {
     /// <summary>
-    /// Garantit qu'un profil Forge (ex. Minecraft 1.16.5 + Forge 36.2.34) est installé dans le
+    /// Garantit qu'un profil Forge (ex. Minecraft 1.20.1 + Forge 47.3.0) est installé dans le
     /// dossier de jeu de <paramref name="launcher"/>, en l'installant si nécessaire.
     /// </summary>
-    /// <returns>Identifiant de version à passer à <c>MinecraftLauncher.BuildProcessAsync</c> (ex. "1.16.5-forge-36.2.34").</returns>
+    /// <returns>Identifiant de version à passer à <c>MinecraftLauncher.BuildProcessAsync</c> (ex. "1.20.1-forge-47.3.0").</returns>
     /// <param name="downloadProgress">
     /// Fraction 0.0-1.0 du téléchargement en cours (CmlLib expose déjà cette information via
     /// ByteProgress, jusqu'ici seulement transformée en texte pour <paramref name="progress"/>) :

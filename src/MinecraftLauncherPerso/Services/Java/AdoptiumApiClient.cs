@@ -12,7 +12,8 @@ namespace MinecraftLauncherPerso.Services.Java;
 public sealed record JavaDownloadInfo(string DownloadUrl, string FileName, string? Sha256Checksum);
 
 /// <summary>Client minimal pour l'API Adoptium (https://api.adoptium.net), utilisé pour récupérer
-/// la dernière build Temurin 8 (JRE) correspondant à l'OS/architecture de la machine.</summary>
+/// la dernière build Temurin (JRE) correspondant à l'OS/architecture de la machine, pour la version
+/// majeure Java demandée (17 pour Minecraft/Forge 1.20.1+).</summary>
 public sealed class AdoptiumApiClient
 {
     private const string ApiBaseUrl = "https://api.adoptium.net/v3";
@@ -23,10 +24,10 @@ public sealed class AdoptiumApiClient
         _httpClient = httpClient;
     }
 
-    public async Task<JavaDownloadInfo> GetLatestJre8Async(CancellationToken cancellationToken = default)
+    public async Task<JavaDownloadInfo> GetLatestJreAsync(int majorVersion, CancellationToken cancellationToken = default)
     {
         var (os, architecture) = GetCurrentPlatform();
-        var requestUrl = $"{ApiBaseUrl}/assets/latest/8/hotspot" +
+        var requestUrl = $"{ApiBaseUrl}/assets/latest/{majorVersion}/hotspot" +
                           $"?architecture={architecture}&image_type=jre&os={os}&vendor=eclipse";
 
         using var response = await _httpClient.GetAsync(requestUrl, cancellationToken);
@@ -37,14 +38,14 @@ public sealed class AdoptiumApiClient
 
         var asset = assets?.FirstOrDefault()
             ?? throw new InvalidOperationException(
-                $"Aucune build Temurin 8 disponible pour os={os} architecture={architecture}.");
+                $"Aucune build Temurin {majorVersion} disponible pour os={os} architecture={architecture}.");
 
         return new JavaDownloadInfo(asset.Binary.Package.Link, asset.Binary.Package.Name, asset.Binary.Package.Checksum);
     }
 
     /// <summary>
     /// Télécharge l'archive puis vérifie son empreinte SHA-256 contre <paramref name="expectedSha256"/>
-    /// (fournie par GetLatestJre8Async, elle-même issue de l'API Adoptium) avant de rendre la main :
+    /// (fournie par GetLatestJreAsync, elle-même issue de l'API Adoptium) avant de rendre la main :
     /// sans ce contrôle, un contenu altéré en transit (MITM, miroir CDN corrompu) aurait été extrait
     /// et exécuté sans qu'aucun signal ne le distingue d'un téléchargement normal.
     /// </summary>

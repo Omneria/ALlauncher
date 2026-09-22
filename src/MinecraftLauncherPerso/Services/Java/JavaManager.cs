@@ -11,21 +11,22 @@ using MinecraftLauncherPerso.Services.Diagnostics;
 namespace MinecraftLauncherPerso.Services.Java;
 
 /// <summary>
-/// Vérifie qu'un Java 8 utilisable est disponible et, sinon, télécharge/installe une build
-/// Temurin (Eclipse Adoptium) 8 portable dans le dossier de données du launcher.
+/// Vérifie qu'un Java 17 utilisable est disponible et, sinon, télécharge/installe une build
+/// Temurin (Eclipse Adoptium) 17 portable dans le dossier de données du launcher.
 ///
 /// Ordre de résolution :
-///   1. Java 8 déjà installé par ce launcher (portable, sous %AppData%/MinecraftLauncherPerso/runtime/java8).
-///   2. Java 8 déjà présent sur la machine (JAVA_HOME, PATH, dossiers d'installation courants, registre
+///   1. Java 17 déjà installé par ce launcher (portable, sous %AppData%/MinecraftLauncherPerso/runtime/java17).
+///   2. Java 17 déjà présent sur la machine (JAVA_HOME, PATH, dossiers d'installation courants, registre
 ///      Windows — un installeur Java officiel s'y enregistre toujours, même dans un dossier non standard).
-///   3. Téléchargement + extraction d'une build Temurin 8 (JRE) via l'API Adoptium.
+///   3. Téléchargement + extraction d'une build Temurin 17 (JRE) via l'API Adoptium.
 ///
-/// Forge 1.16.5 exige explicitement Java 8 : les JDK 11+ ne sont pas acceptés même s'ils sont
-/// installés, d'où la vérification stricte de la version majeure (8) plutôt qu'un simple ">= 8".
+/// Forge 1.20.1 exige explicitement Java 17 (Minecraft/Mojang ne démarre plus sur un JRE 8/11
+/// depuis 1.18) : les JDK d'une autre version majeure ne sont pas acceptés même s'ils sont
+/// installés, d'où la vérification stricte de la version majeure (17) plutôt qu'un simple ">= 17".
 /// </summary>
 public sealed class JavaManager : IJavaManager
 {
-    private const int RequiredMajorVersion = 8;
+    private const int RequiredMajorVersion = 17;
     private static readonly Regex VersionRegex = new(@"version ""(?<version>[^""]+)""", RegexOptions.Compiled);
 
     private readonly string _runtimeRootDirectory;
@@ -39,33 +40,45 @@ public sealed class JavaManager : IJavaManager
         _adoptiumClient = new AdoptiumApiClient(httpClient ?? new HttpClient());
     }
 
-    public async Task<string> EnsureJava8Async(IProgress<JavaSetupProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<string> EnsureJavaAsync(IProgress<JavaSetupProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        progress?.Report(new JavaSetupProgress(JavaSetupStage.Checking, 0, "Recherche d'une installation Java 8..."));
+        progress?.Report(new JavaSetupProgress(JavaSetupStage.Checking, 0, "Recherche d'une installation Java 17..."));
 
-        var bundledJava = FindBundledJava8();
+        var bundledJava = FindBundledJava();
         if (bundledJava is not null)
         {
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 8 portable déjà installé : {bundledJava}"));
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 portable déjà installé : {bundledJava}"));
             return bundledJava;
         }
 
-        var systemJava = FindSystemJava8();
+        var systemJava = FindSystemJava();
         if (systemJava is not null)
         {
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 8 détecté sur la machine : {systemJava}"));
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 détecté sur la machine : {systemJava}"));
             return systemJava;
         }
 
-        progress?.Report(new JavaSetupProgress(JavaSetupStage.Downloading, 0, "Java 8 introuvable, téléchargement de Temurin 8..."));
-        var archivePath = await DownloadTemurin8Async(progress, cancellationToken);
+        // Vérification best-effort avant de lancer le téléchargement : un disque plein ne se
+        // révélait auparavant qu'en pleine extraction, avec une exception peu claire. Seuil fixe
+        // (pas la taille exacte de l'archive, pas connue avant l'appel à l'API Adoptium) : une build
+        // Temurin JRE fait rarement plus de 100-150 Mo compressée, 500 Mo laisse une marge large
+        // pour l'archive + son extraction simultanées.
+        const long requiredBytes = 500L * 1024 * 1024;
+        if (!DiskSpaceChecker.HasEnoughFreeSpace(_runtimeRootDirectory, requiredBytes))
+        {
+            throw new InvalidOperationException(
+                $"Espace disque insuffisant pour installer Java {RequiredMajorVersion} (au moins {DiskSpaceChecker.FormatBytes(requiredBytes)} nécessaires).");
+        }
+
+        progress?.Report(new JavaSetupProgress(JavaSetupStage.Downloading, 0, "Java 17 introuvable, téléchargement de Temurin 17..."));
+        var archivePath = await DownloadTemurinAsync(progress, cancellationToken);
 
         try
         {
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Extracting, 90, "Extraction de Java 8..."));
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Extracting, 90, "Extraction de Java 17..."));
             var installedPath = ExtractRuntime(archivePath);
 
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 8 installé : {installedPath}"));
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 installé : {installedPath}"));
             return installedPath;
         }
         finally
@@ -74,13 +87,13 @@ public sealed class JavaManager : IJavaManager
         }
     }
 
-    private string? FindBundledJava8()
+    private string? FindBundledJava()
     {
-        var java8Root = Path.Combine(_runtimeRootDirectory, "java8");
-        return FindJavaExecutableUnder(java8Root);
+        var javaRoot = Path.Combine(_runtimeRootDirectory, $"java{RequiredMajorVersion}");
+        return FindJavaExecutableUnder(javaRoot);
     }
 
-    private static string? FindSystemJava8()
+    private static string? FindSystemJava()
     {
         var candidates = new List<string>();
 
@@ -290,9 +303,9 @@ public sealed class JavaManager : IJavaManager
         return int.TryParse(parts[0], out var major) ? major : 0;
     }
 
-    private async Task<string> DownloadTemurin8Async(IProgress<JavaSetupProgress>? progress, CancellationToken cancellationToken)
+    private async Task<string> DownloadTemurinAsync(IProgress<JavaSetupProgress>? progress, CancellationToken cancellationToken)
     {
-        var downloadInfo = await _adoptiumClient.GetLatestJre8Async(cancellationToken);
+        var downloadInfo = await _adoptiumClient.GetLatestJreAsync(RequiredMajorVersion, cancellationToken);
 
         Directory.CreateDirectory(_runtimeRootDirectory);
         var archivePath = Path.Combine(_runtimeRootDirectory, downloadInfo.FileName);
@@ -304,7 +317,7 @@ public sealed class JavaManager : IJavaManager
             onProgress: fraction => progress?.Report(new JavaSetupProgress(
                 JavaSetupStage.Downloading,
                 fraction * 90,
-                $"Téléchargement de Java 8... {fraction:P0}")),
+                $"Téléchargement de Java 17... {fraction:P0}")),
             cancellationToken);
 
         return archivePath;
@@ -312,7 +325,7 @@ public sealed class JavaManager : IJavaManager
 
     private string ExtractRuntime(string archivePath)
     {
-        var extractRoot = Path.Combine(_runtimeRootDirectory, "java8");
+        var extractRoot = Path.Combine(_runtimeRootDirectory, $"java{RequiredMajorVersion}");
         if (Directory.Exists(extractRoot))
         {
             Directory.Delete(extractRoot, recursive: true);
@@ -325,6 +338,6 @@ public sealed class JavaManager : IJavaManager
 
         return FindJavaExecutableUnder(extractRoot)
             ?? throw new InvalidOperationException(
-                $"Extraction de Java 8 invalide : aucun exécutable java trouvé sous {extractRoot}.");
+                $"Extraction de Java {RequiredMajorVersion} invalide : aucun exécutable java trouvé sous {extractRoot}.");
     }
 }

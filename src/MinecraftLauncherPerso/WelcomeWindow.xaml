@@ -39,7 +39,7 @@
             <TextBlock x:Name="WelcomeTitleText" Text="BIENVENUE SUR ASTRAL NEXUS" Style="{StaticResource EyebrowTextStyle}"
                        FontSize="14" Margin="0,0,0,12" />
             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource InkDimBrush}" FontSize="13" LineHeight="20">
-                Ce launcher installe automatiquement Java 8, Forge et le pack de mods du serveur,
+                Ce launcher installe automatiquement Java 17, Forge et le pack de mods du serveur,
                 puis vous connecte avec votre compte Microsoft. Quelques étapes rapides avant de
                 commencer.
             </TextBlock>
