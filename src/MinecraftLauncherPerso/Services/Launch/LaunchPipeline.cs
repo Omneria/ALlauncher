@@ -24,7 +24,16 @@ public enum LaunchStep
 /// 0-1 quand l'étape a une progression chiffrée (téléchargement), null sinon (l'UI affiche alors
 /// un indicateur indéterminé).
 /// </summary>
-public sealed record LaunchProgress(LaunchStep Step, string Message, double? Fraction = null);
+public sealed record LaunchProgress(LaunchStep Step, string Message, double? Fraction = null)
+{
+    /// <summary>
+    /// Toujours null ou dans [0, 1] : une fraction non finie (NaN, infini) devient null, donc
+    /// "progression inconnue", au lieu d'atteindre ProgressBar.Value, qui lève ArgumentException
+    /// sur NaN. Vécu en v1.11.0 : CmlLib rapporte ByteProgress.ToRatio() = 0/0 = NaN quand la
+    /// taille totale d'un téléchargement Forge est encore inconnue.
+    /// </summary>
+    public double? Fraction { get; init; } = Fraction is { } value && double.IsFinite(value) ? Math.Clamp(value, 0, 1) : null;
+}
 
 /// <summary>Ce que le pipeline a produit une fois le jeu démarré.</summary>
 public sealed record LaunchResult(MinecraftSession Session, ProcessWrapper Game, string JavaPath, string VersionId);

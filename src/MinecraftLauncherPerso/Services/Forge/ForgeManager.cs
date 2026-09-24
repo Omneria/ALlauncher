@@ -26,8 +26,22 @@ public sealed class ForgeManager : IForgeManager
             progress?.Report($"[{e.ProgressedTasks}/{e.TotalTasks}] {e.Name}"));
         var byteProgress = new Progress<ByteProgress>(e =>
         {
-            progress?.Report($"Téléchargement... {e.ToRatio():P0}");
-            downloadProgress?.Report(e.ToRatio());
+            // ToRatio() vaut 0/0 = NaN tant que la taille totale est inconnue (TotalBytes = 0) :
+            // ni "NaN %" dans le journal, ni NaN envoyé à la barre de progression (qui lève sur
+            // NaN, voir LaunchProgress). Rien n'est rapporté tant que la taille n'est pas connue.
+            if (e.TotalBytes <= 0)
+            {
+                return;
+            }
+
+            var ratio = e.ToRatio();
+            if (!double.IsFinite(ratio))
+            {
+                return;
+            }
+
+            progress?.Report($"Téléchargement... {ratio:P0}");
+            downloadProgress?.Report(ratio);
         });
 
         progress?.Report($"Installation de Forge {minecraftVersion}-{forgeVersion}...");

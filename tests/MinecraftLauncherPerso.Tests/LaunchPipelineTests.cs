@@ -101,6 +101,32 @@ public sealed class LaunchPipelineTests : IDisposable
         Assert.Equal(["java", "forge", "sync"], _calls);
     }
 
+    [Theory]
+    [InlineData(double.NaN)] // 0/0 : ByteProgress.ToRatio() de CmlLib quand la taille totale est inconnue
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void LaunchProgress_transforme_une_fraction_non_finie_en_progression_inconnue(double fraction)
+    {
+        // ProgressBar.Value lève ArgumentException sur NaN : vécu en v1.11.0 pendant l'installation
+        // de Forge, rattrapé par le filet global mais visible dans launcher.log.
+        Assert.Null(new LaunchProgress(LaunchStep.Forge, "x", fraction).Fraction);
+    }
+
+    [Theory]
+    [InlineData(-0.5, 0)]
+    [InlineData(0.42, 0.42)]
+    [InlineData(1.7, 1)]
+    public void LaunchProgress_borne_la_fraction_entre_0_et_1(double fraction, double expected)
+    {
+        Assert.Equal(expected, new LaunchProgress(LaunchStep.ModSync, "x", fraction).Fraction);
+    }
+
+    [Fact]
+    public void LaunchProgress_sans_fraction_reste_null()
+    {
+        Assert.Null(new LaunchProgress(LaunchStep.Auth, "x").Fraction);
+    }
+
     private LaunchPipeline CreatePipeline(
         FakeJavaManager? java = null,
         FakeForgeManager? forge = null,

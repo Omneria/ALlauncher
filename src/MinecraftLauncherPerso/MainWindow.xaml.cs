@@ -569,6 +569,7 @@ public partial class MainWindow : Window
                 }
             }
 
+            // Fraction déjà garantie finie et bornée par LaunchProgress (NaN = exception WPF).
             if (report.Fraction is { } fraction)
             {
                 ProgressBar.IsIndeterminate = false;
