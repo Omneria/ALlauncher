@@ -8,3 +8,4 @@
 
 - Sépare les actus et les notes de version en deux cartes sur le tableau de bord (avant, une seule carte "Actus & changelog" n'affichait que les actus).
 - Les notes de version affichées dans le launcher viennent maintenant directement des releases GitHub, comme sur le site.
+- Toutes les informations qui se rafraîchissent automatiquement (statut du serveur, actus, maintenance, notes de version, avatar) se mettent maintenant à jour toutes les minutes, sans avoir à redémarrer le launcher.
