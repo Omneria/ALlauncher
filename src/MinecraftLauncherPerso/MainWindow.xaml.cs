@@ -3,6 +3,7 @@ using System.IO;
 using System.Media;
 using System.Net.Http;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -264,11 +265,19 @@ public partial class MainWindow : Window
     /// <summary>Vue d'affichage d'une NewsHistoryEntry, avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
     private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
 
+    // Ligne optionnelle "FIN: <valeur>" (n'importe où après le titre) : affichée dans le bloc
+    // "FIN ESTIMÉE" à droite de la carte (mockup Option B), plutôt qu'un champ dédié qui aurait
+    // imposé un format de fichier rigide (title\nend\nsubtitle) et cassé les maintenance.txt déjà
+    // en place (title\nsubtitle) — cette ligne reste totalement optionnelle et retirée du sous-titre.
+    private static readonly Regex MaintenanceEndTimeLinePattern =
+        new(@"^\s*FIN\s*:\s*(?<value>.+?)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>
     /// Bannière de maintenance (v1.9.0) : affiche/masque MaintenanceBanner selon qu'un
     /// maintenance.txt non vide est servi à MaintenanceMessageUrl. Ne fait rien si ce réglage n'est
     /// pas configuré (comportement identique à ModpackManifestUrl : optionnel, désactivé par défaut).
-    /// Première ligne du fichier affichée en titre, le reste (s'il y en a) en sous-titre atténué —
+    /// Première ligne du fichier affichée en titre, une éventuelle ligne "FIN: ..." en fin de
+    /// maintenance estimée (voir MaintenanceEndTimeLinePattern), le reste en sous-titre atténué —
     /// permet un message court en une ligne comme un message détaillé sur plusieurs, sans format
     /// imposé côté VPS (pas de "champ titre" séparé à gérer).
     /// </summary>
@@ -286,17 +295,43 @@ public partial class MainWindow : Window
             return;
         }
 
-        var lines = message.Split('\n', 2, StringSplitOptions.TrimEntries);
-        MaintenanceBannerTitle.Text = lines[0];
+        var rawLines = message.Replace("\r\n", "\n").Split('\n');
+        MaintenanceBannerTitle.Text = rawLines[0].Trim();
 
-        if (lines.Length > 1 && !string.IsNullOrWhiteSpace(lines[1]))
+        string? endTime = null;
+        var subtitleLines = new List<string>();
+        for (var i = 1; i < rawLines.Length; i++)
         {
-            MaintenanceBannerSubtitle.Text = lines[1];
+            var match = MaintenanceEndTimeLinePattern.Match(rawLines[i]);
+            if (match.Success && endTime is null)
+            {
+                endTime = match.Groups["value"].Value;
+            }
+            else
+            {
+                subtitleLines.Add(rawLines[i]);
+            }
+        }
+
+        var subtitle = string.Join("\n", subtitleLines).Trim();
+        if (!string.IsNullOrWhiteSpace(subtitle))
+        {
+            MaintenanceBannerSubtitle.Text = subtitle;
             MaintenanceBannerSubtitle.Visibility = Visibility.Visible;
         }
         else
         {
             MaintenanceBannerSubtitle.Visibility = Visibility.Collapsed;
+        }
+
+        if (!string.IsNullOrWhiteSpace(endTime))
+        {
+            MaintenanceBannerEndTimeValue.Text = endTime;
+            MaintenanceBannerEndTimeBlock.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            MaintenanceBannerEndTimeBlock.Visibility = Visibility.Collapsed;
         }
 
         MaintenanceBanner.Visibility = Visibility.Visible;

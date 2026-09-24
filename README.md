@@ -436,12 +436,15 @@ modpack sur le VPS (généré via `cp scripts/vps/maintenance.txt.example` — v
 `scripts/vps/README.md`) : s'il existe et n'est pas vide, son contenu s'affiche en carte sur le
 dashboard (filet magenta, icône d'alerte — même esprit que les autres cartes mais volontairement
 plus marquée), pour prévenir les joueurs d'une coupure programmée sans dépendre de Discord.
-Première ligne du fichier affichée en titre, le reste (s'il y en a) en sous-titre atténué — un
-message court tient sur une ligne, un message détaillé peut s'étaler sur plusieurs, sans format
-imposé côté VPS. Absence de fichier (404), fichier vide, ou VPS injoignable = pas de carte, même
-logique que le changelog optionnel du modpack — **publier ou supprimer `maintenance.txt` sur le VPS
-suffit donc à afficher/masquer la bannière chez tous les joueurs**, sans jamais toucher au launcher.
-Revérifiée toutes les 5 minutes (même cadence que les actus), pas seulement au démarrage.
+Première ligne du fichier affichée en titre ; une éventuelle ligne `FIN: <valeur>` (n'importe où
+dans le fichier, `<valeur>` libre — heure, date, "indéterminée"...) s'affiche à part, dans un bloc
+"FIN ESTIMÉE" à droite de la carte, et n'apparaît pas dans le sous-titre ; le reste (s'il y en a)
+forme le sous-titre atténué — un message court tient sur une ligne, un message détaillé peut
+s'étaler sur plusieurs, sans format imposé côté VPS au-delà de cette ligne `FIN:` optionnelle.
+Absence de fichier (404), fichier vide, ou VPS injoignable = pas de carte, même logique que le
+changelog optionnel du modpack — **publier ou supprimer `maintenance.txt` sur le VPS suffit donc à
+afficher/masquer la bannière chez tous les joueurs**, sans jamais toucher au launcher. Revérifiée
+toutes les 5 minutes (même cadence que les actus), pas seulement au démarrage.
 
 ## Statut du serveur
 
