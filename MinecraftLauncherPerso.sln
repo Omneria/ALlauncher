@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinecraftLauncherPerso", "src\MinecraftLauncherPerso\MinecraftLauncherPerso.csproj", "{A1B2C3D4-E5F6-4789-A012-3456789ABCDE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinecraftLauncherPerso.Tests", "tests\MinecraftLauncherPerso.Tests\MinecraftLauncherPerso.Tests.csproj", "{B2C3D4E5-F6A7-4890-B123-456789ABCDEF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{A1B2C3D4-E5F6-4789-A012-3456789ABCDE}.Debug|x64.Build.0 = Debug|x64
 		{A1B2C3D4-E5F6-4789-A012-3456789ABCDE}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-E5F6-4789-A012-3456789ABCDE}.Release|x64.Build.0 = Release|x64
+		{B2C3D4E5-F6A7-4890-B123-456789ABCDEF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-4890-B123-456789ABCDEF}.Debug|x64.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-4890-B123-456789ABCDEF}.Release|x64.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-4890-B123-456789ABCDEF}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

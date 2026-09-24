@@ -85,6 +85,36 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// Passage HTTP → HTTPS du VPS (v1.11.0) : un settings.json écrit par une version antérieure
+    /// porte les anciennes URL par défaut (http:// + IP brute) et ne verrait jamais les nouvelles
+    /// sans cette migration. Ne bascule que les valeurs *exactement* égales à un ancien défaut :
+    /// une URL personnalisée (autre VPS, miroir) est laissée telle quelle.
+    /// </summary>
+    private static void MigrateLegacyVpsUrls(LauncherSettings settings)
+    {
+        settings.ModpackZipUrl = UpgradeLegacyVpsUrl(settings.ModpackZipUrl);
+        settings.ModpackManifestUrl = UpgradeLegacyVpsUrl(settings.ModpackManifestUrl);
+        settings.MaintenanceMessageUrl = UpgradeLegacyVpsUrl(settings.MaintenanceMessageUrl);
+    }
+
+    /// <summary>
+    /// Changement de port du serveur (v1.11.0, 25565 -> 25566) : un settings.json existant porte
+    /// explicitement l'ancien port par défaut. Ne migre que si l'hôte est toujours le serveur
+    /// Astral Nexus par défaut : un joueur qui a configuré un autre serveur garde son port.
+    /// </summary>
+    private static void MigrateServerPort(LauncherSettings settings)
+    {
+        if (settings.ServerPort == LauncherSettings.LegacyDefaultServerPort
+            && string.Equals(settings.ServerHost, LauncherSettings.DefaultServerHost, StringComparison.OrdinalIgnoreCase))
+        {
+            settings.ServerPort = LauncherSettings.DefaultServerPort;
+        }
+    }
+
+    private static string UpgradeLegacyVpsUrl(string url) =>
+        LauncherSettings.LegacyVpsUrlDefaults.TryGetValue(url, out var upgraded) ? upgraded : url;
+
     /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
     /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
     /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
@@ -124,6 +154,9 @@ public sealed class SettingsManager
         MigrateMinecraftVersion(settings);
         MigrateModpackManifestUrl(settings);
         MigrateMaintenanceMessageUrl(settings);
+        MigrateLegacyVpsUrls(settings);
+        // Après la migration de ServerHost ci-dessus (typo corrigée) : l'hôte comparé est le bon.
+        MigrateServerPort(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

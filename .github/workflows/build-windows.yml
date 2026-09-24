@@ -10,6 +10,11 @@ on:
       - "v*"
   workflow_dispatch: {}
 
+# Moindre privilège : le job de build n'a besoin que de lire le dépôt. Seul le job "release"
+# (plus bas) remonte à contents: write, pour créer/éditer la GitHub Release.
+permissions:
+  contents: read
+
 jobs:
   build:
     # WPF (net8.0-windows) ne peut être compilé que sur un hôte Windows :
@@ -66,6 +71,15 @@ jobs:
             Write-Error "RELEASE_NOTES.md n'a pas changé depuis $previousTag : décris cette version en langage clair pour les joueurs (une ligne '- ...' par changement visible) avant de poser le tag $currentTag."
             exit 1
           }
+
+          # "A changé" ne suffit pas : il faut au moins une vraie ligne "- ..." hors du commentaire
+          # d'en-tête, sinon la carte CHANGELOG du launcher et de la landing page (qui ne gardent
+          # que ces lignes) n'afficheraient rien d'utile pour cette version.
+          $body = [regex]::Replace((Get-Content RELEASE_NOTES.md -Raw), '(?s)<!--.*?-->', '')
+          if (-not [regex]::IsMatch($body, '(?m)^\s*[-*] \S')) {
+            Write-Error "RELEASE_NOTES.md ne contient aucune ligne '- ...' (hors commentaire) : rien à afficher dans le changelog pour $currentTag."
+            exit 1
+          }
           Write-Host "OK : RELEASE_NOTES.md a été mis à jour depuis $previousTag."
 
       - uses: actions/setup-dotnet@v4
@@ -78,9 +92,9 @@ jobs:
       - name: Build (Release)
         run: dotnet build -c Release --no-restore
 
-      # Projet de tests séparé (tests/MinecraftLauncherPerso.Tests), pas référencé dans le .sln
-      # principal : dotnet restore/build ci-dessus ne le couvrent pas, d'où un appel dédié.
-      # "dotnet test" fait son propre restore, donc pas besoin d'un --no-restore ici.
+      # Le projet de tests fait partie du .sln (compilé par le Build ci-dessus, et "dotnet test" à la
+      # racine fonctionne en local) ; ciblé explicitement ici pour ne lancer que lui. "dotnet test"
+      # fait son propre restore/build, pas besoin de --no-restore.
       - name: Test
         run: dotnet test tests/MinecraftLauncherPerso.Tests/MinecraftLauncherPerso.Tests.csproj -c Release
 
@@ -167,6 +181,13 @@ jobs:
           $hashFile = "$exe.sha256"
           Set-Content -Path $hashFile -Value $hash -NoNewline
 
+          # Le commentaire HTML d'en-tête de RELEASE_NOTES.md (consignes pour le mainteneur) est
+          # retiré avant publication : GitHub ne l'affiche pas, mais il partait tel quel dans le
+          # corps brut de la release (API), donc dans tout ce qui le relit sans le rendre.
+          $notes = [regex]::Replace((Get-Content RELEASE_NOTES.md -Raw), '(?s)<!--.*?-->', '').Trim()
+          $notesFile = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          Set-Content -Path $notesFile -Value $notes -Encoding utf8
+
           gh release view $tag --repo $repo 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag $exe $hashFile --repo $repo --clobber
@@ -174,7 +195,7 @@ jobs:
             # RELEASE_NOTES.md (rédigé à la main, langage clair pour un joueur) plutôt que
             # --generate-notes (titres de PR/commits, illisibles pour un joueur) — voir le check
             # "Vérifie que RELEASE_NOTES.md a été mis à jour" dans le job "build" ci-dessus.
-            gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file RELEASE_NOTES.md
+            gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file $notesFile
           }
 
-          gh release edit $tag --repo $repo --notes-file RELEASE_NOTES.md
+          gh release edit $tag --repo $repo --notes-file $notesFile

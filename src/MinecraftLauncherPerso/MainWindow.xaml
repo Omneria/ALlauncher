@@ -83,8 +83,10 @@
                     <Button x:Name="CompactModeButton" Content="⤢" Style="{StaticResource GhostButtonStyle}"
                             ToolTip="Mode compact" AutomationProperties.Name="Basculer le mode compact"
                             Click="CompactModeButton_Click" />
-                    <Button Content="—" Style="{StaticResource GhostButtonStyle}" Click="MinimizeButton_Click" />
-                    <Button Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click" />
+                    <Button Content="—" Style="{StaticResource GhostButtonStyle}" Click="MinimizeButton_Click"
+                            ToolTip="Réduire" AutomationProperties.Name="Réduire la fenêtre" />
+                    <Button Content="✕" Style="{StaticResource GhostButtonStyle}" Click="CloseButton_Click"
+                            ToolTip="Fermer" AutomationProperties.Name="Fermer le launcher" />
                 </StackPanel>
             </Grid>
 
@@ -120,7 +122,7 @@
                              de bord) : cliquer fait défiler jusqu'à la carte correspondante et la fait
                              pulser brièvement, pour que ces items ne soient plus de faux boutons inertes. -->
                         <Border x:Name="NavActus" Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
-                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Actus et changelog"
+                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Actus"
                                 MouseLeftButtonUp="ActusNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
                             <TextBlock Text="ACTUS" Style="{StaticResource NavItemTextStyle}" />
                         </Border>
@@ -195,13 +197,17 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                    <!-- Marge portée par le bouton (pas par la ligne) : la ligne ne contient que ce
+                         bouton, masqué 99 % du temps — une marge sur la ligne laissait 16 px de vide
+                         permanent en haut du tableau de bord. -->
+                    <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Button x:Name="UpdateBannerButton" Grid.Column="1" Content="MISE À JOUR DISPONIBLE"
-                                Visibility="Collapsed"
+                                Visibility="Collapsed" Margin="0,0,0,16"
+                                AutomationProperties.Name="Installer la mise à jour du launcher"
                                 Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
                                 FontSize="11" Foreground="{StaticResource AmberBrush}"
                                 Click="UpdateBannerButton_Click" />
@@ -351,10 +357,16 @@
                                                     <DataTemplate>
                                                         <StackPanel Margin="0,0,0,16">
                                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                                                <TextBlock Text="{Binding Tag}"
+                                                                <!-- Numéro de version cliquable (FrameworkElement.Tag porte
+                                                                     l'URL de la release) : la carte ne montre que 4 notes
+                                                                     nettoyées, le détail complet et l'exe restent sur GitHub. -->
+                                                                <TextBlock Text="{Binding VersionTag}" Tag="{Binding Url}"
                                                                            FontFamily="{StaticResource MonoFontFamily}"
                                                                            FontWeight="Bold" FontSize="13"
-                                                                           Foreground="{StaticResource InkBrush}" />
+                                                                           Foreground="{StaticResource InkBrush}"
+                                                                           Cursor="Hand" TextDecorations="Underline"
+                                                                           ToolTip="Ouvrir cette version sur GitHub"
+                                                                           MouseLeftButtonUp="ChangelogVersion_MouseLeftButtonUp" />
                                                                 <Border Margin="8,0,0,0" Padding="5,1" BorderThickness="1"
                                                                         BorderBrush="{StaticResource CyanBrush}"
                                                                         Visibility="{Binding LatestBadgeVisibility}">
@@ -482,6 +494,14 @@
                                                    HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                                    FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
                                                    Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
+                                        <!-- Visible seulement pendant le pipeline de lancement (pas pendant
+                                             une mise à jour du launcher) : interrompt l'étape en cours. -->
+                                        <Button x:Name="CancelLaunchButton" Content="ANNULER" Margin="0,12,0,0"
+                                                HorizontalAlignment="Center" Visibility="Collapsed"
+                                                AutomationProperties.Name="Annuler le lancement"
+                                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,5"
+                                                FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                                                Click="CancelLaunchButton_Click" />
                                     </StackPanel>
                                     <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
                                              IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"

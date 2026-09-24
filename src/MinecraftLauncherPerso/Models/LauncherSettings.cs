@@ -12,45 +12,55 @@ public sealed class LauncherSettings
     public string ForgeVersion { get; set; } = "47.3.0";
 
     /// <summary>
-    /// URL directe de l'archive .zip du modpack (mods/ + config/ à sa racine) hébergée sur le VPS.
-    /// Valeur par défaut encodée en base64 (voir <see cref="DecodeDefaultModpackUrl"/>) : le dépôt
-    /// étant public, ça évite que l'IP du VPS apparaisse en clair dans le code source ou soit
-    /// indexée telle quelle par un moteur de recherche/scanner, sans empêcher le launcher de
-    /// fonctionner "out of the box". Peut être écrasée dans settings.json si le VPS change.
+    /// Base HTTPS du dossier modpack sur le VPS (v1.11.0) : nom de domaine DuckDNS (le même que
+    /// <see cref="ServerHost"/>, qui pointe sur le VPS) en https://, plutôt que l'IP brute en
+    /// http:// encodée en base64 des versions précédentes. Le base64 ne protégeait rien (décodable
+    /// en une ligne, IP de toute façon visible dans servers.dat) ; le vrai enjeu était le HTTP en
+    /// clair : mods (.jar exécutés avec les droits du joueur) et manifest (leurs empreintes)
+    /// transitaient par le même canal non chiffré. Aucun repli en HTTP : le VPS sert TLS (Caddy,
+    /// voir scripts/vps/), et un intermédiaire qui bloquerait le port 443 ne doit pas pouvoir
+    /// forcer le launcher à télécharger des mods en clair.
     /// </summary>
-    public string ModpackZipUrl { get; set; } = DecodeDefaultModpackUrl();
+    private const string VpsModpackBaseUrl = "https://astralnexusmc.duckdns.org/modpack/";
 
-    private static string DecodeDefaultModpackUrl() =>
-        Encoding.UTF8.GetString(Convert.FromBase64String(
-            "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svQWxnYXJvbi1tb2RkZWQuemlw"));
+    /// <summary>
+    /// URL directe de l'archive .zip du modpack (mods/ + config/ à sa racine) hébergée sur le VPS.
+    /// Peut être écrasée dans settings.json si le VPS change.
+    /// </summary>
+    public string ModpackZipUrl { get; set; } = VpsModpackBaseUrl + "Algaron-modded.zip";
 
     /// <summary>
     /// URL du manifest par fichier (JSON, voir ModpackManifest.cs), en alternative à
     /// <see cref="ModpackZipUrl"/> : permet des mises à jour incrémentales (ne retélécharger que
     /// les fichiers qui ont changé) au lieu de tout le zip à chaque mise à jour du pack. Pointe par
-    /// défaut vers le manifest 1.20.1 réellement publié sur le VPS (voir scripts/vps/) — encodé en
-    /// base64 pour la même raison que <see cref="ModpackZipUrl"/> (éviter l'IP en clair dans le
-    /// dépôt public). Peut être vidée dans settings.json pour revenir au flux zip unique.
+    /// défaut vers le manifest 1.20.1 réellement publié sur le VPS (voir scripts/vps/). Peut être
+    /// vidée dans settings.json pour revenir au flux zip unique.
     /// </summary>
-    public string ModpackManifestUrl { get; set; } = DecodeDefaultModpackManifestUrl();
-
-    private static string DecodeDefaultModpackManifestUrl() =>
-        Encoding.UTF8.GetString(Convert.FromBase64String(
-            "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFuaWZlc3QuanNvbg=="));
+    public string ModpackManifestUrl { get; set; } = VpsModpackBaseUrl + "manifest.json";
 
     /// <summary>
     /// URL d'un fichier texte optionnel (maintenance.txt sur le VPS) : son contenu, s'il existe et
     /// n'est pas vide, s'affiche en bandeau sur le dashboard. Pointe par défaut vers
-    /// maintenance.txt à côté du modpack sur le VPS (encodé en base64, même raison que
-    /// <see cref="ModpackZipUrl"/>) : absence ou fichier vide = bannière jamais affichée, donc
-    /// publier/supprimer ce fichier sur le VPS suffit à l'afficher/masquer, sans jamais retoucher
-    /// settings.json.
+    /// maintenance.txt à côté du modpack sur le VPS : absence ou fichier vide = bannière jamais
+    /// affichée, donc publier/supprimer ce fichier sur le VPS suffit à l'afficher/masquer, sans
+    /// jamais retoucher settings.json.
     /// </summary>
-    public string MaintenanceMessageUrl { get; set; } = DecodeDefaultMaintenanceMessageUrl();
+    public string MaintenanceMessageUrl { get; set; } = VpsModpackBaseUrl + "maintenance.txt";
 
-    private static string DecodeDefaultMaintenanceMessageUrl() =>
-        Encoding.UTF8.GetString(Convert.FromBase64String(
-            "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFpbnRlbmFuY2UudHh0"));
+    /// <summary>
+    /// Anciennes valeurs par défaut (http:// + IP brute, encodées en base64 jusqu'en v1.10.0) des
+    /// trois URL ci-dessus, pour que SettingsManager puisse reconnaître un settings.json qui les
+    /// porte encore et le faire basculer sur les nouvelles (voir MigrateLegacyVpsUrls). Restent
+    /// encodées : elles contiennent l'IP, et la raison de ne pas l'écrire en clair n'a pas changé.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> LegacyVpsUrlDefaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [DecodeBase64("aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svQWxnYXJvbi1tb2RkZWQuemlw")] = VpsModpackBaseUrl + "Algaron-modded.zip",
+        [DecodeBase64("aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFuaWZlc3QuanNvbg==")] = VpsModpackBaseUrl + "manifest.json",
+        [DecodeBase64("aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFpbnRlbmFuY2UudHh0")] = VpsModpackBaseUrl + "maintenance.txt",
+    };
+
+    private static string DecodeBase64(string value) => Encoding.UTF8.GetString(Convert.FromBase64String(value));
 
     /// <summary>
     /// "Application (client) ID" de l'app Azure AD enregistrée pour ce launcher (identifie
@@ -75,9 +85,23 @@ public sealed class LauncherSettings
     /// à <see cref="ModpackZipUrl"/>, pas besoin d'encodage base64 ici, un nom de domaine n'a rien
     /// à cacher en lui-même. Peut être écrasée dans settings.json (si le serveur change d'adresse).
     /// </summary>
-    public string ServerHost { get; set; } = "astralnexusmc.duckdns.org";
+    public string ServerHost { get; set; } = DefaultServerHost;
 
-    public int ServerPort { get; set; } = 25565;
+    /// <summary>
+    /// Port du serveur Minecraft : 25566 depuis v1.11.0 (le serveur Astral Nexus a quitté le port
+    /// standard 25565). Un settings.json qui porte encore l'ancien port avec l'hôte par défaut est
+    /// migré par SettingsManager (MigrateServerPort).
+    /// </summary>
+    public int ServerPort { get; set; } = DefaultServerPort;
+
+    internal const int DefaultServerPort = 25566;
+
+    /// <summary>Ancien port par défaut (jusqu'en v1.10.0), reconnu pour la migration.</summary>
+    internal const int LegacyDefaultServerPort = 25565;
+
+    /// <summary>Hôte par défaut, exposé pour que les migrations ne touchent qu'une configuration
+    /// qui pointe encore sur le serveur Astral Nexus (jamais un serveur personnalisé).</summary>
+    internal const string DefaultServerHost = "astralnexusmc.duckdns.org";
 
     public int MinRamMb { get; set; } = 2048;
 

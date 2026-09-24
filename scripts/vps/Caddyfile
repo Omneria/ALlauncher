@@ -1,0 +1,30 @@
+# Caddy : sert le dossier modpack en HTTPS avec un certificat Let's Encrypt obtenu et renouvelé
+# automatiquement pour le domaine DuckDNS (voir README.md, section "Passage en HTTPS").
+#
+# Prérequis : le domaine pointe sur ce VPS (déjà le cas, c'est ServerHost du launcher), les ports
+# 80 ET 443 sont ouverts dans le pare-feu (80 sert au défi ACME et à la redirection vers HTTPS),
+# et aucun autre serveur web n'écoute sur 80/443.
+#
+# Rien n'est servi en clair : http://astralnexusmc.duckdns.org redirige vers https://, et l'IP
+# brute ne répond plus (seuls les launchers v1.10.0 et antérieurs l'utilisaient).
+
+{
+    # Adresse prévenue par Let's Encrypt si le renouvellement du certificat échoue.
+    email ton-adresse@exemple.fr
+}
+
+astralnexusmc.duckdns.org {
+    # Racine du site : doit contenir le dossier modpack/ (manifest.json, mods/, config/,
+    # news.txt, maintenance.txt). Adapter si le dossier réel est ailleurs.
+    root * /var/www/html
+
+    # Sert les fichiers tels quels, sans listing des dossiers. Caddy gère nativement les
+    # requêtes Range (reprise de téléchargement).
+    file_server
+
+    # Pas de mise en cache intermédiaire des petits fichiers qui changent souvent.
+    @dynamic path /modpack/manifest.json /modpack/maintenance.txt /modpack/news.txt
+    header @dynamic Cache-Control "no-cache"
+
+    encode gzip
+}

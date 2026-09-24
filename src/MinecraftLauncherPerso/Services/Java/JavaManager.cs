@@ -44,14 +44,18 @@ public sealed class JavaManager : IJavaManager
     {
         progress?.Report(new JavaSetupProgress(JavaSetupStage.Checking, 0, "Recherche d'une installation Java 17..."));
 
-        var bundledJava = FindBundledJava();
+        // Task.Run : la détection lance "java -version" (jusqu'à 5 s chacun) sur chaque candidat
+        // (registre, PATH, dossiers usuels) de façon synchrone — exécutée directement depuis le
+        // clic sur JOUER, elle gelait le thread UI plusieurs secondes (spinner figé, fenêtre
+        // "ne répond pas") avant même la première ligne de progression.
+        var bundledJava = await Task.Run(() => FindBundledJava(), cancellationToken);
         if (bundledJava is not null)
         {
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 portable déjà installé : {bundledJava}"));
             return bundledJava;
         }
 
-        var systemJava = FindSystemJava();
+        var systemJava = await Task.Run(() => FindSystemJava(), cancellationToken);
         if (systemJava is not null)
         {
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 détecté sur la machine : {systemJava}"));
@@ -76,7 +80,9 @@ public sealed class JavaManager : IJavaManager
         try
         {
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Extracting, 90, "Extraction de Java 17..."));
-            var installedPath = ExtractRuntime(archivePath);
+            // Même raison que pour la détection ci-dessus : extraction synchrone d'une archive de
+            // ~50 Mo, hors du thread UI.
+            var installedPath = await Task.Run(() => ExtractRuntime(archivePath), cancellationToken);
 
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 installé : {installedPath}"));
             return installedPath;
@@ -200,7 +206,7 @@ public sealed class JavaManager : IJavaManager
     private static string GetJavaExecutablePath(string root)
         => Path.Combine(root, "bin", OperatingSystem.IsWindows() ? "java.exe" : "java");
 
-    /// <summary>Cherche récursivement un exécutable java valide (version 8) sous <paramref name="root"/>,
+    /// <summary>Cherche récursivement un exécutable java valide (version 17) sous <paramref name="root"/>,
     /// sans supposer le nom exact du dossier extrait par l'archive Temurin (il varie selon la version).</summary>
     private static string? FindJavaExecutableUnder(string root)
     {

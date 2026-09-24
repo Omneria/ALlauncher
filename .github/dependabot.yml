@@ -1,0 +1,16 @@
+# Propositions automatiques de mise à jour des dépendances (une PR par paquet, hebdomadaire) :
+# CmlLib/MSAL côté NuGet, actions/checkout & co côté workflow. Sans ça, rien ne signale qu'une
+# dépendance a une version corrigée (sécurité MSAL notamment) avant qu'un problème n'apparaisse.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+    open-pull-requests-limit: 5
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"

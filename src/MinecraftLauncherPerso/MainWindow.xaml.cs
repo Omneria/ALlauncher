@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private readonly IModSyncService _modSyncService;
     private readonly IAuthService _authService;
     private readonly IGameLauncher _gameLauncher;
+    private readonly LaunchPipeline _launchPipeline;
     private readonly IServerStatusService _serverStatusService;
     private readonly IUpdateService _updateService;
     private readonly INewsService _newsService;
@@ -80,6 +81,9 @@ public partial class MainWindow : Window
     // Référence gardée en vie pour toute la durée de la partie : sans elle, le process/wrapper
     // serait éligible au GC et les événements de sortie du jeu s'arrêteraient.
     private ProcessWrapper? _activeGame;
+
+    // Annulation du pipeline de lancement en cours (bouton ANNULER), null hors lancement.
+    private CancellationTokenSource? _launchCts;
 
     // Tampon borné de la sortie console du jeu (stdout/stderr), pour CrashDiagnosisService sur une
     // sortie anormale — pas la peine de le relire depuis le disque, gameOutput passe déjà par ici.
@@ -120,6 +124,7 @@ public partial class MainWindow : Window
         _authService = new MicrosoftAuthService(_settings.MicrosoftClientId, httpClient: SharedHttpClient.Instance);
         _gameLauncher = new GameLauncher();
         _gameLauncher.GameExited += GameLauncher_GameExited;
+        _launchPipeline = new LaunchPipeline(_javaManager, _forgeManager, _modSyncService, _authService, _gameLauncher);
         _serverStatusService = new ServerStatusService();
         _updateService = new GitHubUpdateService(SharedHttpClient.Instance);
         _newsService = new NewsService(SharedHttpClient.Instance);
@@ -135,22 +140,26 @@ public partial class MainWindow : Window
         // launcher. Le watchdog du bouton JOUER (6h, PlayButtonWatchdog) n'est pas concerné : ce
         // n'est pas un rafraîchissement de contenu mais un filet de sécurité contre un bouton
         // resté bloqué, sans rapport avec la fraîcheur d'une donnée affichée.
+        // Chaque tick passe par RunSafeAsync : un "async void" (handler d'événement) qui lève
+        // remonte directement au filet global de App.xaml.cs — un simple échec de rafraîchissement
+        // d'actus ne doit jamais devenir une boîte de dialogue d'erreur, encore moins fermer le
+        // launcher. Les services sont déjà best-effort, ceci est la seconde ceinture.
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
+        _serverStatusTimer.Tick += async (_, _) => await RunSafeAsync("Statut du serveur", RefreshServerStatusAsync);
 
         // CheckForUpdateAsync ne fait rien de plus si une mise à jour est déjà détectée et en
         // attente, pour ne pas re-notifier/re-sonner à chaque minute.
         _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _updateCheckTimer.Tick += async (_, _) => await CheckForUpdateAsync();
+        _updateCheckTimer.Tick += async (_, _) => await RunSafeAsync("Vérification de mise à jour", CheckForUpdateAsync);
 
         _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
+        _newsRefreshTimer.Tick += async (_, _) => await RunSafeAsync("Actus", ShowNewsAsync);
 
         _maintenanceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _maintenanceRefreshTimer.Tick += async (_, _) => await RefreshMaintenanceBannerAsync();
+        _maintenanceRefreshTimer.Tick += async (_, _) => await RunSafeAsync("Bannière de maintenance", RefreshMaintenanceBannerAsync);
 
         _changelogRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _changelogRefreshTimer.Tick += async (_, _) => await ShowChangelogAsync();
+        _changelogRefreshTimer.Tick += async (_, _) => await RunSafeAsync("Changelog", ShowChangelogAsync);
 
         // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
         // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
@@ -162,13 +171,30 @@ public partial class MainWindow : Window
         {
             if (_connectedUuid is not null)
             {
-                await LoadPlayerAvatarAsync(_connectedUuid);
+                var uuid = _connectedUuid;
+                await RunSafeAsync("Avatar", () => LoadPlayerAvatarAsync(uuid));
             }
         };
         _avatarRefreshTimer.Start();
 
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
+    }
+
+    /// <summary>
+    /// Exécute une opération best-effort du tableau de bord en journalisant son échec au lieu de
+    /// le laisser remonter (voir le commentaire sur les timers dans le constructeur).
+    /// </summary>
+    private static async Task RunSafeAsync(string operation, Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("MainWindow", $"{operation} : échec inattendu, ignoré.", ex);
+        }
     }
 
     /// <summary>Mémorise la taille de fenêtre et le mode compact courants pour le prochain lancement.</summary>
@@ -188,7 +214,17 @@ public partial class MainWindow : Window
         }
 
         _settings.IsCompactMode = _isCompactMode;
-        _settingsManager.Save(_settings);
+
+        try
+        {
+            _settingsManager.Save(_settings);
+        }
+        catch (Exception ex)
+        {
+            // Disque plein, dossier %AppData% verrouillé... : perdre la taille de fenêtre est sans
+            // gravité, une erreur bloquante à la fermeture ne l'est pas.
+            Logger.Error("MainWindow", "Sauvegarde des réglages à la fermeture impossible.", ex);
+        }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -209,29 +245,41 @@ public partial class MainWindow : Window
             _settingsManager.Save(_settings);
         }
 
-        await ShowNewsAsync();
-        await ShowChangelogAsync();
-        await RefreshMaintenanceBannerAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
         _newsRefreshTimer.Start();
         _maintenanceRefreshTimer.Start();
         _changelogRefreshTimer.Start();
-        await RefreshServerStatusAsync();
-        await CheckForUpdateAsync();
 
-        // Réaffiche automatiquement le profil connecté si une session Microsoft valide est déjà
-        // en cache (silencieux : jamais de navigateur ouvert ici) — sans ça, "SE CONNECTER"
-        // réapparaissait à chaque redémarrage du launcher même une fois déjà connecté, alors que
-        // la session elle-même survivait bien (msal-cache-v2.bin), seul l'état affiché à l'écran
-        // était perdu.
+        // Tous les chargements initiaux en parallèle : enchaînés l'un après l'autre (comme avant),
+        // un VPS lent ou GitHub injoignable retardait l'affichage de TOUT le tableau de bord (statut
+        // serveur, session) du temps de chaque timeout cumulé. Sûr côté UI : chaque tâche ne touche
+        // aux contrôles qu'après ses propres await, toujours sur le thread du Dispatcher.
+        await Task.WhenAll(
+            RunSafeAsync("Actus", ShowNewsAsync),
+            RunSafeAsync("Changelog", ShowChangelogAsync),
+            RunSafeAsync("Bannière de maintenance", RefreshMaintenanceBannerAsync),
+            RunSafeAsync("Statut du serveur", RefreshServerStatusAsync),
+            RunSafeAsync("Vérification de mise à jour", CheckForUpdateAsync),
+            RunSafeAsync("Restauration de session", RestoreCachedSessionAsync));
+
+        StartModpackPrefetch();
+    }
+
+    /// <summary>
+    /// Réaffiche automatiquement le profil connecté si une session Microsoft valide est déjà en
+    /// cache (silencieux : jamais de navigateur ouvert ici) — sans ça, "SE CONNECTER"
+    /// réapparaissait à chaque redémarrage du launcher même une fois déjà connecté, alors que la
+    /// session elle-même survivait bien (msal-cache-v2.bin), seul l'état affiché à l'écran était
+    /// perdu.
+    /// </summary>
+    private async Task RestoreCachedSessionAsync()
+    {
         var cachedSession = await _authService.TryGetCachedSessionAsync();
         if (cachedSession is not null)
         {
             ShowConnectedPlayer(cachedSession);
         }
-
-        StartModpackPrefetch();
     }
 
     /// <summary>
@@ -295,14 +343,38 @@ public partial class MainWindow : Window
         ChangelogList.ItemsSource = releases
             .Select(release => new ChangelogItem(
                 release.Tag,
+                release.Url,
                 release.PublishedAt.ToLocalTime().ToString("d MMMM yyyy", FrenchCulture),
                 release.IsLatest ? Visibility.Visible : Visibility.Collapsed,
                 release.Notes))
             .ToList();
     }
 
-    /// <summary>Vue d'affichage d'une ReleaseChangelogEntry pour le binding XAML.</summary>
-    private sealed record ChangelogItem(string Tag, string DateLabel, Visibility LatestBadgeVisibility, IReadOnlyList<string> Notes);
+    /// <summary>Vue d'affichage d'une ReleaseChangelogEntry pour le binding XAML. "VersionTag"
+    /// plutôt que "Tag" pour ne pas se confondre avec FrameworkElement.Tag, qui porte l'URL.</summary>
+    private sealed record ChangelogItem(string VersionTag, string Url, string DateLabel, Visibility LatestBadgeVisibility, IReadOnlyList<string> Notes);
+
+    /// <summary>Clic sur un numéro de version de la carte CHANGELOG : ouvre la release GitHub
+    /// correspondante (notes complètes, exe joint) dans le navigateur.</summary>
+    private void ChangelogVersion_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string url } && !string.IsNullOrEmpty(url))
+        {
+            OpenExternalUrl(url);
+        }
+    }
+
+    private void OpenExternalUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Impossible d'ouvrir {url} : {ex.Message}");
+        }
+    }
 
     // Ligne optionnelle "FIN: <valeur>" (n'importe où après le titre) : affichée dans le bloc
     // "FIN ESTIMÉE" à droite de la carte (mockup Option B), plutôt qu'un champ dédié qui aurait
@@ -327,14 +399,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        var message = await _maintenanceService.FetchMaintenanceMessageAsync(_settings.MaintenanceMessageUrl);
-        if (message is null)
+        var status = await _maintenanceService.FetchMaintenanceMessageAsync(_settings.MaintenanceMessageUrl);
+        if (!status.IsKnown)
+        {
+            // VPS injoignable : état inconnu, on laisse la bannière exactement comme elle est
+            // (affichée ou non) plutôt que de la faire disparaître pendant la coupure même qu'elle
+            // annonce. Elle sera masquée dès que le VPS répondra à nouveau sans maintenance.txt.
+            return;
+        }
+
+        if (status.Message is null)
         {
             MaintenanceBanner.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var rawLines = message.Replace("\r\n", "\n").Split('\n');
+        var rawLines = status.Message.Replace("\r\n", "\n").Split('\n');
         MaintenanceBannerTitle.Text = rawLines[0].Trim();
 
         string? endTime = null;
@@ -465,118 +545,53 @@ public partial class MainWindow : Window
             _prefetchTask = null;
         }
 
-        try
+        // Annulable (v1.11.0) : un téléchargement Forge/modpack qui n'avance plus n'obligeait
+        // jusqu'ici qu'à fermer le launcher. Le même token traverse toutes les étapes du pipeline.
+        var launchCts = new CancellationTokenSource();
+        _launchCts = launchCts;
+        CancelLaunchButton.IsEnabled = true;
+        CancelLaunchButton.Visibility = Visibility.Visible;
+
+        LaunchStep? lastStep = null;
+        var launchProgress = new Progress<LaunchProgress>(report =>
         {
-            // Chaque étape est enveloppée séparément : auparavant, un seul catch générique en bas
-            // de méthode affichait juste ex.Message, sans dire quelle étape (Java ? Forge ? sync
-            // mods ? auth ?) avait échoué — impossible à diagnostiquer pour l'utilisateur sans
-            // aller lire StatusLogTextBox en détail.
-
-            // 1. Java 17 : seule étape avec une progression chiffrée (téléchargement), pilote la barre.
-            var javaProgress = new Progress<JavaSetupProgress>(report =>
+            // Changement d'étape : la barre repart de zéro (Java, Forge et la synchro ont chacun
+            // leur propre progression chiffrée ; auth et lancement n'en ont pas → indéterminée).
+            if (report.Step != lastStep)
             {
-                ProgressBar.Value = report.PercentComplete;
-                AppendLog(report.Message);
-            });
-            string javaPath;
-            try
-            {
-                javaPath = await _javaManager.EnsureJavaAsync(javaProgress);
-            }
-            catch (Exception ex)
-            {
-                throw new LauncherStepException("Préparation de Java 17", ex);
-            }
-            AppendLog($"Java 17 prêt : {javaPath}");
-
-            var minecraftPath = new MinecraftPath(_settings.GameDirectory);
-            var launcher = new MinecraftLauncher(minecraftPath);
-
-            // 2. Forge : CmlLib expose déjà une progression en octets (ByteProgress), jusqu'ici
-            // seulement transformée en texte — une vraie barre par téléchargement plutôt qu'un
-            // indicateur indéterminé pendant toute l'étape.
-            ProgressBar.IsIndeterminate = false;
-            ProgressBar.Value = 0;
-            var forgeProgress = new Progress<string>(AppendLog);
-            var forgeDownloadProgress = new Progress<double>(fraction => ProgressBar.Value = fraction * 100);
-            string versionId;
-            try
-            {
-                versionId = await _forgeManager.EnsureForgeInstalledAsync(
-                    launcher, _settings.MinecraftVersion, _settings.ForgeVersion, forgeProgress, forgeDownloadProgress);
-            }
-            catch (Exception ex)
-            {
-                throw new LauncherStepException("Installation de Forge", ex);
-            }
-            AppendLog($"Forge prêt : {versionId}");
-
-            // 3. Synchronisation mods/config depuis le VPS : même principe, vraie barre plutôt
-            // qu'indéterminée (ne progresse que pendant un téléchargement effectif ; reste à 0 si
-            // le modpack est déjà à jour, ce qui ne dure qu'un instant de toute façon).
-            ProgressBar.IsIndeterminate = false;
-            ProgressBar.Value = 0;
-            var syncProgress = new Progress<string>(AppendLog);
-            var syncDownloadProgress = new Progress<double>(fraction => ProgressBar.Value = fraction * 100);
-            try
-            {
-                await _modSyncService.SyncAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, syncProgress, syncDownloadProgress);
-            }
-            catch (Exception ex)
-            {
-                throw new LauncherStepException("Synchronisation des mods", ex);
-            }
-            RefreshLastSyncText();
-
-            // Étapes suivantes (auth, lancement) : pas de progression chiffrée, barre indéterminée.
-            ProgressBar.IsIndeterminate = true;
-
-            // 4. Authentification Microsoft directe (Xbox Live -> XSTS -> Minecraft)
-            var authProgress = new Progress<string>(AppendLog);
-            MinecraftSession session;
-            try
-            {
-                session = await _authService.GetActiveSessionAsync(authProgress);
-            }
-            catch (Exception ex)
-            {
-                throw new LauncherStepException("Connexion Microsoft", ex);
-            }
-            AppendLog($"Connecté en tant que {session.Username}.");
-            ShowConnectedPlayer(session);
-
-            // 5. Verrouille la liste multijoueur sur Astral Nexus (voir LauncherSettings.ServerHost)
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(_settings.ServerHost))
+                lastStep = report.Step;
+                ProgressBar.Value = 0;
+                ProgressBar.IsIndeterminate = report.Step is LaunchStep.Auth or LaunchStep.ServerList or LaunchStep.Launch;
+                if (report.Step == LaunchStep.Auth)
                 {
-                    ServerListWriter.WriteSingleServer(_settings.GameDirectory, _settings.ServerName, _settings.ServerHost);
+                    // La synchro vient de se terminer : "dernière synchro" doit avancer.
+                    RefreshLastSyncText();
                 }
             }
-            catch (Exception ex)
+
+            // Fraction déjà garantie finie et bornée par LaunchProgress (NaN = exception WPF).
+            if (report.Fraction is { } fraction)
             {
-                throw new LauncherStepException("Écriture de la liste des serveurs", ex);
+                ProgressBar.IsIndeterminate = false;
+                ProgressBar.Value = fraction * 100;
             }
 
-            // 6. Lancement
-            AppendLog("Lancement du jeu...");
-            var gameOutput = new Progress<string>(line =>
-            {
-                AppendLog(line);
-                BufferGameOutput(line);
-            });
-            try
-            {
-                _activeGame = await _gameLauncher.LaunchAsync(launcher, versionId, session, javaPath, _settings, gameOutput);
-            }
-            catch (Exception ex)
-            {
-                throw new LauncherStepException("Lancement du jeu", ex);
-            }
+            AppendLog(report.Message);
+        });
+        var gameOutput = new Progress<string>(line =>
+        {
+            AppendLog(line);
+            BufferGameOutput(line);
+        });
+
+        try
+        {
+            var result = await _launchPipeline.RunAsync(
+                _settings, launchProgress, ShowConnectedPlayer, gameOutput, launchCts.Token);
+            _activeGame = result.Game;
 
             ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;
-            AppendLog("Jeu lancé.");
             LoadingPanel.Visibility = Visibility.Collapsed;
             // Bouton laissé désactivé tant que cette partie tourne : le jeu n'empêche pas
             // plusieurs instances de lui-même, seul GameLauncher.GameExited le réactive (voir
@@ -587,14 +602,38 @@ public partial class MainWindow : Window
             StartPlayButtonWatchdog();
             return;
         }
+        catch (OperationCanceledException) when (launchCts.IsCancellationRequested)
+        {
+            // Annulation demandée par le joueur : pas une erreur. Un téléchargement interrompu
+            // reprend là où il en était au prochain clic (.part reprenable, manifest par fichier).
+            ProgressBar.IsIndeterminate = false;
+            ProgressBar.Value = 0;
+            AppendLog("Lancement annulé.");
+            LoadingPanel.Visibility = Visibility.Collapsed;
+        }
         catch (Exception ex)
         {
             ProgressBar.IsIndeterminate = false;
             AppendLog($"Erreur : {ex.Message}");
             ShowLoadingError($"Erreur : {ex.Message}");
         }
+        finally
+        {
+            CancelLaunchButton.Visibility = Visibility.Collapsed;
+            _launchCts = null;
+            launchCts.Dispose();
+        }
 
         PlayButton.IsEnabled = true;
+    }
+
+    /// <summary>Bouton ANNULER du panneau de chargement : interrompt le pipeline de lancement à
+    /// l'étape en cours (voir LaunchPipeline). Sans effet une fois le jeu démarré.</summary>
+    private void CancelLaunchButton_Click(object sender, RoutedEventArgs e)
+    {
+        CancelLaunchButton.IsEnabled = false;
+        AppendLog("Annulation en cours...");
+        _launchCts?.Cancel();
     }
 
     /// <summary>
@@ -692,17 +731,6 @@ public partial class MainWindow : Window
             }
         };
         _playButtonWatchdog.Start();
-    }
-
-    /// <summary>
-    /// Enveloppe l'exception d'origine d'une étape du pipeline de lancement (Java, Forge, sync
-    /// mods, auth, écriture servers.dat, lancement du jeu) avec le nom de l'étape : sans ça, le
-    /// seul catch générique en bas de PlayButton_Click affichait juste ex.Message, impossible à
-    /// rattacher à une étape précise pour l'utilisateur.
-    /// </summary>
-    private sealed class LauncherStepException(string step, Exception inner)
-        : Exception($"{step} : {inner.Message}", inner)
-    {
     }
 
     private void ViewLogsButton_Click(object sender, RoutedEventArgs e)
@@ -951,17 +979,8 @@ public partial class MainWindow : Window
     /// dans le navigateur par défaut (pas d'éditeur intégré au launcher — minecraft.net gère déjà
     /// l'upload/la prévisualisation, la session de connexion du navigateur suffit).
     /// </summary>
-    private void PlayerAvatarBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(SkinEditorUrl) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Impossible d'ouvrir l'éditeur de skin : {ex.Message}");
-        }
-    }
+    private void PlayerAvatarBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
+        OpenExternalUrl(SkinEditorUrl);
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {

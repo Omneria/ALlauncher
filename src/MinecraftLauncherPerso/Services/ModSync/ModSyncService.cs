@@ -114,7 +114,13 @@ public sealed class ModSyncService : IModSyncService
 
             progress?.Report("Extraction du modpack (mods/config)...");
             Directory.CreateDirectory(gameDirectory);
-            ZipFile.ExtractToDirectory(tempZipPath, gameDirectory, overwriteFiles: true);
+
+            // Task.Run : ExtractToDirectory est synchrone et peut durer plusieurs dizaines de
+            // secondes sur un pack de plusieurs centaines de Mo — exécuté directement, il gelait le
+            // thread UI (spinner figé, fenêtre "ne répond pas") pendant toute l'extraction.
+            // ExtractToDirectory refuse déjà de lui-même les entrées qui sortiraient du dossier
+            // cible ("zip slip"), pas besoin d'un contrôle supplémentaire ici.
+            await Task.Run(() => ZipFile.ExtractToDirectory(tempZipPath, gameDirectory, overwriteFiles: true), cancellationToken);
         }
         finally
         {
@@ -360,19 +366,32 @@ public sealed class ModSyncService : IModSyncService
 
         Directory.CreateDirectory(gameDirectory);
 
-        var toDownload = new List<KeyValuePair<string, ModpackManifestFile>>();
-        foreach (var entry in manifest.Files)
+        var toDownload = new List<(string RelativePath, string LocalPath, ModpackManifestFile Entry)>();
+        var expectedLocalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (relativePath, entry) in manifest.Files)
         {
-            var localPath = Path.Combine(gameDirectory, entry.Key);
-            if (!File.Exists(localPath) || !await MatchesHashAsync(localPath, entry.Value.Sha256, cancellationToken))
+            // Le manifest transite en HTTP simple depuis le VPS : un chemin "../../x" (manifest
+            // altéré ou simplement mal généré) écrirait n'importe où sur le disque du joueur avec
+            // ses droits. Refusé en bloc plutôt que silencieusement ignoré, pour que ça se voie.
+            var localPath = ResolveSafeLocalPath(gameDirectory, relativePath)
+                ?? throw new InvalidOperationException(
+                    $"Manifest du modpack invalide : le chemin \"{relativePath}\" sort du dossier de jeu.");
+            expectedLocalPaths.Add(localPath);
+
+            if (!File.Exists(localPath) || !await MatchesHashAsync(localPath, entry.Sha256, cancellationToken))
             {
-                toDownload.Add(entry);
+                toDownload.Add((relativePath, localPath, entry));
             }
         }
 
+        // Fichiers de mods/ absents du manifest = mods retirés du pack côté VPS. Jusqu'ici jamais
+        // supprimés localement : un mod retiré du serveur restait chez chaque joueur pour toujours
+        // (rejet à la connexion pour "mods manquants côté serveur", ou pire, crash au chargement).
+        var staleModFiles = FindStaleModFiles(gameDirectory, manifest, expectedLocalPaths);
+
         var manifestCachePath = Path.Combine(gameDirectory, ManifestCacheFileName);
 
-        if (toDownload.Count == 0)
+        if (toDownload.Count == 0 && staleModFiles.Count == 0)
         {
             progress?.Report("Modpack déjà à jour.");
             SaveManifestSyncTimestamp(manifestCachePath);
@@ -381,7 +400,7 @@ public sealed class ModSyncService : IModSyncService
 
         await ReportChangelogAsync(manifestUrl, progress, cancellationToken);
 
-        var totalBytes = toDownload.Sum(f => f.Value.Size ?? 0);
+        var totalBytes = toDownload.Sum(f => f.Entry.Size ?? 0);
 
         // Voir le commentaire équivalent dans SyncAsync (mode zip) : facteur x2 ici (pas x3, un
         // fichier téléchargé remplace directement l'ancien, pas de zip temporaire intermédiaire).
@@ -399,16 +418,19 @@ public sealed class ModSyncService : IModSyncService
         // qui vont changer.
         await BackupCurrentModpackAsync(gameDirectory, progress, cancellationToken);
 
-        progress?.Report($"{toDownload.Count} fichier(s) à mettre à jour...");
+        if (toDownload.Count > 0)
+        {
+            progress?.Report($"{toDownload.Count} fichier(s) à mettre à jour...");
+        }
+
         long doneBytes = 0;
         var lastReportedPercent = -1;
 
-        foreach (var (relativePath, entry) in toDownload)
+        foreach (var (relativePath, localPath, entry) in toDownload)
         {
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report($"Téléchargement : {relativePath}");
 
-            var localPath = Path.Combine(gameDirectory, relativePath);
             var directory = Path.GetDirectoryName(localPath);
             if (!string.IsNullOrEmpty(directory))
             {
@@ -416,7 +438,12 @@ public sealed class ModSyncService : IModSyncService
             }
 
             var bytes = await _httpClient.GetByteArrayAsync(entry.Url, cancellationToken);
-            await File.WriteAllBytesAsync(localPath, bytes, cancellationToken);
+
+            // Vérifié AVANT d'écrire : un téléchargement tronqué/corrompu était jusqu'ici écrit tel
+            // quel, et ne se révélait qu'au crash du jeu (ou à la synchro suivante, qui le
+            // retéléchargeait sans jamais dire pourquoi le jeu avait planté entre-temps).
+            EnsureDownloadedHashMatches(relativePath, bytes, entry.Sha256);
+            await WriteFileAtomicallyAsync(localPath, bytes, cancellationToken);
 
             doneBytes += bytes.LongLength;
             if (totalBytes > 0)
@@ -430,8 +457,82 @@ public sealed class ModSyncService : IModSyncService
             }
         }
 
+        foreach (var staleFile in staleModFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report($"Suppression d'un mod retiré du pack : {Path.GetRelativePath(gameDirectory, staleFile)}");
+            File.Delete(staleFile);
+        }
+
         SaveManifestSyncTimestamp(manifestCachePath);
         progress?.Report("Modpack mis à jour.");
+    }
+
+    /// <summary>
+    /// Résout <paramref name="relativePath"/> (clé du manifest, séparateurs "/") en chemin absolu
+    /// sous <paramref name="gameDirectory"/>, ou null s'il en sort (".." ou chemin absolu/UNC).
+    /// internal : testé directement par MinecraftLauncherPerso.Tests (voir InternalsVisibleTo).
+    /// </summary>
+    internal static string? ResolveSafeLocalPath(string gameDirectory, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(gameDirectory);
+        var rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+        var fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+
+        return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
+    }
+
+    /// <summary>
+    /// Fichiers présents sous mods/ mais absents du manifest, à supprimer. Ne touche qu'à mods/
+    /// (jamais config/, où un joueur peut avoir des fichiers à lui), et seulement si le manifest
+    /// couvre bien mods/ : un manifest vide ou partiel (erreur de génération côté VPS) ne doit pas
+    /// faire disparaître tout le pack d'un coup.
+    /// </summary>
+    private static List<string> FindStaleModFiles(string gameDirectory, ModpackManifest manifest, HashSet<string> expectedLocalPaths)
+    {
+        var modsDirectory = Path.Combine(gameDirectory, "mods");
+        var manifestCoversMods = manifest.Files.Keys.Any(
+            key => key.Replace('\\', '/').StartsWith("mods/", StringComparison.OrdinalIgnoreCase));
+
+        if (!manifestCoversMods || !Directory.Exists(modsDirectory))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(modsDirectory, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetFullPath(path))
+            .Where(path => !expectedLocalPaths.Contains(path))
+            .ToList();
+    }
+
+    private static void EnsureDownloadedHashMatches(string relativePath, byte[] bytes, string expectedSha256)
+    {
+        if (string.IsNullOrEmpty(expectedSha256))
+        {
+            return;
+        }
+
+        var actualSha256 = Convert.ToHexString(SHA256.HashData(bytes));
+        if (!string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Le fichier \"{relativePath}\" téléchargé ne correspond pas au manifest (SHA-256 attendu {expectedSha256.ToLowerInvariant()}, obtenu {actualSha256.ToLowerInvariant()}). " +
+                "Réessaie ; si ça persiste, le manifest côté VPS est probablement périmé (à régénérer).");
+        }
+    }
+
+    /// <summary>Écrit dans un ".part" à côté puis remplace d'un coup : une coupure en pleine
+    /// écriture ne laisse jamais un mod à moitié écrit sous son nom définitif.</summary>
+    private static async Task WriteFileAtomicallyAsync(string localPath, byte[] bytes, CancellationToken cancellationToken)
+    {
+        var tempPath = localPath + ".part";
+        await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken);
+        File.Move(tempPath, localPath, overwrite: true);
     }
 
     private async Task<ModpackManifest> FetchManifestAsync(string manifestUrl, CancellationToken cancellationToken)
@@ -670,6 +771,21 @@ public sealed class ModSyncService : IModSyncService
         }
 
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        if (resumeFrom > 0 && response.StatusCode == System.Net.HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            // Le .part est au moins aussi gros que le fichier distant, sans que le court-circuit
+            // ci-dessus ait pu le dire (taille inconnue : HEAD sans Content-Length ou en échec).
+            // Soit il est déjà complet, soit il correspond à une ancienne version plus grosse :
+            // impossible de trancher sans taille de référence, on repart de zéro plutôt que de
+            // risquer d'extraire un zip d'une autre version — auparavant ce 416 faisait
+            // simplement échouer toute la synchro (EnsureSuccessStatusCode), à chaque tentative,
+            // tant que le .part n'était pas supprimé à la main.
+            File.Delete(partialPath);
+            progress?.Report("Téléchargement partiel inutilisable, reprise depuis le début...");
+            return await EnsurePartialDownloadedAsync(url, etag, expectedLength, progress, downloadProgress, cancellationToken);
+        }
+
         response.EnsureSuccessStatusCode();
 
         var isResuming = resumeFrom > 0 && response.StatusCode == System.Net.HttpStatusCode.PartialContent;

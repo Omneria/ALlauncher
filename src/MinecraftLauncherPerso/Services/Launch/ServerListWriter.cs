@@ -18,6 +18,15 @@ public static class ServerListWriter
     private const byte TagList = 9;
     private const byte TagCompound = 10;
 
+    /// <summary>
+    /// Adresse telle que l'écran multijoueur l'attend dans servers.dat : "hôte" seul sur le port
+    /// standard 25565 (le jeu l'ajoute de lui-même), "hôte:port" sinon — sans ce suffixe, un
+    /// serveur sur un autre port (25566 pour Astral Nexus depuis v1.11.0) apparaissait hors ligne
+    /// dans la liste et "Rejoindre" tentait 25565.
+    /// </summary>
+    public static string FormatAddress(string host, int port) =>
+        port == 25565 ? host : $"{host}:{port}";
+
     public static void WriteSingleServer(string gameDirectory, string serverName, string serverAddress)
     {
         Directory.CreateDirectory(gameDirectory);

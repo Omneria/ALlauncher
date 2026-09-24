@@ -58,6 +58,14 @@ public sealed class ServerListWriterTests
         Assert.Equal(stream.Length, stream.Position); // rien après : pas d'octet en trop écrit
     }
 
+    [Theory]
+    [InlineData("astralnexusmc.duckdns.org", 25565, "astralnexusmc.duckdns.org")] // port standard : implicite
+    [InlineData("astralnexusmc.duckdns.org", 25566, "astralnexusmc.duckdns.org:25566")]
+    public void FormatAddress_ajoute_le_port_seulement_sil_nest_pas_standard(string host, int port, string expected)
+    {
+        Assert.Equal(expected, ServerListWriter.FormatAddress(host, port));
+    }
+
     private static string ReadNbtString(BinaryReader reader)
     {
         var length = ReadUInt16BigEndian(reader);

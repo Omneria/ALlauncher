@@ -52,14 +52,14 @@ public sealed class SettingsManagerTests : IDisposable
     public void Save_puis_Load_redonne_les_memes_valeurs()
     {
         var manager = new SettingsManager(_settingsPath);
-        var original = new LauncherSettings { MinRamMb = 2048, MaxRamMb = 4096, ServerPort = 25565 };
+        var original = new LauncherSettings { MinRamMb = 2048, MaxRamMb = 4096, ServerPort = 25570 };
 
         manager.Save(original);
         var reloaded = manager.Load();
 
         Assert.Equal(2048, reloaded.MinRamMb);
         Assert.Equal(4096, reloaded.MaxRamMb);
-        Assert.Equal(25565, reloaded.ServerPort);
+        Assert.Equal(25570, reloaded.ServerPort);
     }
 
     [Fact]
@@ -185,6 +185,54 @@ public sealed class SettingsManagerTests : IDisposable
 
         Assert.Equal(new LauncherSettings().MaintenanceMessageUrl, settings.MaintenanceMessageUrl);
         Assert.NotEmpty(settings.MaintenanceMessageUrl);
+    }
+
+    [Fact]
+    public void Load_bascule_les_anciennes_URL_http_du_VPS_vers_les_nouvelles_https()
+    {
+        // Un settings.json écrit jusqu'en v1.10.0 porte les anciennes URL par défaut (http:// +
+        // IP brute) : elles doivent basculer sur les nouvelles (https:// + domaine), sans quoi le
+        // passage en HTTPS ne s'appliquerait jamais aux joueurs existants.
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        var legacy = LauncherSettings.LegacyVpsUrlDefaults.Keys.ToList();
+        Assert.Equal(3, legacy.Count);
+        var legacyZip = legacy.Single(u => u.EndsWith(".zip"));
+        var legacyManifest = legacy.Single(u => u.EndsWith("manifest.json"));
+        var legacyMaintenance = legacy.Single(u => u.EndsWith("maintenance.txt"));
+        File.WriteAllText(_settingsPath, $$"""{ "ModpackZipUrl": "{{legacyZip}}", "ModpackManifestUrl": "{{legacyManifest}}", "MaintenanceMessageUrl": "{{legacyMaintenance}}" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        var defaults = new LauncherSettings();
+        Assert.Equal(defaults.ModpackZipUrl, settings.ModpackZipUrl);
+        Assert.Equal(defaults.ModpackManifestUrl, settings.ModpackManifestUrl);
+        Assert.Equal(defaults.MaintenanceMessageUrl, settings.MaintenanceMessageUrl);
+        Assert.StartsWith("https://", settings.ModpackManifestUrl);
+    }
+
+    [Fact]
+    public void Load_migre_lancien_port_25565_vers_25566_pour_le_serveur_par_defaut()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ServerHost": "astralnexusmc.duckdns.org", "ServerPort": 25565 }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(25566, settings.ServerPort);
+    }
+
+    [Fact]
+    public void Load_ne_change_pas_le_port_dun_autre_serveur()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ServerHost": "autre-serveur.example", "ServerPort": 25565 }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(25565, settings.ServerPort);
     }
 
     [Fact]

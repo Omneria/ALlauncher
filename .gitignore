@@ -39,3 +39,6 @@ out/
 launcher-data/
 runtime/
 .minecraft/
+
+# Python
+__pycache__/
