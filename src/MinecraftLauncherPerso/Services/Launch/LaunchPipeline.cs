@@ -95,6 +95,7 @@ public sealed class LaunchPipeline
         // 1. Java 17 : seule étape avec une progression chiffrée dès le départ (téléchargement).
         var javaProgress = new Progress<JavaSetupProgress>(report =>
             progress?.Report(new LaunchProgress(LaunchStep.Java, report.Message, report.PercentComplete / 100)));
+        AnnounceStep(progress, LaunchStep.Java);
         var javaPath = await RunStepAsync(LaunchStep.Java, cancellationToken,
             () => _javaManager.EnsureJavaAsync(javaProgress, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Java, $"Java 17 prêt : {javaPath}", 1));
@@ -104,6 +105,7 @@ public sealed class LaunchPipeline
         // 2. Forge : progression en octets exposée par CmlLib.
         var forgeProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Forge, message)));
         var forgeDownloadProgress = new Progress<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.Forge, "Téléchargement de Forge...", fraction)));
+        AnnounceStep(progress, LaunchStep.Forge);
         var versionId = await RunStepAsync(LaunchStep.Forge, cancellationToken,
             () => _forgeManager.EnsureForgeInstalledAsync(launcher, settings.MinecraftVersion, settings.ForgeVersion, forgeProgress, forgeDownloadProgress, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Forge, $"Forge prêt : {versionId}", 1));
@@ -111,11 +113,13 @@ public sealed class LaunchPipeline
         // 3. Synchronisation mods/config depuis le VPS.
         var syncProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.ModSync, message)));
         var syncDownloadProgress = new Progress<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.ModSync, "Téléchargement du modpack...", fraction)));
+        AnnounceStep(progress, LaunchStep.ModSync);
         await RunVoidStepAsync(LaunchStep.ModSync, cancellationToken,
             () => _modSyncService.SyncAsync(settings.ModpackZipUrl, settings.ModpackManifestUrl, settings.GameDirectory, syncProgress, syncDownloadProgress, cancellationToken));
 
         // 4. Session Microsoft (Xbox Live -> XSTS -> Minecraft) : pas de progression chiffrée.
         var authProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Auth, message)));
+        AnnounceStep(progress, LaunchStep.Auth);
         var session = await RunStepAsync(LaunchStep.Auth, cancellationToken,
             () => _authService.GetActiveSessionAsync(authProgress, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Auth, $"Connecté en tant que {session.Username}."));
@@ -124,6 +128,7 @@ public sealed class LaunchPipeline
         // 5. Verrouille la liste multijoueur sur le serveur configuré (voir LauncherSettings.ServerHost).
         if (!string.IsNullOrWhiteSpace(settings.ServerHost))
         {
+            AnnounceStep(progress, LaunchStep.ServerList);
             await RunVoidStepAsync(LaunchStep.ServerList, cancellationToken, () =>
             {
                 ServerListWriter.WriteSingleServer(settings.GameDirectory, settings.ServerName, settings.ServerHost);
@@ -132,13 +137,19 @@ public sealed class LaunchPipeline
         }
 
         // 6. Démarrage du jeu.
-        progress?.Report(new LaunchProgress(LaunchStep.Launch, "Lancement du jeu..."));
+        AnnounceStep(progress, LaunchStep.Launch);
         var game = await RunStepAsync(LaunchStep.Launch, cancellationToken,
             () => _gameLauncher.LaunchAsync(launcher, versionId, session, javaPath, settings, gameOutput, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Launch, "Jeu lancé.", 1));
 
         return new LaunchResult(session, game, javaPath, versionId);
     }
+
+    /// <summary>Signale le début d'une étape avant même son premier rapport de progression : une
+    /// étape silencieuse au démarrage (synchro déjà à jour, session en cache) reste ainsi visible
+    /// dans le journal, et l'UI peut réinitialiser sa barre sur ce changement d'étape.</summary>
+    private static void AnnounceStep(IProgress<LaunchProgress>? progress, LaunchStep step) =>
+        progress?.Report(new LaunchProgress(step, $"{DescribeStep(step)}..."));
 
     private static async Task<T> RunStepAsync<T>(LaunchStep step, CancellationToken cancellationToken, Func<Task<T>> action)
     {

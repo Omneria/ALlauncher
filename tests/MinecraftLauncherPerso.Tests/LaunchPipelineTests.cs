@@ -49,7 +49,7 @@ public sealed class LaunchPipelineTests : IDisposable
         Assert.Equal("Steve", result.Session.Username);
         Assert.NotNull(acquired);
         Assert.True(File.Exists(Path.Combine(_gameDirectory, "servers.dat"))); // ServerHost renseigné → liste écrite
-        Assert.Equal(steps.Distinct(), [LaunchStep.Java, LaunchStep.Forge, LaunchStep.ModSync, LaunchStep.Auth, LaunchStep.Launch]);
+        Assert.Equal([LaunchStep.Java, LaunchStep.Forge, LaunchStep.ModSync, LaunchStep.Auth, LaunchStep.ServerList, LaunchStep.Launch], steps.Distinct());
     }
 
     [Fact]
