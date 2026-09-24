@@ -211,12 +211,15 @@
                          (option B retenue) — plus imposante que les bandeaux discrets déjà en place
                          (mise à jour du launcher, etc.) puisqu'elle porte une information dont
                          l'absence de lecture a un vrai coût (jouer alors que le serveur va couper).
-                         Filet magenta 1.5px + fond Surface (comme les autres cartes du dashboard,
-                         CardBorderStyle) plutôt que Surface2 seul, pour vraiment se détacher.
+                         Coins coupés en biseau (comme le mockup Option B et PrimaryButtonTemplate),
+                         recalculés dynamiquement dans MaintenanceBanner_SizeChanged puisque cette
+                         carte n'a pas de taille fixe contrairement au bouton CTA.
                          Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
-                    <Border x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16"
-                            Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource MagentaBrush}"
-                            BorderThickness="1.5" Visibility="Collapsed">
+                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed"
+                          SizeChanged="MaintenanceBanner_SizeChanged">
+                        <Polygon x:Name="MaintenanceBannerShape"
+                                 Fill="{StaticResource SurfaceBrush}"
+                                 Stroke="{StaticResource MagentaBrush}" StrokeThickness="1.5" />
                         <StackPanel Orientation="Horizontal" Margin="24,18,24,18">
                             <Border Width="26" Height="26" VerticalAlignment="Top" Margin="0,2,0,0">
                                 <Path Data="M12 8v4 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
@@ -235,7 +238,7 @@
                                            Margin="0,4,0,0" Visibility="Collapsed" />
                             </StackPanel>
                         </StackPanel>
-                    </Border>
+                    </Grid>
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>

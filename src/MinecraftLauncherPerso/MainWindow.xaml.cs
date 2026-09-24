@@ -302,6 +302,32 @@ public partial class MainWindow : Window
         MaintenanceBanner.Visibility = Visibility.Visible;
     }
 
+    // Biseau aux coins haut-gauche/bas-droit (mockup Option B), recalculé à chaque changement de
+    // taille puisque, contrairement à PrimaryButtonTemplate (bouton à taille fixe), cette carte
+    // épouse la largeur de la colonne du dashboard.
+    private const double MaintenanceBannerBevel = 14;
+
+    private void MaintenanceBanner_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = e.NewSize.Width;
+        var height = e.NewSize.Height;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        var bevel = Math.Min(MaintenanceBannerBevel, Math.Min(width, height) / 2);
+        MaintenanceBannerShape.Points = new PointCollection
+        {
+            new Point(bevel, 0),
+            new Point(width, 0),
+            new Point(width, height - bevel),
+            new Point(width - bevel, height),
+            new Point(0, height),
+            new Point(0, bevel),
+        };
+    }
+
     // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
     // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
     // effet à ces items de nav, au lieu de rester des libellés inertes.
