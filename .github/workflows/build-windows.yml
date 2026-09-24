@@ -82,7 +82,7 @@ jobs:
           }
           Write-Host "OK : RELEASE_NOTES.md a été mis à jour depuis $previousTag."
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.x"
 
