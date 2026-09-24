@@ -9,14 +9,11 @@ Légende effort : ▲ petit (une soirée), ▲▲ moyen (quelques jours), ▲▲
 
 ## 1. Sécurité et confiance (à faire en premier)
 
-### 1.1 HTTPS sur le VPS ▲ — impact fort — **côté launcher : fait en v1.11.0, reste la config VPS**
+### 1.1 HTTPS sur le VPS ▲ — impact fort — **fait en v1.11.0**
 
-Fait : URL par défaut en `https://astralnexusmc.duckdns.org/modpack/...` (plus de base64),
-migration des `settings.json` existants, repli HTTP transitoire (`SchemeFallbackHandler`) tant
-que le VPS ne sert pas TLS, `scripts/vps/Caddyfile` + procédure dans `scripts/vps/README.md`.
-Reste : installer Caddy sur le VPS, régénérer le manifest avec `--base-url https://...`, puis
-**retirer `SchemeFallbackHandler`** dans une version ultérieure (le repli reste une faiblesse tant
-qu'il existe : un intermédiaire qui bloque le port 443 force le launcher en clair).
+URL par défaut en `https://astralnexusmc.duckdns.org/modpack/...` (plus de base64), migration
+des `settings.json` existants, Caddy + Let's Encrypt en place sur le VPS, manifest régénéré en
+HTTPS, aucun repli HTTP côté launcher, plus rien servi en clair côté VPS.
 
 Tout ce qui vient du VPS (`manifest.json`, chaque `.jar`, `news.txt`, `maintenance.txt`, le zip)
 transite en **HTTP simple**. Le SHA-256 du manifest ne protège que contre la corruption, pas contre

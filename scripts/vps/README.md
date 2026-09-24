@@ -52,10 +52,14 @@ les mods (`.jar` exécutés sur la machine du joueur) et le manifest (leurs
 empreintes) transitaient par le même canal en clair, donc l'empreinte ne
 protégeait que contre la corruption, pas contre une altération volontaire.
 
-**Tant que le VPS ne sert pas HTTPS, rien ne casse** : le launcher retombe en
-HTTP pour ce seul hôte (et l'écrit dans `launcher.log` : "injoignable en HTTPS,
-repli en HTTP"). Ce repli est une mesure de transition, à retirer du code une
-fois le VPS passé en HTTPS.
+**Le launcher n'a aucun repli en HTTP** : si le VPS ne sert plus HTTPS
+(Caddy arrêté, certificat expiré), la synchro du modpack échoue avec un message
+d'erreur clair. Surveiller les mails de Let's Encrypt (adresse déclarée dans
+le bloc global `email` du Caddyfile) : ils préviennent avant expiration.
+
+Le VPS ne sert plus rien en clair : Caddy redirige tout `http://` vers
+`https://` sur le domaine, et ne répond plus sur l'IP brute (les launchers
+v1.10.0 et antérieurs, qui l'utilisaient, ne sont plus en service).
 
 Mise en place avec [Caddy](https://caddyserver.com) (certificat Let's Encrypt
 obtenu et renouvelé tout seul) :

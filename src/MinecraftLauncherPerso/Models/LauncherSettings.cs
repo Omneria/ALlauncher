@@ -17,8 +17,9 @@ public sealed class LauncherSettings
     /// http:// encodée en base64 des versions précédentes. Le base64 ne protégeait rien (décodable
     /// en une ligne, IP de toute façon visible dans servers.dat) ; le vrai enjeu était le HTTP en
     /// clair : mods (.jar exécutés avec les droits du joueur) et manifest (leurs empreintes)
-    /// transitaient par le même canal non chiffré. Tant que le VPS ne sert pas encore TLS,
-    /// SchemeFallbackHandler retombe en http:// pour cet hôte uniquement (voir sa doc).
+    /// transitaient par le même canal non chiffré. Aucun repli en HTTP : le VPS sert TLS (Caddy,
+    /// voir scripts/vps/), et un intermédiaire qui bloquerait le port 443 ne doit pas pouvoir
+    /// forcer le launcher à télécharger des mods en clair.
     /// </summary>
     private const string VpsModpackBaseUrl = "https://astralnexusmc.duckdns.org/modpack/";
 

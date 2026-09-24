@@ -15,5 +15,5 @@
 - La bannière de maintenance reste affichée si le serveur ne répond plus, au lieu de disparaître pile pendant la coupure qu'elle annonce.
 - Le numéro de version dans la carte CHANGELOG est cliquable et ouvre la release sur GitHub.
 - Un bouton ANNULER permet d'interrompre un lancement bloqué (téléchargement qui n'avance plus) sans fermer le launcher ; le lancement suivant reprend là où il en était.
-- Le launcher contacte maintenant le serveur de mods en HTTPS (connexion chiffrée) dès que celui-ci le permet, et vérifie la signature de l'éditeur des mises à jour du launcher quand elles sont signées.
+- Le launcher télécharge maintenant les mods en HTTPS (connexion chiffrée), et vérifie la signature de l'éditeur des mises à jour du launcher quand elles sont signées.
 - Le tableau de bord s'affiche plus vite au démarrage (statut serveur, actus, changelog, session chargés en parallèle) et la mise à jour du launcher affiche sa progression en pourcentage.

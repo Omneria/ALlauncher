@@ -112,8 +112,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
 │           ├── Http/
-│           │   ├── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
-│           │   └── SchemeFallbackHandler.cs # repli HTTPS → HTTP transitoire pour le seul hôte du VPS (v1.11.0)
+│           │   └── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
 │           ├── Configuration/
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
@@ -881,9 +880,9 @@ Depuis v1.11.0, les trois URL du VPS (`ModpackZipUrl`, `ModpackManifestUrl`,
 sur l'IP brute encodée en base64 : ce base64 ne protégeait rien (décodable en une ligne, IP de
 toute façon visible dans `servers.dat`), alors que le HTTP en clair laissait mods et manifest
 altérables en transit. `SettingsManager` bascule automatiquement un `settings.json` qui porte
-encore les anciennes URL. Tant que le VPS ne sert pas TLS (voir `scripts/vps/README.md`, section
-"Passage en HTTPS"), `Services/Http/SchemeFallbackHandler.cs` retombe en `http://` pour cet hôte
-uniquement, en le signalant dans `launcher.log` — mesure de transition à retirer ensuite. Si le
+encore les anciennes URL. Le VPS sert TLS via Caddy (voir `scripts/vps/README.md`, section
+"Passage en HTTPS") et le launcher ne retombe **jamais** en `http://` : un intermédiaire qui
+bloquerait le port 443 ne peut pas le forcer à télécharger des mods en clair. Si le
 VPS change d'adresse, seul l'enregistrement DNS DuckDNS est à mettre à jour, pas le launcher. Le Client ID Azure AD, lui, n'a pas besoin d'être
 masqué (il identifie l'application, pas un secret : c'est la même logique que pour n'importe quel
 launcher tiers public).
