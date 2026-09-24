@@ -140,7 +140,7 @@ public sealed class LaunchPipeline
             AnnounceStep(progress, LaunchStep.ServerList);
             await RunVoidStepAsync(LaunchStep.ServerList, cancellationToken, () =>
             {
-                ServerListWriter.WriteSingleServer(settings.GameDirectory, settings.ServerName, settings.ServerHost);
+                ServerListWriter.WriteSingleServer(settings.GameDirectory, settings.ServerName, ServerListWriter.FormatAddress(settings.ServerHost, settings.ServerPort));
                 return Task.CompletedTask;
             });
         }

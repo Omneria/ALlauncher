@@ -84,9 +84,23 @@ public sealed class LauncherSettings
     /// à <see cref="ModpackZipUrl"/>, pas besoin d'encodage base64 ici, un nom de domaine n'a rien
     /// à cacher en lui-même. Peut être écrasée dans settings.json (si le serveur change d'adresse).
     /// </summary>
-    public string ServerHost { get; set; } = "astralnexusmc.duckdns.org";
+    public string ServerHost { get; set; } = DefaultServerHost;
 
-    public int ServerPort { get; set; } = 25565;
+    /// <summary>
+    /// Port du serveur Minecraft : 25566 depuis v1.11.0 (le serveur Astral Nexus a quitté le port
+    /// standard 25565). Un settings.json qui porte encore l'ancien port avec l'hôte par défaut est
+    /// migré par SettingsManager (MigrateServerPort).
+    /// </summary>
+    public int ServerPort { get; set; } = DefaultServerPort;
+
+    internal const int DefaultServerPort = 25566;
+
+    /// <summary>Ancien port par défaut (jusqu'en v1.10.0), reconnu pour la migration.</summary>
+    internal const int LegacyDefaultServerPort = 25565;
+
+    /// <summary>Hôte par défaut, exposé pour que les migrations ne touchent qu'une configuration
+    /// qui pointe encore sur le serveur Astral Nexus (jamais un serveur personnalisé).</summary>
+    internal const string DefaultServerHost = "astralnexusmc.duckdns.org";
 
     public int MinRamMb { get; set; } = 2048;
 

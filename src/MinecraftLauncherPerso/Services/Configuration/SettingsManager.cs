@@ -98,6 +98,20 @@ public sealed class SettingsManager
         settings.MaintenanceMessageUrl = UpgradeLegacyVpsUrl(settings.MaintenanceMessageUrl);
     }
 
+    /// <summary>
+    /// Changement de port du serveur (v1.11.0, 25565 -> 25566) : un settings.json existant porte
+    /// explicitement l'ancien port par défaut. Ne migre que si l'hôte est toujours le serveur
+    /// Astral Nexus par défaut : un joueur qui a configuré un autre serveur garde son port.
+    /// </summary>
+    private static void MigrateServerPort(LauncherSettings settings)
+    {
+        if (settings.ServerPort == LauncherSettings.LegacyDefaultServerPort
+            && string.Equals(settings.ServerHost, LauncherSettings.DefaultServerHost, StringComparison.OrdinalIgnoreCase))
+        {
+            settings.ServerPort = LauncherSettings.DefaultServerPort;
+        }
+    }
+
     private static string UpgradeLegacyVpsUrl(string url) =>
         LauncherSettings.LegacyVpsUrlDefaults.TryGetValue(url, out var upgraded) ? upgraded : url;
 
@@ -141,6 +155,8 @@ public sealed class SettingsManager
         MigrateModpackManifestUrl(settings);
         MigrateMaintenanceMessageUrl(settings);
         MigrateLegacyVpsUrls(settings);
+        // Après la migration de ServerHost ci-dessus (typo corrigée) : l'hôte comparé est le bon.
+        MigrateServerPort(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

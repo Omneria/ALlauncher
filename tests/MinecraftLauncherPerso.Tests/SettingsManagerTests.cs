@@ -52,14 +52,14 @@ public sealed class SettingsManagerTests : IDisposable
     public void Save_puis_Load_redonne_les_memes_valeurs()
     {
         var manager = new SettingsManager(_settingsPath);
-        var original = new LauncherSettings { MinRamMb = 2048, MaxRamMb = 4096, ServerPort = 25565 };
+        var original = new LauncherSettings { MinRamMb = 2048, MaxRamMb = 4096, ServerPort = 25570 };
 
         manager.Save(original);
         var reloaded = manager.Load();
 
         Assert.Equal(2048, reloaded.MinRamMb);
         Assert.Equal(4096, reloaded.MaxRamMb);
-        Assert.Equal(25565, reloaded.ServerPort);
+        Assert.Equal(25570, reloaded.ServerPort);
     }
 
     [Fact]
@@ -209,6 +209,30 @@ public sealed class SettingsManagerTests : IDisposable
         Assert.Equal(defaults.ModpackManifestUrl, settings.ModpackManifestUrl);
         Assert.Equal(defaults.MaintenanceMessageUrl, settings.MaintenanceMessageUrl);
         Assert.StartsWith("https://", settings.ModpackManifestUrl);
+    }
+
+    [Fact]
+    public void Load_migre_lancien_port_25565_vers_25566_pour_le_serveur_par_defaut()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ServerHost": "astralnexusmc.duckdns.org", "ServerPort": 25565 }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(25566, settings.ServerPort);
+    }
+
+    [Fact]
+    public void Load_ne_change_pas_le_port_dun_autre_serveur()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ServerHost": "autre-serveur.example", "ServerPort": 25565 }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(25565, settings.ServerPort);
     }
 
     [Fact]

@@ -526,14 +526,16 @@ de diagnostic affiché, plutôt que d'inventer une explication non fiable.
 
 Fichiers : `MainWindow.xaml.cs` (orchestration), `Services/Launch/ServerListWriter.cs`
 
-`LauncherSettings.ServerHost` est préconfiguré par défaut (adresse du serveur Astral Nexus) : deux
-mécanismes combinés limitent le joueur à ce serveur.
+`LauncherSettings.ServerHost` est préconfiguré par défaut (adresse du serveur Astral Nexus), avec
+`ServerPort` = **25566** depuis v1.11.0 (25565 avant ; un `settings.json` qui pointe encore sur
+l'ancien port avec l'hôte par défaut est migré automatiquement, un serveur personnalisé garde le
+sien) : deux mécanismes combinés limitent le joueur à ce serveur.
 
 1. **Rejoint automatiquement au démarrage** : `ServerIp`/`ServerPort` sur `MLaunchOption` ajoutent
    les arguments `--server`/`--port` (fonctionnalité vanilla, gérée par CmlLib.Core en interne) —
    le jeu se connecte directement au serveur configuré dès le lancement, sans passer par l'écran
    multijoueur.
-2. **Liste multijoueur réinitialisée** : `ServerListWriter.WriteSingleServer` écrit `servers.dat`
+2. **Liste multijoueur réinitialisée** : `ServerListWriter.WriteSingleServer` écrit `servers.dat` (adresse au format `hôte:port` dès que le port n'est pas 25565, sinon le jeu tenterait le port standard)
    (NBT non compressé, format vanilla, écrit à la main — pas de dépendance NBT nécessaire pour une
    structure aussi simple) avec ce seul serveur, à chaque lancement, avant de démarrer le jeu.
 
