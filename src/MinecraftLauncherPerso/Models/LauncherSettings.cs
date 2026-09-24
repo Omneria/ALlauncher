@@ -40,10 +40,17 @@ public sealed class LauncherSettings
 
     /// <summary>
     /// URL d'un fichier texte optionnel (maintenance.txt sur le VPS) : son contenu, s'il existe et
-    /// n'est pas vide, s'affiche en bandeau sur le dashboard. Vide par défaut = bannière jamais
-    /// affichée, comportement identique à un VPS qui ne sert pas ce fichier.
+    /// n'est pas vide, s'affiche en bandeau sur le dashboard. Pointe par défaut vers
+    /// maintenance.txt à côté du modpack sur le VPS (encodé en base64, même raison que
+    /// <see cref="ModpackZipUrl"/>) : absence ou fichier vide = bannière jamais affichée, donc
+    /// publier/supprimer ce fichier sur le VPS suffit à l'afficher/masquer, sans jamais retoucher
+    /// settings.json.
     /// </summary>
-    public string MaintenanceMessageUrl { get; set; } = "";
+    public string MaintenanceMessageUrl { get; set; } = DecodeDefaultMaintenanceMessageUrl();
+
+    private static string DecodeDefaultMaintenanceMessageUrl() =>
+        Encoding.UTF8.GetString(Convert.FromBase64String(
+            "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFpbnRlbmFuY2UudHh0"));
 
     /// <summary>
     /// "Application (client) ID" de l'app Azure AD enregistrée pour ce launcher (identifie

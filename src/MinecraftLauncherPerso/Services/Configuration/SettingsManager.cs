@@ -70,6 +70,21 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// Même raisonnement que <see cref="MigrateModpackManifestUrl"/> : <see
+    /// cref="LauncherSettings.MaintenanceMessageUrl"/> n'étant réglable qu'en éditant settings.json
+    /// à la main (aucun champ dans l'UI), "" était forcément la seule valeur possible pour tout
+    /// joueur ayant déjà lancé le launcher avant que cette URL par défaut existe — donc jamais un
+    /// choix délibéré à préserver.
+    /// </summary>
+    private static void MigrateMaintenanceMessageUrl(LauncherSettings settings)
+    {
+        if (string.IsNullOrEmpty(settings.MaintenanceMessageUrl))
+        {
+            settings.MaintenanceMessageUrl = new LauncherSettings().MaintenanceMessageUrl;
+        }
+    }
+
     /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
     /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
     /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
@@ -108,6 +123,7 @@ public sealed class SettingsManager
 
         MigrateMinecraftVersion(settings);
         MigrateModpackManifestUrl(settings);
+        MigrateMaintenanceMessageUrl(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

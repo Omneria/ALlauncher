@@ -173,4 +173,29 @@ public sealed class SettingsManagerTests : IDisposable
 
         Assert.Equal("https://autre-vps/manifest.json", settings.ModpackManifestUrl);
     }
+
+    [Fact]
+    public void Load_active_la_banniere_de_maintenance_par_defaut_si_le_champ_est_encore_vide()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MaintenanceMessageUrl": "" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(new LauncherSettings().MaintenanceMessageUrl, settings.MaintenanceMessageUrl);
+        Assert.NotEmpty(settings.MaintenanceMessageUrl);
+    }
+
+    [Fact]
+    public void Load_ne_touche_pas_un_MaintenanceMessageUrl_deja_personnalise()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MaintenanceMessageUrl": "https://autre-vps/maintenance.txt" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal("https://autre-vps/maintenance.txt", settings.MaintenanceMessageUrl);
+    }
 }
