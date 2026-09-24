@@ -17,10 +17,6 @@ permissions:
 
 jobs:
   build:
-    # Identifiant de l'artifact self-contained, transmis au job "release" pour que SignPath
-    # puisse le récupérer directement depuis ce run (voir l'étape de signature plus bas).
-    outputs:
-      selfcontained-artifact-id: ${{ steps.upload-selfcontained.outputs.artifact-id }}
     # WPF (net8.0-windows) ne peut être compilé que sur un hôte Windows :
     # le SDK Microsoft.NET.Sdk.WindowsDesktop (compilateur XAML inclus) n'est distribué que là.
     runs-on: windows-latest
@@ -113,8 +109,7 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish/win-x64-selfcontained
 
-      - id: upload-selfcontained
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained/**
@@ -149,8 +144,6 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
-      # SignPath télécharge lui-même l'artifact à signer depuis ce run, avec le jeton du workflow.
-      actions: read
 
     steps:
       # Nécessaire pour RELEASE_NOTES.md (--notes-file ci-dessous) : ce job ne fait sinon que
@@ -161,43 +154,6 @@ jobs:
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained
-
-      # Signature Authenticode via SignPath (programme gratuit SignPath Foundation pour l'open
-      # source), AVANT le calcul du .sha256 ci-dessous : signer modifie le fichier. Un fichier .pfx
-      # dans les secrets n'est plus possible depuis juin 2023 (la clé privée d'un certificat de
-      # signature de code doit rester sur un matériel dédié) : la signature se fait donc chez
-      # SignPath, qui récupère l'artifact de ce run, attend l'approbation manuelle de la release
-      # sur signpath.io, puis renvoie l'exe signé.
-      #
-      # Activée seulement quand le projet SignPath existe (voir .signpath/README.md) :
-      #   variable SIGNPATH_ORGANIZATION_ID (Settings → Secrets and variables → Actions → Variables)
-      #   secret   SIGNPATH_API_TOKEN      (même écran, onglet Secrets)
-      # Sans ces réglages : étape sautée, release non signée, exactement comme avant.
-      - name: Signe l'exe via SignPath (si configuré)
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'ALlauncher' }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'initial' }}
-          github-artifact-id: ${{ needs.build.outputs.selfcontained-artifact-id }}
-          wait-for-completion: true
-          # Laisse le temps d'approuver la demande sur signpath.io (approbation manuelle).
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: publish/win-x64-selfcontained
-
-      - name: Vérifie la signature de l'exe (si signé)
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        shell: pwsh
-        run: |
-          $signature = Get-AuthenticodeSignature "publish/win-x64-selfcontained/AL Launcher.exe"
-          if ($signature.Status -ne 'Valid') {
-            Write-Error "Signature invalide après SignPath : $($signature.Status) $($signature.StatusMessage)"
-            exit 1
-          }
-          Write-Host "OK : signé par $($signature.SignerCertificate.Subject)"
 
       # Si le tag a été créé via "Draft a new release" sur github.com, la release existe déjà
       # (créée en même temps que le tag, sans l'exe) : on y ajoute juste l'exe (--clobber écrase

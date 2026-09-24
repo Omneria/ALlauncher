@@ -94,8 +94,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── ServerStatusService.cs
 │           ├── Update/                     # vérification/installation des mises à jour du launcher
 │           │   ├── IUpdateService.cs
-│           │   ├── GitHubUpdateService.cs
-│           │   └── AuthenticodeVerifier.cs # signature de l'éditeur (WinVerifyTrust), v1.11.0
+│           │   └── GitHubUpdateService.cs
 │           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
 │           │   ├── INewsService.cs
 │           │   ├── NewsService.cs
@@ -127,8 +126,6 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 ├── .github/
 │   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release sur tag v*
 │   └── dependabot.yml                      # PR hebdomadaires de mise à jour NuGet / actions, vers dev
-├── .signpath/                              # configuration et procédure de signature SignPath
-├── LICENSE                                 # MIT (code source uniquement, voir section Licence)
 ├── RELEASE_NOTES.md                        # notes de la prochaine release, en langage clair pour les joueurs
 ├── README.md
 └── .gitignore
@@ -689,19 +686,11 @@ sockets disponibles (chaque `HttpClient` non partagé garde ses connexions TCP o
 propre finalisation par le GC) sur un launcher qui enchaîne beaucoup de requêtes courtes au même
 moment (démarrage : vérif Java, statut serveur, sync modpack, mise à jour, actus, auth).
 
-**Signature Authenticode (v1.11.0) :** le job `release` fait signer l'exe par
-[SignPath](https://signpath.io) (programme gratuit SignPath Foundation pour l'open source) dès que
-la variable `SIGNPATH_ORGANIZATION_ID` et le secret `SIGNPATH_API_TOKEN` existent sur le dépôt ;
-sans eux, étape sautée, release non signée comme avant. Procédure complète : `.signpath/README.md`.
-(Un simple fichier `.pfx` dans les secrets n'est plus possible : depuis juin 2023, la clé privée
-d'un certificat de signature de code doit rester sur un matériel dédié.) Côté launcher,
-`Services/Update/AuthenticodeVerifier.cs` (WinVerifyTrust) fait que si le launcher installé porte
-lui-même une signature reconnue par Windows, toute mise à jour doit être signée par le **même
-éditeur** (même sujet de certificat) ; un launcher non signé n'impose rien. Limite connue : avec
-SignPath Foundation, le sujet du certificat est celui de la fondation, commun à tous les projets
-qu'elle signe — la vérification prouve donc "signé via SignPath Foundation", pas "signé pour ce
-projet" ; c'est l'approbation manuelle de chaque release sur signpath.io, liée à ce dépôt, qui
-garantit la provenance. Le `.sha256` seul ne prouve que l'intégrité du transfert.
+**Pas de signature Authenticode (décision v1.11.0) :** l'exe n'est pas signé. Un certificat de
+signature de code coûte de l'argent et des démarches (la clé privée doit rester sur un matériel
+dédié depuis 2023), et même signé, SmartScreen continue d'avertir tant que l'exe n'a pas acquis de
+réputation : gain trop faible pour un launcher privé. L'intégrité des mises à jour repose sur le
+`.sha256` publié à côté de l'exe, et le modpack sur HTTPS + empreintes du manifest.
 
 **Vérification d'intégrité des téléchargements :** le JRE Temurin (API Adoptium, qui fournit une
 empreinte SHA-256 par build) et l'exe de mise à jour du launcher (empreinte publiée par le workflow
@@ -903,33 +892,6 @@ ce même fichier.
 choix du dossier de jeu avec la valeur par défaut déjà pré-remplie, orientation vers "SE
 CONNECTER"/"JOUER") plutôt qu'un flux de connexion dupliqué dans l'assistant lui-même. Fermable à
 tout moment (✕) sans perdre les valeurs déjà choisies.
-
-## Politique de signature du code
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org) (dès que le projet est accepté par le programme ;
-d'ici là les releases ne sont pas signées).
-
-- **Ce qui est signé** : uniquement `AL Launcher.exe`, construit par GitHub Actions
-  (`.github/workflows/build-windows.yml`) à partir de ce dépôt, lors de la publication d'un tag
-  `v*.*.*`. Aucun binaire construit ailleurs n'est soumis à la signature.
-- **Rôles** : committers et relecteurs : les membres de l'organisation GitHub
-  [Omneria](https://github.com/Omneria) ayant le droit d'écriture sur ce dépôt ; approbateur de
-  chaque demande de signature : le mainteneur du dépôt. Authentification à deux facteurs
-  obligatoire pour ces comptes.
-- **Confidentialité** : ce programme ne transfère aucune information vers d'autres systèmes en
-  réseau, en dehors des requêtes nécessaires à son fonctionnement, décrites dans ce README et
-  déclenchées par l'utilisation normale du launcher : connexion Microsoft/Xbox Live/Minecraft,
-  téléchargement de Java (Adoptium), de Forge et du modpack (serveur du projet), statut du serveur
-  de jeu, avatar du joueur (crafatar/minotar), actus et vérification des mises à jour (GitHub).
-  Aucune télémétrie, aucun scan de la machine.
-
-## Licence
-
-Code source sous licence MIT (voir `LICENSE`). Ne sont **pas** couverts par cette licence : les
-logos et visuels de `src/MinecraftLauncherPerso/Assets/Images/` (identité Omnéria et Astral
-Nexus, tous droits réservés) ; les polices de `Assets/Fonts/` restent sous leur propre licence
-SIL Open Font License (textes joints à côté des fichiers).
 
 ## Avertissement
 

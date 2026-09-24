@@ -198,28 +198,6 @@ public sealed class GitHubUpdateService : IUpdateService
             }
         }
 
-        // Signature Authenticode (voir AuthenticodeVerifier) : exigée seulement si l'exe courant
-        // est lui-même signé par un certificat reconnu — sinon rien ne change par rapport au
-        // contrôle SHA-256 ci-dessus.
-        var currentSigner = AuthenticodeVerifier.GetSignerSubject(currentExePath);
-        if (currentSigner is not null && AuthenticodeVerifier.HasTrustedSignature(currentExePath))
-        {
-            progress?.Report("Vérification de la signature de l'éditeur...");
-            var newSigner = AuthenticodeVerifier.GetSignerSubject(newExePath);
-            var trusted = newSigner is not null && AuthenticodeVerifier.HasTrustedSignature(newExePath);
-            if (!trusted || !string.Equals(newSigner, currentSigner, StringComparison.Ordinal))
-            {
-                File.Delete(newExePath);
-                throw new InvalidOperationException(
-                    $"La mise à jour téléchargée n'est pas signée par le même éditeur que le launcher installé (attendu \"{currentSigner}\", obtenu \"{newSigner ?? "non signé"}\"). " +
-                    "Fichier supprimé : ne l'installe pas manuellement, signale-le sur Discord.");
-            }
-        }
-        else if (currentSigner is not null)
-        {
-            Logger.Warn("GitHubUpdateService", $"Launcher courant signé par \"{currentSigner}\" mais signature non reconnue par Windows (certificat auto-signé ?) : la signature de la mise à jour n'est pas exigée.");
-        }
-
         // Le process courant verrouille son propre .exe (Windows) : impossible de l'écraser tant
         // qu'il tourne. Un script détaché attend sa fermeture (boucle sur tasklist/PID — le filtre
         // "PID eq" ne laisse passer que notre propre ligne, donc "find" ne peut pas matcher un

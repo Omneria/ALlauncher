@@ -31,13 +31,13 @@ dossier de jeu, mais ça ne couvre pas un jar malveillant à un chemin légitime
   et le base64 n'a jamais protégé quoi que ce soit (décodable en une ligne, l'IP est de toute
   façon visible dans `servers.dat` et dans n'importe quel outil réseau).
 
-### 1.2 Signature de l'exécutable (Authenticode) ▲▲ — **intégration SignPath prête, en attente d'acceptation**
+### 1.2 Signature de l'exécutable (Authenticode) — **écartée (v1.11.0)**
 
-Choix : le programme gratuit SignPath Foundation (licence MIT ajoutée, politique de signature dans
-le README, configuration dans `.signpath/`). La CI signe dès que les réglages SignPath existent sur
-le dépôt, avec approbation manuelle de chaque release. Si SignPath refuse le projet : on ne signe
-pas (décision prise) et on retire l'étape de la CI. `AuthenticodeVerifier` côté launcher reste
-utile dans les deux cas (inactif tant que le launcher installé n'est pas signé).
+Étudiée puis abandonnée : pas de fichier .pfx possible depuis 2023, services de signature payants
+ou contraignants (SignPath Foundation : licence open source, politique publiée, approbation
+manuelle de chaque release), et SmartScreen avertit de toute façon tant que l'exe n'a pas de
+réputation. Trop coûteux pour un launcher privé ; le `.sha256` des releases reste le contrôle
+d'intégrité des mises à jour.
 
 ### 1.3 Analyseurs .NET et avertissements bloquants en CI ▲
 
