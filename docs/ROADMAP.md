@@ -9,7 +9,14 @@ Légende effort : ▲ petit (une soirée), ▲▲ moyen (quelques jours), ▲▲
 
 ## 1. Sécurité et confiance (à faire en premier)
 
-### 1.1 HTTPS sur le VPS ▲ — impact fort
+### 1.1 HTTPS sur le VPS ▲ — impact fort — **côté launcher : fait en v1.11.0, reste la config VPS**
+
+Fait : URL par défaut en `https://astralnexusmc.duckdns.org/modpack/...` (plus de base64),
+migration des `settings.json` existants, repli HTTP transitoire (`SchemeFallbackHandler`) tant
+que le VPS ne sert pas TLS, `scripts/vps/Caddyfile` + procédure dans `scripts/vps/README.md`.
+Reste : installer Caddy sur le VPS, régénérer le manifest avec `--base-url https://...`, puis
+**retirer `SchemeFallbackHandler`** dans une version ultérieure (le repli reste une faiblesse tant
+qu'il existe : un intermédiaire qui bloque le port 443 force le launcher en clair).
 
 Tout ce qui vient du VPS (`manifest.json`, chaque `.jar`, `news.txt`, `maintenance.txt`, le zip)
 transite en **HTTP simple**. Le SHA-256 du manifest ne protège que contre la corruption, pas contre
@@ -27,7 +34,14 @@ dossier de jeu, mais ça ne couvre pas un jar malveillant à un chemin légitime
   et le base64 n'a jamais protégé quoi que ce soit (décodable en une ligne, l'IP est de toute
   façon visible dans `servers.dat` et dans n'importe quel outil réseau).
 
-### 1.2 Signature de l'exécutable (Authenticode) ▲▲ — impact moyen
+### 1.2 Signature de l'exécutable (Authenticode) ▲▲ — impact moyen — **côté code : fait en v1.11.0, reste le certificat**
+
+Fait : le job `release` signe l'exe (`signtool`, horodaté) dès que les secrets
+`CODE_SIGNING_PFX_BASE64`/`CODE_SIGNING_PFX_PASSWORD` existent, et `GitHubUpdateService` exige
+qu'une mise à jour soit signée par le même éditeur dès lors que le launcher installé l'est
+lui-même (`AuthenticodeVerifier`, WinVerifyTrust). Reste : obtenir un certificat de signature de
+code émis par une autorité reconnue (Azure Trusted Signing est le moins cher pour un particulier)
+et le déposer dans les secrets du dépôt. Un certificat auto-signé n'apporte rien.
 
 L'exe n'est pas signé : SmartScreen affiche "éditeur inconnu" à chaque nouvelle version, et
 l'auto-update remplace un exe par un autre que rien n'authentifie au-delà d'un `.sha256` servi par
@@ -48,7 +62,7 @@ qui sont à l'origine des trois régressions de v1.9.x.
 
 ## 2. Fiabilité du lancement
 
-### 2.1 Bouton ANNULER pendant le pipeline de lancement ▲▲
+### 2.1 Bouton ANNULER pendant le pipeline de lancement ▲▲ — **fait en v1.11.0**
 
 Une fois JOUER cliqué, aucun moyen d'interrompre un téléchargement Forge/modpack bloqué (VPS qui
 répond au compte-gouttes) autrement qu'en fermant le launcher. Toutes les étapes acceptent déjà un
@@ -56,7 +70,7 @@ répond au compte-gouttes) autrement qu'en fermant le launcher. Toutes les étap
 dans `LoadingPanel`, et la gestion propre d'`OperationCanceledException` (message "annulé" plutôt
 que "erreur"). Le `.part` reprenable rend l'annulation sans perte.
 
-### 2.2 Extraire l'orchestration de `MainWindow` dans un `LaunchPipeline` testable ▲▲▲
+### 2.2 Extraire l'orchestration de `MainWindow` dans un `LaunchPipeline` testable ▲▲▲ — **fait en v1.11.0** (`Services/Launch/LaunchPipeline.cs`, `LaunchPipelineTests`)
 
 `MainWindow.xaml.cs` dépasse 1 100 lignes et mélange orchestration (Java → Forge → sync → auth →
 lancement), état du tableau de bord et détails visuels. Rien de cette orchestration n'est testable

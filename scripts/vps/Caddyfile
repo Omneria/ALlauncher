@@ -1,0 +1,27 @@
+# Caddy : sert le dossier modpack en HTTPS avec un certificat Let's Encrypt obtenu et renouvelé
+# automatiquement pour le domaine DuckDNS (voir README.md, section "Passage en HTTPS").
+#
+# Prérequis : le domaine pointe sur ce VPS (déjà le cas, c'est ServerHost du launcher), les ports
+# 80 ET 443 sont ouverts dans le pare-feu (80 sert au défi ACME et à la redirection), et aucun
+# autre serveur web n'écoute sur 80/443 (voir README pour cohabiter avec nginx/Apache).
+#
+# Le launcher (v1.11.0+) contacte https://astralnexusmc.duckdns.org/modpack/... ; tant que ce
+# fichier n'est pas en place, il retombe en http:// pour cet hôte uniquement (SchemeFallbackHandler),
+# en le signalant dans launcher.log.
+
+astralnexusmc.duckdns.org {
+    # Racine du site : doit contenir le dossier modpack/ (manifest.json, files/, news.txt,
+    # maintenance.txt, Algaron-modded.zip). Adapter si le dossier réel est ailleurs.
+    root * /var/www/html
+
+    # Sert les fichiers tels quels (listing des dossiers désactivé : rien à exposer de plus que
+    # ce que le manifest référence). Caddy gère nativement les requêtes Range (reprise du zip).
+    file_server
+
+    # Un seul en-tête utile : pas de mise en cache intermédiaire du manifest (sinon un proxy
+    # pourrait servir un manifest périmé après une mise à jour du pack).
+    @manifest path /modpack/manifest.json /modpack/maintenance.txt /modpack/news.txt
+    header @manifest Cache-Control "no-cache"
+
+    encode gzip
+}

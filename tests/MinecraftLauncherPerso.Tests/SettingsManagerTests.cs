@@ -188,6 +188,30 @@ public sealed class SettingsManagerTests : IDisposable
     }
 
     [Fact]
+    public void Load_bascule_les_anciennes_URL_http_du_VPS_vers_les_nouvelles_https()
+    {
+        // Un settings.json écrit jusqu'en v1.10.0 porte les anciennes URL par défaut (http:// +
+        // IP brute) : elles doivent basculer sur les nouvelles (https:// + domaine), sans quoi le
+        // passage en HTTPS ne s'appliquerait jamais aux joueurs existants.
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        var legacy = LauncherSettings.LegacyVpsUrlDefaults.Keys.ToList();
+        Assert.Equal(3, legacy.Count);
+        var legacyZip = legacy.Single(u => u.EndsWith(".zip"));
+        var legacyManifest = legacy.Single(u => u.EndsWith("manifest.json"));
+        var legacyMaintenance = legacy.Single(u => u.EndsWith("maintenance.txt"));
+        File.WriteAllText(_settingsPath, $$"""{ "ModpackZipUrl": "{{legacyZip}}", "ModpackManifestUrl": "{{legacyManifest}}", "MaintenanceMessageUrl": "{{legacyMaintenance}}" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        var defaults = new LauncherSettings();
+        Assert.Equal(defaults.ModpackZipUrl, settings.ModpackZipUrl);
+        Assert.Equal(defaults.ModpackManifestUrl, settings.ModpackManifestUrl);
+        Assert.Equal(defaults.MaintenanceMessageUrl, settings.MaintenanceMessageUrl);
+        Assert.StartsWith("https://", settings.ModpackManifestUrl);
+    }
+
+    [Fact]
     public void Load_ne_touche_pas_un_MaintenanceMessageUrl_deja_personnalise()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);

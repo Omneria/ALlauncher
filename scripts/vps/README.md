@@ -14,12 +14,12 @@ SHA-256 de chaque fichier et écrit le `manifest.json` attendu par
 ```bash
 python3 generate-manifest.py \
     --root /var/www/modpack \
-    --base-url http://<adresse-du-vps>/modpack/files \
+    --base-url https://astralnexusmc.duckdns.org/modpack/files \
     --output /var/www/modpack/manifest.json
 ```
 
-> L'adresse réelle du VPS n'est volontairement écrite nulle part en clair dans ce dépôt public
-> (voir `LauncherSettings.cs`, URL encodée en base64) : remplacer `<adresse-du-vps>` par la vôtre.
+> `--base-url` en `https://` une fois le VPS passé en HTTPS (section ci-dessous), en `http://`
+> avant : c'est cette URL, telle qu'écrite dans le manifest, que le launcher télécharge.
 
 **À chaque régénération, les fichiers de `mods/` absents du nouveau manifest sont supprimés chez
 chaque joueur à la synchro suivante** (mode manifest, depuis v1.11.0) : c'est ce qui permet de
@@ -43,6 +43,51 @@ tel qu'il est au moment de la synchro, un manifest périmé ferait retélécharg
 ou, pire, laisserait un fichier obsolète non détecté.
 
 Aucune dépendance externe, Python 3 standard suffit.
+
+## Passage en HTTPS (v1.11.0)
+
+Depuis la v1.11.0, le launcher contacte le VPS en **HTTPS** sur le nom de domaine
+(`https://astralnexusmc.duckdns.org/modpack/...`) et non plus en HTTP sur l'IP :
+les mods (`.jar` exécutés sur la machine du joueur) et le manifest (leurs
+empreintes) transitaient par le même canal en clair, donc l'empreinte ne
+protégeait que contre la corruption, pas contre une altération volontaire.
+
+**Tant que le VPS ne sert pas HTTPS, rien ne casse** : le launcher retombe en
+HTTP pour ce seul hôte (et l'écrit dans `launcher.log` : "injoignable en HTTPS,
+repli en HTTP"). Ce repli est une mesure de transition, à retirer du code une
+fois le VPS passé en HTTPS.
+
+Mise en place avec [Caddy](https://caddyserver.com) (certificat Let's Encrypt
+obtenu et renouvelé tout seul) :
+
+```bash
+# 1. Installer Caddy (Debian/Ubuntu, dépôt officiel)
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+
+# 2. Libérer les ports 80/443 (Caddy remplace le serveur web actuel pour ce site)
+sudo systemctl disable --now nginx     # ou apache2
+
+# 3. Déployer la config (adapter `root` si le dossier modpack n'est pas sous /var/www/html)
+sudo cp Caddyfile /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+
+# 4. Vérifier (depuis n'importe quelle machine)
+curl -I https://astralnexusmc.duckdns.org/modpack/manifest.json   # HTTP/2 200 attendu
+```
+
+Pare-feu : les ports **80 et 443** doivent être ouverts (80 sert au défi ACME
+de Let's Encrypt et redirige vers 443).
+
+Pour **garder nginx/Apache** (autres sites sur le même VPS) : les passer sur un
+autre port (ex. 8080) et remplacer `root`/`file_server` dans le Caddyfile par
+`reverse_proxy localhost:8080` — Caddy ne fait alors que terminer le TLS.
+
+Une fois en place, `--base-url` du générateur de manifest doit lui aussi être
+en `https://astralnexusmc.duckdns.org/modpack/files` : régénérer le manifest.
 
 ## Bannière de maintenance
 

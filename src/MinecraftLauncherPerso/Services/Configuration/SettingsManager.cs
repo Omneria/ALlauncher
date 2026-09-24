@@ -85,6 +85,22 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// Passage HTTP → HTTPS du VPS (v1.11.0) : un settings.json écrit par une version antérieure
+    /// porte les anciennes URL par défaut (http:// + IP brute) et ne verrait jamais les nouvelles
+    /// sans cette migration. Ne bascule que les valeurs *exactement* égales à un ancien défaut :
+    /// une URL personnalisée (autre VPS, miroir) est laissée telle quelle.
+    /// </summary>
+    private static void MigrateLegacyVpsUrls(LauncherSettings settings)
+    {
+        settings.ModpackZipUrl = UpgradeLegacyVpsUrl(settings.ModpackZipUrl);
+        settings.ModpackManifestUrl = UpgradeLegacyVpsUrl(settings.ModpackManifestUrl);
+        settings.MaintenanceMessageUrl = UpgradeLegacyVpsUrl(settings.MaintenanceMessageUrl);
+    }
+
+    private static string UpgradeLegacyVpsUrl(string url) =>
+        LauncherSettings.LegacyVpsUrlDefaults.TryGetValue(url, out var upgraded) ? upgraded : url;
+
     /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
     /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
     /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
@@ -124,6 +140,7 @@ public sealed class SettingsManager
         MigrateMinecraftVersion(settings);
         MigrateModpackManifestUrl(settings);
         MigrateMaintenanceMessageUrl(settings);
+        MigrateLegacyVpsUrls(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

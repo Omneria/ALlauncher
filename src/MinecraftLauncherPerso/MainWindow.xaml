@@ -494,6 +494,14 @@
                                                    HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                                    FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
                                                    Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
+                                        <!-- Visible seulement pendant le pipeline de lancement (pas pendant
+                                             une mise à jour du launcher) : interrompt l'étape en cours. -->
+                                        <Button x:Name="CancelLaunchButton" Content="ANNULER" Margin="0,12,0,0"
+                                                HorizontalAlignment="Center" Visibility="Collapsed"
+                                                AutomationProperties.Name="Annuler le lancement"
+                                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,5"
+                                                FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                                                Click="CancelLaunchButton_Click" />
                                     </StackPanel>
                                     <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
                                              IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"

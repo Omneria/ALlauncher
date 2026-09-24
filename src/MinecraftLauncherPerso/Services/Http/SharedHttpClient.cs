@@ -17,7 +17,9 @@ public static class SharedHttpClient
 
     private static HttpClient CreateInstance()
     {
-        var client = new HttpClient();
+        // SchemeFallbackHandler : transition HTTP → HTTPS du VPS (voir sa doc), transparent pour
+        // tous les services consommateurs.
+        var client = new HttpClient(new SchemeFallbackHandler(new SocketsHttpHandler()));
 
         // Plusieurs des API utilisées (GitHub, Adoptium, Xbox Live...) rejettent (403) les
         // requêtes sans User-Agent, traitées comme du trafic automatisé suspect : posé une bonne

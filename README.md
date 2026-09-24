@@ -84,7 +84,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── Auth/                       # OAuth Microsoft direct (MSAL.NET) -> Xbox Live -> XSTS -> Minecraft
 │           │   ├── IAuthService.cs
 │           │   └── MicrosoftAuthService.cs
-│           ├── Launch/                     # construction + démarrage du process Forge/Minecraft
+│           ├── Launch/                     # pipeline JOUER (annulable, testable) + process Forge/Minecraft
+│           │   ├── LaunchPipeline.cs       # Java → Forge → sync → auth → servers.dat → lancement (v1.11.0)
 │           │   ├── IGameLauncher.cs
 │           │   ├── GameLauncher.cs
 │           │   └── ServerListWriter.cs     # verrouille servers.dat sur le serveur configuré
@@ -93,7 +94,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   └── ServerStatusService.cs
 │           ├── Update/                     # vérification/installation des mises à jour du launcher
 │           │   ├── IUpdateService.cs
-│           │   └── GitHubUpdateService.cs
+│           │   ├── GitHubUpdateService.cs
+│           │   └── AuthenticodeVerifier.cs # signature de l'éditeur (WinVerifyTrust), v1.11.0
 │           ├── News/                       # actus optionnelles (news.txt à côté du modpack)
 │           │   ├── INewsService.cs
 │           │   ├── NewsService.cs
@@ -110,7 +112,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           ├── Hardware/                    # RAM totale de la machine (P/Invoke GlobalMemoryStatusEx)
 │           │   └── SystemInfo.cs
 │           ├── Http/
-│           │   └── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
+│           │   ├── SharedHttpClient.cs     # HttpClient unique partagé par tous les services HTTP (évite l'épuisement des sockets)
+│           │   └── SchemeFallbackHandler.cs # repli HTTPS → HTTP transitoire pour le seul hôte du VPS (v1.11.0)
 │           ├── Configuration/
 │           │   └── SettingsManager.cs      # charge/sauvegarde settings.json (écriture atomique, validation)
 │           └── Diagnostics/
@@ -119,7 +122,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │               └── DiskSpaceChecker.cs     # vérification d'espace disque avant un téléchargement
 ├── tests/
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager, ModSync (manifest)
-├── scripts/vps/                            # outils côté VPS : generate-manifest.py, modèle de maintenance.txt
+├── scripts/vps/                            # outils côté VPS : generate-manifest.py, Caddyfile (HTTPS), modèle de maintenance.txt
 ├── docs/
 │   └── ROADMAP.md                          # pistes d'amélioration priorisées (audit v1.11.0)
 ├── .github/
@@ -481,6 +484,17 @@ avec son propre compte Microsoft. Pour référence, si ce Client ID doit un jour
 
 ## Lancement du jeu
 
+Fichier : `Services/Launch/LaunchPipeline.cs` (v1.11.0)
+
+L'enchaînement complet d'un clic sur JOUER — Java 17 → Forge → synchro mods/config → session
+Microsoft → `servers.dat` → démarrage — vit dans `LaunchPipeline.RunAsync`, hors de `MainWindow`
+(qui ne fait plus que traduire `LaunchProgress` en barre/journal) : testable sans WPF avec des
+faux services (`LaunchPipelineTests` : ordre des étapes, échec enveloppé avec le nom de l'étape,
+annulation qui n'entame jamais l'étape suivante). Un seul `CancellationToken` traverse toutes les
+étapes : le bouton **ANNULER** du panneau de chargement interrompt l'étape en cours (un
+téléchargement Forge/modpack qui n'avance plus n'obligeait jusqu'ici qu'à fermer le launcher),
+et le clic suivant reprend là où c'en était (`.part` reprenable, manifest par fichier).
+
 Fichier : `src/MinecraftLauncherPerso/Services/Launch/GameLauncher.cs`
 
 Construit une `MSession` (CmlLib.Core.Auth) à partir de la session lue ci-dessus, un
@@ -672,6 +686,16 @@ sockets disponibles (chaque `HttpClient` non partagé garde ses connexions TCP o
 propre finalisation par le GC) sur un launcher qui enchaîne beaucoup de requêtes courtes au même
 moment (démarrage : vérif Java, statut serveur, sync modpack, mise à jour, actus, auth).
 
+**Signature Authenticode (v1.11.0) :** le job `release` signe l'exe avec `signtool` (horodaté) dès
+que les secrets `CODE_SIGNING_PFX_BASE64`/`CODE_SIGNING_PFX_PASSWORD` sont définis sur le dépôt
+(sans eux, étape sautée, release non signée comme avant). Côté launcher,
+`Services/Update/AuthenticodeVerifier.cs` (WinVerifyTrust) fait que si le launcher installé porte
+lui-même une signature reconnue par Windows, toute mise à jour doit être signée par le **même
+éditeur** (même sujet de certificat — pas la même empreinte, qui change au renouvellement) ; un
+launcher non signé, ou signé par un certificat non reconnu (auto-signé), n'impose rien. Le `.sha256`
+seul ne prouve que l'intégrité du transfert, pas la provenance : il est servi par la même origine
+que l'exe.
+
 **Vérification d'intégrité des téléchargements :** le JRE Temurin (API Adoptium, qui fournit une
 empreinte SHA-256 par build) et l'exe de mise à jour du launcher (empreinte publiée par le workflow
 CI en pièce jointe séparée `<exe>.sha256` à côté de l'exe sur chaque release) sont tous les deux
@@ -849,15 +873,16 @@ dotnet run --project src/MinecraftLauncherPerso
 `ModpackZipUrl`, `MicrosoftClientId` et `ServerHost`/`ServerPort` sont déjà préconfigurés par
 défaut : rien à faire pour se connecter et jouer directement sur Astral Nexus, tout le monde
 partage le même Client ID (voir section Authentification).
-Le dépôt étant public, `ModpackZipUrl` n'apparaît pas en clair dans le code source (stockée
-encodée en base64 dans `LauncherSettings.cs`, décodée au démarrage) pour ne pas exposer l'IP du
-VPS à quiconque parcourt le dépôt — ce n'est qu'une précaution légère (le launcher final l'utilise
-bien en clair au runtime), pas une vraie protection contre quelqu'un qui inspecterait
-l'exécutable. `ServerHost` pointe lui sur `astralnexusmc.duckdns.org` (DuckDNS) plutôt que sur
-l'IP du VPS directement — celle-ci est aussi celle du VPN, donc découplée derrière un nom de
-domaine au lieu d'être encodée en base64 (qui n'aurait de toute façon pas empêché `servers.dat` de
-l'exposer en clair une fois résolue). Si le VPS change d'adresse, seul l'enregistrement DNS
-DuckDNS est à mettre à jour, pas le launcher. Le Client ID Azure AD, lui, n'a pas besoin d'être
+Depuis v1.11.0, les trois URL du VPS (`ModpackZipUrl`, `ModpackManifestUrl`,
+`MaintenanceMessageUrl`) pointent en **HTTPS** sur le nom de domaine DuckDNS
+(`https://astralnexusmc.duckdns.org/modpack/...`), le même que `ServerHost`, et non plus en HTTP
+sur l'IP brute encodée en base64 : ce base64 ne protégeait rien (décodable en une ligne, IP de
+toute façon visible dans `servers.dat`), alors que le HTTP en clair laissait mods et manifest
+altérables en transit. `SettingsManager` bascule automatiquement un `settings.json` qui porte
+encore les anciennes URL. Tant que le VPS ne sert pas TLS (voir `scripts/vps/README.md`, section
+"Passage en HTTPS"), `Services/Http/SchemeFallbackHandler.cs` retombe en `http://` pour cet hôte
+uniquement, en le signalant dans `launcher.log` — mesure de transition à retirer ensuite. Si le
+VPS change d'adresse, seul l'enregistrement DNS DuckDNS est à mettre à jour, pas le launcher. Le Client ID Azure AD, lui, n'a pas besoin d'être
 masqué (il identifie l'application, pas un secret : c'est la même logique que pour n'importe quel
 launcher tiers public).
 

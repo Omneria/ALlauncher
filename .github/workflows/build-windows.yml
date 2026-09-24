@@ -155,6 +155,49 @@ jobs:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained
 
+      # Signature Authenticode de l'exe (v1.11.0), AVANT le calcul du .sha256 ci-dessous (signer
+      # modifie le fichier). Activée dès que deux secrets du dépôt existent (Settings → Secrets and
+      # variables → Actions) :
+      #   CODE_SIGNING_PFX_BASE64   : le certificat de signature de code + sa clé privée (.pfx),
+      #                               encodé en base64 ([Convert]::ToBase64String((Get-Content cert.pfx -AsByteStream)))
+      #   CODE_SIGNING_PFX_PASSWORD : le mot de passe du .pfx
+      # Sans ces secrets : étape sautée, release non signée, exactement comme avant. Le certificat
+      # DOIT être émis par une autorité reconnue par Windows (Azure Trusted Signing, Certum,
+      # Sectigo...) — un certificat auto-signé n'apporte rien (SmartScreen le traite comme non
+      # signé) et GitHubUpdateService ne l'exige pas non plus (voir AuthenticodeVerifier).
+      # Horodatage (/tr) : la signature reste valide après l'expiration du certificat.
+      - name: Signe l'exe (Authenticode, si un certificat est configuré)
+        env:
+          CODE_SIGNING_PFX_BASE64: ${{ secrets.CODE_SIGNING_PFX_BASE64 }}
+          CODE_SIGNING_PFX_PASSWORD: ${{ secrets.CODE_SIGNING_PFX_PASSWORD }}
+        shell: pwsh
+        run: |
+          $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
+          if (-not $env:CODE_SIGNING_PFX_BASE64) {
+            Write-Host "Aucun certificat de signature configuré (secret CODE_SIGNING_PFX_BASE64 absent) : exe publié non signé."
+            exit 0
+          }
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*\x64\*" } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) {
+            Write-Error "signtool.exe introuvable dans le Windows SDK du runner."
+            exit 1
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          try {
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:CODE_SIGNING_PFX_BASE64))
+            & $signtool.FullName sign /f $pfxPath /p $env:CODE_SIGNING_PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "AL Launcher" $exe
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally {
+            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
+          & $signtool.FullName verify /pa /v $exe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "OK : exe signé."
+
       # Si le tag a été créé via "Draft a new release" sur github.com, la release existe déjà
       # (créée en même temps que le tag, sans l'exe) : on y ajoute juste l'exe (--clobber écrase
       # un éventuel exe déjà attaché) au lieu d'essayer d'en créer une deuxième (qui échouerait).
