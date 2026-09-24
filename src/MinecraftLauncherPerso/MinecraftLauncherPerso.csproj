@@ -14,11 +14,16 @@
            - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
-    <Version>1.9.1</Version>
+    <Version>1.9.2</Version>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
     <DebugType>None</DebugType>
+    <!-- Retire les données ICU (support des cultures internationales) du build : aucun code du
+         launcher ne dépend d'une culture spécifique (dates formatées avec un format explicite
+         "dd/MM/yyyy HH:mm", jamais de nom de mois/jour localisé ni de mise en forme monétaire) —
+         gain notable sur la taille du self-contained sans rien changer à l'affichage. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
     <ApplicationIcon>Assets\Images\omneria-mark.ico</ApplicationIcon>
   </PropertyGroup>
 
