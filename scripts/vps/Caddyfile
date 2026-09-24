@@ -2,26 +2,35 @@
 # automatiquement pour le domaine DuckDNS (voir README.md, section "Passage en HTTPS").
 #
 # Prérequis : le domaine pointe sur ce VPS (déjà le cas, c'est ServerHost du launcher), les ports
-# 80 ET 443 sont ouverts dans le pare-feu (80 sert au défi ACME et à la redirection), et aucun
-# autre serveur web n'écoute sur 80/443 (voir README pour cohabiter avec nginx/Apache).
-#
-# Le launcher (v1.11.0+) contacte https://astralnexusmc.duckdns.org/modpack/... ; tant que ce
-# fichier n'est pas en place, il retombe en http:// pour cet hôte uniquement (SchemeFallbackHandler),
-# en le signalant dans launcher.log.
+# 80 ET 443 sont ouverts dans le pare-feu (80 sert au défi ACME), et aucun autre serveur web
+# n'écoute sur 80/443.
 
-astralnexusmc.duckdns.org {
+# Contenu servi, partagé par les deux blocs ci-dessous.
+(modpack) {
     # Racine du site : doit contenir le dossier modpack/ (manifest.json, files/, news.txt,
     # maintenance.txt, Algaron-modded.zip). Adapter si le dossier réel est ailleurs.
     root * /var/www/html
 
-    # Sert les fichiers tels quels (listing des dossiers désactivé : rien à exposer de plus que
-    # ce que le manifest référence). Caddy gère nativement les requêtes Range (reprise du zip).
+    # Sert les fichiers tels quels, sans listing des dossiers. Caddy gère nativement les
+    # requêtes Range (reprise du téléchargement du zip).
     file_server
 
-    # Un seul en-tête utile : pas de mise en cache intermédiaire du manifest (sinon un proxy
-    # pourrait servir un manifest périmé après une mise à jour du pack).
-    @manifest path /modpack/manifest.json /modpack/maintenance.txt /modpack/news.txt
-    header @manifest Cache-Control "no-cache"
+    # Pas de mise en cache intermédiaire des petits fichiers qui changent souvent.
+    @dynamic path /modpack/manifest.json /modpack/maintenance.txt /modpack/news.txt
+    header @dynamic Cache-Control "no-cache"
 
     encode gzip
+}
+
+# Launchers v1.11.0 et suivants : HTTPS sur le nom de domaine, certificat automatique.
+astralnexusmc.duckdns.org {
+    import modpack
+}
+
+# Launchers v1.10.0 et antérieurs : ils contactent encore http://<IP>/modpack/... en clair.
+# Sans ce bloc, Caddy ne répondrait qu'au nom de domaine et tous les joueurs pas encore mis à
+# jour ne pourraient plus synchroniser le modpack. À supprimer quand plus personne n'est en
+# v1.10.0 ou avant. Remplacer l'IP si le VPS change.
+http://185.185.82.180 {
+    import modpack
 }
