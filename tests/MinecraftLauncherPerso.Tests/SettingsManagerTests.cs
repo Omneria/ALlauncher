@@ -146,4 +146,31 @@ public sealed class SettingsManagerTests : IDisposable
 
         Assert.Equal("1.19.2", settings.MinecraftVersion);
     }
+
+    [Fact]
+    public void Load_active_le_manifest_par_defaut_si_le_champ_est_encore_vide()
+    {
+        // "" était la seule valeur possible avant l'introduction du manifest 1.20.1 : un
+        // settings.json qui l'a encore doit basculer vers la nouvelle URL par défaut.
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ModpackManifestUrl": "" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(new LauncherSettings().ModpackManifestUrl, settings.ModpackManifestUrl);
+        Assert.NotEmpty(settings.ModpackManifestUrl);
+    }
+
+    [Fact]
+    public void Load_ne_touche_pas_un_ModpackManifestUrl_deja_personnalise()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "ModpackManifestUrl": "https://autre-vps/manifest.json" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal("https://autre-vps/manifest.json", settings.ModpackManifestUrl);
+    }
 }

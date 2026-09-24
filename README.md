@@ -168,9 +168,11 @@ Fichier : `src/MinecraftLauncherPerso/Services/ModSync/ModSyncService.cs`
 
 **Deux modes**, selon que `ModpackManifestUrl` est configuré ou non dans `settings.json` :
 
-- **Mode manifest (incrémental, recommandé, v1.9.0)** : voir la section dédiée ci-dessous.
-- **Mode zip (historique, par défaut si `ModpackManifestUrl` est vide)** : décrit dans le reste de
-  cette section.
+- **Mode manifest (incrémental, recommandé, v1.9.0)** : voir la section dédiée ci-dessous. Activé
+  **par défaut** depuis le modpack 1.20.1 (`ModpackManifestUrl` pointe vers le
+  `manifest.json` publié sur le VPS, généré par `scripts/vps/generate-manifest.py`).
+- **Mode zip (historique)** : décrit dans le reste de cette section, utilisé uniquement si
+  `ModpackManifestUrl` est explicitement vidé dans `settings.json`.
 
 Le launcher pointe sur une archive `.zip` unique du pack complet, hébergée sur le VPS
 (`ModpackZipUrl`), qui doit

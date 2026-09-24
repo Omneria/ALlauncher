@@ -27,11 +27,16 @@ public sealed class LauncherSettings
     /// <summary>
     /// URL du manifest par fichier (JSON, voir ModpackManifest.cs), en alternative à
     /// <see cref="ModpackZipUrl"/> : permet des mises à jour incrémentales (ne retélécharger que
-    /// les fichiers qui ont changé) au lieu de tout le zip à chaque mise à jour du pack. Vide par
-    /// défaut = le launcher reste sur l'ancien flux zip unique, pour rester compatible avec un VPS
-    /// qui n'a pas encore ce manifest ; le configurer dans settings.json active le mode incrémental.
+    /// les fichiers qui ont changé) au lieu de tout le zip à chaque mise à jour du pack. Pointe par
+    /// défaut vers le manifest 1.20.1 réellement publié sur le VPS (voir scripts/vps/) — encodé en
+    /// base64 pour la même raison que <see cref="ModpackZipUrl"/> (éviter l'IP en clair dans le
+    /// dépôt public). Peut être vidée dans settings.json pour revenir au flux zip unique.
     /// </summary>
-    public string ModpackManifestUrl { get; set; } = "";
+    public string ModpackManifestUrl { get; set; } = DecodeDefaultModpackManifestUrl();
+
+    private static string DecodeDefaultModpackManifestUrl() =>
+        Encoding.UTF8.GetString(Convert.FromBase64String(
+            "aHR0cDovLzE4NS4xODUuODIuMTgwL21vZHBhY2svbWFuaWZlc3QuanNvbg=="));
 
     /// <summary>
     /// URL d'un fichier texte optionnel (maintenance.txt sur le VPS) : son contenu, s'il existe et

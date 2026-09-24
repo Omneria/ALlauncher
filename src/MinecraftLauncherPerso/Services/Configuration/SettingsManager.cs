@@ -54,6 +54,22 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// Activation du mode manifest (v1.9.0) : avant que le manifest 1.20.1 soit prêt côté VPS,
+    /// <see cref="LauncherSettings.ModpackManifestUrl"/> valait "" par défaut, valeur désormais
+    /// persistée dans le settings.json de tous les joueurs ayant déjà lancé le launcher. Le nouveau
+    /// défaut ("" -> URL du manifest) ne s'appliquerait donc jamais à eux sans cette migration. Ne
+    /// migre que si le champ est encore vide : avant ce changement, "" était la seule valeur
+    /// possible, donc aucun joueur n'a pu "choisir" ce vide délibérément.
+    /// </summary>
+    private static void MigrateModpackManifestUrl(LauncherSettings settings)
+    {
+        if (string.IsNullOrEmpty(settings.ModpackManifestUrl))
+        {
+            settings.ModpackManifestUrl = new LauncherSettings().ModpackManifestUrl;
+        }
+    }
+
     /// <summary>Vrai si settings.json existe déjà, càd si ce n'est pas le tout premier lancement du
     /// launcher sur cette machine — utilisé par MainWindow pour décider d'afficher WelcomeWindow.
     /// À appeler avant Load() (qui crée le fichier au premier appel via Save()).</summary>
@@ -91,6 +107,7 @@ public sealed class SettingsManager
         }
 
         MigrateMinecraftVersion(settings);
+        MigrateModpackManifestUrl(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);
