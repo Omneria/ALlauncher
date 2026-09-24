@@ -57,7 +57,7 @@ jobs:
       - name: Test
         run: dotnet test tests/MinecraftLauncherPerso.Tests/MinecraftLauncherPerso.Tests.csproj -c Release
 
-      - name: Publish (self-contained win-x64, exe unique, ~65 Mo)
+      - name: Publish (self-contained win-x64, exe unique compressé)
         run: >
           dotnet publish src/MinecraftLauncherPerso/MinecraftLauncherPerso.csproj
           -c Release
@@ -65,6 +65,7 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
           -o publish/win-x64-selfcontained
 
       - uses: actions/upload-artifact@v4
@@ -73,8 +74,9 @@ jobs:
           path: publish/win-x64-selfcontained/**
           if-no-files-found: error
 
-      # Build "framework-dependent" : quelques Mo au lieu de ~65 Mo, mais nécessite d'avoir
-      # le .NET 8 Desktop Runtime installé sur la machine (téléchargeable depuis
+      # Build "framework-dependent" : quelques Mo au lieu des ~100+ Mo du self-contained (runtime
+      # .NET 8 + WPF/WinForms non embarqué), mais nécessite d'avoir le .NET 8 Desktop Runtime
+      # installé sur la machine (téléchargeable depuis
       # https://dotnet.microsoft.com/download/dotnet/8.0 -> "Desktop Runtime" x64).
       - name: Publish (framework-dependent win-x64, léger)
         run: >
