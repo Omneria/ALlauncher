@@ -13,9 +13,9 @@ SHA-256 de chaque fichier et écrit le `manifest.json` attendu par
 
 ```bash
 python3 generate-manifest.py \
-    --root /var/www/modpack \
-    --base-url https://astralnexusmc.duckdns.org/modpack/files \
-    --output /var/www/modpack/manifest.json
+    --root /var/www/html/modpack \
+    --base-url https://astralnexusmc.duckdns.org/modpack \
+    --output /var/www/html/modpack/manifest.json
 ```
 
 > `--base-url` en `https://` une fois le VPS passé en HTTPS (section ci-dessous), en `http://`
@@ -87,14 +87,14 @@ autre port (ex. 8080) et remplacer `root`/`file_server` dans le Caddyfile par
 `reverse_proxy localhost:8080` — Caddy ne fait alors que terminer le TLS.
 
 Une fois en place, `--base-url` du générateur de manifest doit lui aussi être
-en `https://astralnexusmc.duckdns.org/modpack/files` : régénérer le manifest.
+en `https://astralnexusmc.duckdns.org/modpack` : régénérer le manifest.
 
 ## Bannière de maintenance
 
 `maintenance.txt.example` est un modèle prêt à copier :
 
 ```bash
-cp maintenance.txt.example /var/www/modpack/maintenance.txt
+cp maintenance.txt.example /var/www/html/modpack/maintenance.txt
 # éditer la première ligne (titre), la ligne FIN: (optionnelle) et le sous-titre
 ```
 

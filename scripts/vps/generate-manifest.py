@@ -7,9 +7,9 @@ ce dépôt. Ne dépend que de la bibliothèque standard Python 3.
 
 Usage :
     python3 generate-manifest.py \
-        --root /var/www/modpack \
-        --base-url https://astralnexusmc.duckdns.org/modpack/files \
-        --output /var/www/modpack/manifest.json
+        --root /var/www/html/modpack \
+        --base-url https://astralnexusmc.duckdns.org/modpack \
+        --output /var/www/html/modpack/manifest.json
 
 --root doit contenir les dossiers mods/ et config/ (les seuls synchronisés par le launcher).
 Chaque fichier trouvé est publié à <base-url>/<chemin relatif>, donc les fichiers doivent
