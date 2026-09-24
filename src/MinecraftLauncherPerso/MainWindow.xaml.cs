@@ -90,6 +90,10 @@ public partial class MainWindow : Window
     private const int CrashBufferMaxLines = 400;
     private readonly Queue<string> _gameOutputBuffer = new();
 
+    // La sortie du jeu arrive sur les threads de lecture du process (pas via le Dispatcher, voir
+    // PlayButton_Click) : le tampon est protégé par ce verrou.
+    private readonly object _gameOutputLock = new();
+
     // Préchargement du modpack en arrière-plan (v1.8.0) : lancé dès MainWindow_Loaded si une mise à
     // jour est détectée, annulé si le joueur clique sur JOUER avant la fin pour éviter que les deux
     // n'écrivent en même temps dans le même fichier .part (voir ModSyncService.PrefetchAsync).
@@ -519,8 +523,10 @@ public partial class MainWindow : Window
 
         PlayButton.IsEnabled = false;
         ViewLogsButton.Visibility = Visibility.Collapsed;
-        StatusLogTextBox.Clear();
-        _gameOutputBuffer.Clear();
+        lock (_gameOutputLock)
+        {
+            _gameOutputBuffer.Clear();
+        }
         ProgressBar.IsIndeterminate = false;
         ProgressBar.Value = 0;
         LoadingPanel.Visibility = Visibility.Visible;
@@ -552,8 +558,11 @@ public partial class MainWindow : Window
         CancelLaunchButton.IsEnabled = true;
         CancelLaunchButton.Visibility = Visibility.Visible;
 
+        // Progression "dernière valeur gagnante", appliquée 10 fois par seconde par un timer du
+        // Dispatcher au lieu d'un message par rapport : voir CoalescingProgress (gel du launcher
+        // pendant les téléchargements, v1.11.0).
         LaunchStep? lastStep = null;
-        var launchProgress = new Progress<LaunchProgress>(report =>
+        var launchProgress = new CoalescingProgress<LaunchProgress>(report =>
         {
             // Changement d'étape : la barre repart de zéro (Java, Forge et la synchro ont chacun
             // leur propre progression chiffrée ; auth et lancement n'en ont pas → indéterminée).
@@ -578,16 +587,31 @@ public partial class MainWindow : Window
 
             AppendLog(report.Message);
         });
-        var gameOutput = new Progress<string>(line =>
-        {
-            AppendLog(line);
-            BufferGameOutput(line);
-        });
+        var progressTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
+        progressTimer.Tick += (_, _) => launchProgress.Flush();
+        progressTimer.Start();
+
+        // Sortie console du jeu : uniquement mise en tampon pour CrashDiagnosisService, jamais
+        // affichée (le panneau de chargement est déjà masqué quand elle arrive). Rapport
+        // synchrone, depuis les threads de lecture du process : un Progress<T> posterait un
+        // message au thread UI pour chacune des milliers de lignes d'un démarrage moddé.
+        var gameOutput = new SynchronousProgress<string>(BufferGameOutput);
 
         try
         {
-            var result = await _launchPipeline.RunAsync(
-                _settings, launchProgress, ShowConnectedPlayer, gameOutput, launchCts.Token);
+            // Task.Run : le pipeline tourne entièrement hors du thread UI. Sans ça, chaque
+            // continuation des services (hash des fichiers, écriture, callbacks de CmlLib) revenait
+            // sur le thread UI, qui passait son temps à les exécuter au lieu de rafraîchir la
+            // fenêtre. Seul onSessionAcquired touche l'interface : repassé par le Dispatcher.
+            var settings = _settings;
+            var result = await Task.Run(() => _launchPipeline.RunAsync(
+                settings,
+                launchProgress,
+                session => Dispatcher.Invoke(() => ShowConnectedPlayer(session)),
+                gameOutput,
+                launchCts.Token));
+            progressTimer.Stop();
+            launchProgress.Flush();
             _activeGame = result.Game;
 
             ProgressBar.IsIndeterminate = false;
@@ -619,6 +643,9 @@ public partial class MainWindow : Window
         }
         finally
         {
+            // Arrêté ici aussi pour les chemins d'annulation/erreur ; le dernier rapport en attente
+            // n'est pas appliqué (il écraserait le message d'erreur ou d'annulation affiché).
+            progressTimer.Stop();
             CancelLaunchButton.Visibility = Visibility.Collapsed;
             _launchCts = null;
             launchCts.Dispose();
@@ -669,7 +696,13 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowCrashDiagnosisIfAny()
     {
-        var diagnosis = CrashDiagnosisService.Diagnose(_gameOutputBuffer);
+        List<string> lines;
+        lock (_gameOutputLock)
+        {
+            lines = [.. _gameOutputBuffer];
+        }
+
+        var diagnosis = CrashDiagnosisService.Diagnose(lines);
         if (diagnosis is null)
         {
             return;
@@ -702,11 +735,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        _gameOutputBuffer.Enqueue(line);
-        while (_gameOutputBuffer.Count > CrashBufferMaxLines)
+        lock (_gameOutputLock)
         {
-            _gameOutputBuffer.Dequeue();
+            _gameOutputBuffer.Enqueue(line);
+            while (_gameOutputBuffer.Count > CrashBufferMaxLines)
+            {
+                _gameOutputBuffer.Dequeue();
+            }
         }
+    }
+
+    /// <summary>IProgress qui appelle son callback immédiatement, sur le thread appelant (sans
+    /// passer par le Dispatcher, contrairement à Progress&lt;T&gt;). Le callback doit être
+    /// thread-safe.</summary>
+    private sealed class SynchronousProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     /// <summary>
@@ -1042,14 +1086,11 @@ public partial class MainWindow : Window
 
     private void AppendLog(string message)
     {
-        // Chaque Progress<T> ci-dessus a été construit sur le thread UI : IProgress<T>.Report
-        // marshale déjà son callback sur ce contexte, même quand Report() est appelé depuis un
-        // thread d'arrière-plan (ex. lecture de la sortie du jeu) — pas besoin de Dispatcher ici.
-        StatusLogTextBox.AppendText(message + Environment.NewLine);
-        StatusLogTextBox.ScrollToEnd();
-
-        // Le journal brut reste hors-écran (StatusLogTextBox) ; seul le dernier message est
-        // affiché, façon écran de chargement, dans le panneau visible (LoadingPanel).
+        // À appeler sur le thread UI. Seul le dernier message est affiché, façon écran de
+        // chargement. Il n'y a plus de journal texte caché derrière : un TextBox masqué recevait
+        // chaque ligne de progression et chaque ligne de sortie du jeu sans jamais être affiché,
+        // grossissait sans limite et coûtait de plus en plus cher à chaque ajout (une des causes
+        // du gel pendant les téléchargements). Les erreurs utiles vont dans launcher.log.
         LoadingSpinner.Visibility = Visibility.Visible;
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = message;

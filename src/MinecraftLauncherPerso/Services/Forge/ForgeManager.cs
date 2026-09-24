@@ -22,9 +22,9 @@ public sealed class ForgeManager : IForgeManager
     {
         var forgeInstaller = new ForgeInstaller(launcher);
 
-        var fileProgress = new Progress<InstallerProgressChangedEventArgs>(e =>
+        var fileProgress = new Relay<InstallerProgressChangedEventArgs>(e =>
             progress?.Report($"[{e.ProgressedTasks}/{e.TotalTasks}] {e.Name}"));
-        var byteProgress = new Progress<ByteProgress>(e =>
+        var byteProgress = new Relay<ByteProgress>(e =>
         {
             // ToRatio() vaut 0/0 = NaN tant que la taille totale est inconnue (TotalBytes = 0) :
             // ni "NaN %" dans le journal, ni NaN envoyé à la barre de progression (qui lève sur
@@ -56,5 +56,13 @@ public sealed class ForgeManager : IForgeManager
         await launcher.InstallAsync(versionId, fileProgress, byteProgress);
 
         return versionId;
+    }
+
+    /// <summary>Relaie chaque rapport de CmlLib immédiatement, sans Progress&lt;T&gt; (qui poste chaque
+    /// rapport au contexte de synchronisation : des milliers de messages par seconde pendant un
+    /// téléchargement). L'IProgress de l'appelant doit être thread-safe (voir CoalescingProgress).</summary>
+    private sealed class Relay<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 }
