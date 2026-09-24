@@ -144,6 +144,13 @@ jobs:
       # Si le tag a été créé via "Draft a new release" sur github.com, la release existe déjà
       # (créée en même temps que le tag, sans l'exe) : on y ajoute juste l'exe (--clobber écrase
       # un éventuel exe déjà attaché) au lieu d'essayer d'en créer une deuxième (qui échouerait).
+      #
+      # Bug corrigé (v1.10.0) : la branche "release déjà existante" ne touchait qu'à l'exe, jamais
+      # aux notes — une release créée avant que RELEASE_NOTES.md soit rempli (draft créé tôt sur
+      # github.com, ou tag repoussé après un premier essai) gardait pour toujours un corps vide
+      # ("Full Changelog" seul), même après ce job. `gh release edit --notes-file` est donc appelé
+      # dans les DEUX branches, pour que RELEASE_NOTES.md soit systématiquement la source de vérité
+      # du corps de la release, peu importe comment elle a été créée.
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -169,3 +176,5 @@ jobs:
             # "Vérifie que RELEASE_NOTES.md a été mis à jour" dans le job "build" ci-dessus.
             gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file RELEASE_NOTES.md
           }
+
+          gh release edit $tag --repo $repo --notes-file RELEASE_NOTES.md
