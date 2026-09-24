@@ -17,6 +17,10 @@ permissions:
 
 jobs:
   build:
+    # Identifiant de l'artifact self-contained, transmis au job "release" pour que SignPath
+    # puisse le récupérer directement depuis ce run (voir l'étape de signature plus bas).
+    outputs:
+      selfcontained-artifact-id: ${{ steps.upload-selfcontained.outputs.artifact-id }}
     # WPF (net8.0-windows) ne peut être compilé que sur un hôte Windows :
     # le SDK Microsoft.NET.Sdk.WindowsDesktop (compilateur XAML inclus) n'est distribué que là.
     runs-on: windows-latest
@@ -109,7 +113,8 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish/win-x64-selfcontained
 
-      - uses: actions/upload-artifact@v4
+      - id: upload-selfcontained
+        uses: actions/upload-artifact@v4
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained/**
@@ -144,6 +149,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      # SignPath télécharge lui-même l'artifact à signer depuis ce run, avec le jeton du workflow.
+      actions: read
 
     steps:
       # Nécessaire pour RELEASE_NOTES.md (--notes-file ci-dessous) : ce job ne fait sinon que
@@ -155,48 +162,42 @@ jobs:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained
 
-      # Signature Authenticode de l'exe (v1.11.0), AVANT le calcul du .sha256 ci-dessous (signer
-      # modifie le fichier). Activée dès que deux secrets du dépôt existent (Settings → Secrets and
-      # variables → Actions) :
-      #   CODE_SIGNING_PFX_BASE64   : le certificat de signature de code + sa clé privée (.pfx),
-      #                               encodé en base64 ([Convert]::ToBase64String((Get-Content cert.pfx -AsByteStream)))
-      #   CODE_SIGNING_PFX_PASSWORD : le mot de passe du .pfx
-      # Sans ces secrets : étape sautée, release non signée, exactement comme avant. Le certificat
-      # DOIT être émis par une autorité reconnue par Windows (Azure Trusted Signing, Certum,
-      # Sectigo...) — un certificat auto-signé n'apporte rien (SmartScreen le traite comme non
-      # signé) et GitHubUpdateService ne l'exige pas non plus (voir AuthenticodeVerifier).
-      # Horodatage (/tr) : la signature reste valide après l'expiration du certificat.
-      - name: Signe l'exe (Authenticode, si un certificat est configuré)
-        env:
-          CODE_SIGNING_PFX_BASE64: ${{ secrets.CODE_SIGNING_PFX_BASE64 }}
-          CODE_SIGNING_PFX_PASSWORD: ${{ secrets.CODE_SIGNING_PFX_PASSWORD }}
+      # Signature Authenticode via SignPath (programme gratuit SignPath Foundation pour l'open
+      # source), AVANT le calcul du .sha256 ci-dessous : signer modifie le fichier. Un fichier .pfx
+      # dans les secrets n'est plus possible depuis juin 2023 (la clé privée d'un certificat de
+      # signature de code doit rester sur un matériel dédié) : la signature se fait donc chez
+      # SignPath, qui récupère l'artifact de ce run, attend l'approbation manuelle de la release
+      # sur signpath.io, puis renvoie l'exe signé.
+      #
+      # Activée seulement quand le projet SignPath existe (voir .signpath/README.md) :
+      #   variable SIGNPATH_ORGANIZATION_ID (Settings → Secrets and variables → Actions → Variables)
+      #   secret   SIGNPATH_API_TOKEN      (même écran, onglet Secrets)
+      # Sans ces réglages : étape sautée, release non signée, exactement comme avant.
+      - name: Signe l'exe via SignPath (si configuré)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'ALlauncher' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'initial' }}
+          github-artifact-id: ${{ needs.build.outputs.selfcontained-artifact-id }}
+          wait-for-completion: true
+          # Laisse le temps d'approuver la demande sur signpath.io (approbation manuelle).
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: publish/win-x64-selfcontained
+
+      - name: Vérifie la signature de l'exe (si signé)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
         shell: pwsh
         run: |
-          $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
-          if (-not $env:CODE_SIGNING_PFX_BASE64) {
-            Write-Host "Aucun certificat de signature configuré (secret CODE_SIGNING_PFX_BASE64 absent) : exe publié non signé."
-            exit 0
-          }
-
-          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -like "*\x64\*" } | Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $signtool) {
-            Write-Error "signtool.exe introuvable dans le Windows SDK du runner."
+          $signature = Get-AuthenticodeSignature "publish/win-x64-selfcontained/AL Launcher.exe"
+          if ($signature.Status -ne 'Valid') {
+            Write-Error "Signature invalide après SignPath : $($signature.Status) $($signature.StatusMessage)"
             exit 1
           }
-
-          $pfxPath = Join-Path $env:RUNNER_TEMP "codesign.pfx"
-          try {
-            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:CODE_SIGNING_PFX_BASE64))
-            & $signtool.FullName sign /f $pfxPath /p $env:CODE_SIGNING_PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "AL Launcher" $exe
-            if ($LASTEXITCODE -ne 0) { exit 1 }
-          } finally {
-            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
-          }
-
-          & $signtool.FullName verify /pa /v $exe
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Write-Host "OK : exe signé."
+          Write-Host "OK : signé par $($signature.SignerCertificate.Subject)"
 
       # Si le tag a été créé via "Draft a new release" sur github.com, la release existe déjà
       # (créée en même temps que le tag, sans l'exe) : on y ajoute juste l'exe (--clobber écrase

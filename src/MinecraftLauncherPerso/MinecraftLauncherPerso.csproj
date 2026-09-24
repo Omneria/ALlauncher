@@ -15,6 +15,13 @@
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
     <Version>1.11.0</Version>
+    <!-- Métadonnées de l'exe (Propriétés → Détails dans l'explorateur) : vérifiées par la
+         configuration d'artifact SignPath (.signpath/artifact-configuration.xml), qui refuse de
+         signer un exe dont le produit ou l'éditeur ne correspond pas. -->
+    <Product>AL Launcher</Product>
+    <Company>Omneria</Company>
+    <Copyright>Copyright (c) 2026 Omneria — MIT</Copyright>
+    <Description>Launcher Minecraft du serveur Astral Nexus</Description>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->

@@ -31,22 +31,13 @@ dossier de jeu, mais ça ne couvre pas un jar malveillant à un chemin légitime
   et le base64 n'a jamais protégé quoi que ce soit (décodable en une ligne, l'IP est de toute
   façon visible dans `servers.dat` et dans n'importe quel outil réseau).
 
-### 1.2 Signature de l'exécutable (Authenticode) ▲▲ — impact moyen — **côté code : fait en v1.11.0, reste le certificat**
+### 1.2 Signature de l'exécutable (Authenticode) ▲▲ — **intégration SignPath prête, en attente d'acceptation**
 
-Fait : le job `release` signe l'exe (`signtool`, horodaté) dès que les secrets
-`CODE_SIGNING_PFX_BASE64`/`CODE_SIGNING_PFX_PASSWORD` existent, et `GitHubUpdateService` exige
-qu'une mise à jour soit signée par le même éditeur dès lors que le launcher installé l'est
-lui-même (`AuthenticodeVerifier`, WinVerifyTrust). Reste : obtenir un certificat de signature de
-code émis par une autorité reconnue (Azure Trusted Signing est le moins cher pour un particulier)
-et le déposer dans les secrets du dépôt. Un certificat auto-signé n'apporte rien.
-
-L'exe n'est pas signé : SmartScreen affiche "éditeur inconnu" à chaque nouvelle version, et
-l'auto-update remplace un exe par un autre que rien n'authentifie au-delà d'un `.sha256` servi par
-la même origine (si le compte GitHub est compromis, les deux le sont ensemble). Un certificat de
-signature de code (Azure Trusted Signing est le moins cher pour un particulier/petite structure)
-signé dans le job `release` règlerait les deux : SmartScreen se calme après quelques installations,
-et `GitHubUpdateService` peut vérifier la signature (`X509Certificate.CreateFromSignedFile` +
-comparaison de l'empreinte de l'éditeur) avant de remplacer l'exe.
+Choix : le programme gratuit SignPath Foundation (licence MIT ajoutée, politique de signature dans
+le README, configuration dans `.signpath/`). La CI signe dès que les réglages SignPath existent sur
+le dépôt, avec approbation manuelle de chaque release. Si SignPath refuse le projet : on ne signe
+pas (décision prise) et on retire l'étape de la CI. `AuthenticodeVerifier` côté launcher reste
+utile dans les deux cas (inactif tant que le launcher installé n'est pas signé).
 
 ### 1.3 Analyseurs .NET et avertissements bloquants en CI ▲
 
