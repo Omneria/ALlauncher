@@ -118,7 +118,13 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │               ├── CrashDiagnosisService.cs # diagnostic best-effort d'un crash du jeu (v1.8.0)
 │               └── DiskSpaceChecker.cs     # vérification d'espace disque avant un téléchargement
 ├── tests/
-│   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager
+│   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager, ModSync (manifest)
+├── scripts/vps/                            # outils côté VPS : generate-manifest.py, modèle de maintenance.txt
+├── docs/
+│   └── ROADMAP.md                          # pistes d'amélioration priorisées (audit v1.11.0)
+├── .github/
+│   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release sur tag v*
+│   └── dependabot.yml                      # PR hebdomadaires de mise à jour NuGet / actions, vers dev
 ├── RELEASE_NOTES.md                        # notes de la prochaine release, en langage clair pour les joueurs
 ├── README.md
 └── .gitignore
@@ -283,9 +289,26 @@ supprimé par erreur est détecté et retéléchargé à la prochaine synchro, s
 ni notion de cache "à jour" à invalider (contrairement au mode zip, où le cache ETag doit être
 explicitement supprimé par `RepairAsync` pour forcer une revérification).
 
-**Générer ce manifest côté VPS** est hors du périmètre de ce dépôt (script à écrire côté serveur :
-parcourir `mods/`/`config/`, calculer un SHA-256 par fichier, publier le JSON à une URL stable) —
-ce launcher se contente de le consommer.
+**Générer ce manifest côté VPS :** `scripts/vps/generate-manifest.py` (voir `scripts/vps/README.md`)
+parcourt `mods/`/`config/`, calcule un SHA-256 par fichier et écrit le JSON — à relancer à chaque
+modification du pack.
+
+**Trois garde-fous (v1.11.0)** dans `SyncFromManifestAsync`, parce que ce mode écrit directement
+dans le dossier de jeu de chaque joueur à partir d'un fichier reçu en HTTP simple :
+
+- **Chemins confinés au dossier de jeu** (`ResolveSafeLocalPath`) : une clé `../../x` (manifest
+  altéré en transit, ou simplement mal généré) écrirait n'importe où sur le disque avec les droits
+  du joueur. Le manifest entier est refusé (erreur explicite) plutôt que l'entrée ignorée en silence.
+- **Empreinte vérifiée avant d'écrire** : le SHA-256 des octets téléchargés est comparé à celui du
+  manifest *avant* que le fichier ne soit écrit (puis écrit via un `.part` renommé d'un coup) — un
+  téléchargement tronqué/corrompu était jusqu'ici installé tel quel et ne se révélait qu'au crash du
+  jeu. Un désaccord persistant signifie en pratique un manifest périmé côté VPS (à régénérer).
+- **Mods retirés du pack supprimés localement** : tout fichier sous `mods/` absent du manifest est
+  effacé à la synchro (jamais `config/`, où un joueur peut avoir des fichiers à lui). Sans ça, un mod
+  retiré côté serveur restait chez chaque joueur pour toujours (refus de connexion pour "mods
+  manquants côté serveur", ou crash au chargement). Sécurité : aucun élagage si le manifest ne
+  contient *aucune* entrée `mods/` (manifest vide ou partiel par erreur de génération). La
+  sauvegarde de rollback (ci-dessous) est prise avant, comme pour un téléchargement.
 
 ### Retour en arrière d'un cran (v1.9.0, Paramètres → Maintenance)
 
@@ -351,13 +374,18 @@ sans rapport avec celui-ci qui concerne le launcher lui-même).
 **Notes nettoyées à partir du corps de la release** (texte généré par `gh release create
 --generate-notes`) : seules les lignes `- ...`/`* ...` sont gardées, liens Markdown/gras/backticks
 retirés, mentions `by @user in <url>` et URLs brutes supprimées, 4 notes max par release — un
-message par défaut ("Voir les notes de version sur GitHub.") si le nettoyage ne laisse rien. Les
-deux implémentations (launcher en C#, landing page en JS) doivent rester alignées si l'une des deux
-règles de nettoyage change.
+message par défaut ("Notes non renseignées pour cette version...") si le nettoyage ne laisse rien
+(release publiée avant `RELEASE_NOTES.md`, ou corps jamais rempli — voir "Mise à jour automatique du
+launcher" plus bas). Les deux implémentations (launcher en C#, landing page en JS) doivent rester
+alignées si l'une des deux règles de nettoyage change. Le numéro de version de chaque entrée est
+cliquable et ouvre la release GitHub correspondante (notes complètes, exe joint).
 
 Best-effort comme les actus : une requête échouée (GitHub indisponible, rate-limit non authentifié)
 laisse la carte sur son dernier contenu affiché plutôt que de la vider, avec un texte par défaut
-uniquement au tout premier chargement.
+uniquement au tout premier chargement. **Requête conditionnelle** (`If-None-Match` sur l'ETag de la
+dernière réponse, voir "Cadence de rafraîchissement" ci-dessous) : une réponse `304 Not Modified`
+— le cas normal, les releases ne bougent que quelques fois par mois — ne consomme pas le quota
+GitHub et renvoie le dernier résultat déjà calculé.
 
 ## Cadence de rafraîchissement
 
@@ -380,6 +408,27 @@ Chacun démarre après un premier chargement explicite au démarrage (`MainWindo
 pas attendre une minute avant d'afficher quoi que ce soit à l'ouverture. Seul le watchdog du bouton
 JOUER (6h, voir "Lancement du jeu") n'est pas concerné : ce n'est pas un rafraîchissement de
 contenu mais un filet de sécurité contre un bouton resté bloqué.
+
+**Chargements initiaux en parallèle (v1.11.0) :** au démarrage, ces premiers chargements tournent
+tous en même temps (`Task.WhenAll`) et non plus l'un après l'autre — un VPS lent ou GitHub
+injoignable retardait sinon l'affichage de *tout* le tableau de bord du temps de chaque timeout
+cumulé. Sûr côté UI : chaque tâche ne touche aux contrôles qu'après ses propres `await`, toujours
+sur le thread du Dispatcher.
+
+**Toujours best-effort, jamais bloquant :** chaque tick de timer et chaque chargement initial passe
+par `RunSafeAsync`, qui journalise un échec inattendu (`launcher.log`) au lieu de le laisser
+remonter au filet global de `App.xaml.cs` — un rafraîchissement d'actus raté ne doit jamais
+produire une boîte de dialogue d'erreur. Les services réseau concernés sont eux-mêmes bornés à
+15 s (`news.txt`, `maintenance.txt`) ou 8 s (ping serveur) : un VPS qui ne répond pas rend la main
+bien avant le prochain tick, sans empiler les requêtes.
+
+**Quota API GitHub :** deux de ces timers (mise à jour, changelog) interrogent l'API GitHub, limitée
+à **60 requêtes par heure et par IP** sans authentification — à raison d'une par minute chacun,
+tout tombait en `403` au bout de 30 minutes (mise à jour indétectable pour le reste de l'heure,
+pour tous les joueurs derrière la même IP). Les deux services envoient donc des requêtes
+conditionnelles (`If-None-Match` avec l'ETag de la dernière réponse) : GitHub répond `304 Not
+Modified` sans corps tant que rien n'a changé, réponse **non comptabilisée** dans le quota — la
+cadence d'une minute ne coûte plus rien en pratique.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -494,10 +543,16 @@ dans le fichier, `<valeur>` libre — heure, date, "indéterminée"...) s'affich
 "FIN ESTIMÉE" à droite de la carte, et n'apparaît pas dans le sous-titre ; le reste (s'il y en a)
 forme le sous-titre atténué — un message court tient sur une ligne, un message détaillé peut
 s'étaler sur plusieurs, sans format imposé côté VPS au-delà de cette ligne `FIN:` optionnelle.
-Absence de fichier (404), fichier vide, ou VPS injoignable = pas de carte, même logique que le
-changelog optionnel du modpack — **publier ou supprimer `maintenance.txt` sur le VPS suffit donc à
-afficher/masquer la bannière chez tous les joueurs**, sans jamais toucher au launcher. Revérifiée
-toutes les minutes (voir "Cadence de rafraîchissement" plus haut), pas seulement au démarrage.
+Absence de fichier (404) ou fichier vide = pas de carte, même logique que le changelog optionnel du
+modpack — **publier ou supprimer `maintenance.txt` sur le VPS suffit donc à afficher/masquer la
+bannière chez tous les joueurs**, sans jamais toucher au launcher. Revérifiée toutes les minutes
+(voir "Cadence de rafraîchissement" plus haut), pas seulement au démarrage.
+
+**VPS injoignable ≠ pas de maintenance (v1.11.0) :** `IMaintenanceService` distingue trois états
+(`MaintenanceStatus` : message, aucun, *inconnu*). Réseau/timeout = inconnu, et dans ce cas la
+bannière est laissée exactement dans l'état où elle était (affichée ou non) — auparavant elle
+disparaissait dès que le VPS ne répondait plus, c'est-à-dire précisément pendant la coupure
+qu'elle annonçait. Elle est masquée dès que le VPS répond à nouveau sans `maintenance.txt`.
 
 ## Statut du serveur
 
@@ -545,9 +600,11 @@ le ping du statut serveur), le launcher interroge `GET /repos/Omneria/ALlauncher
 (`vX.Y.Z`) à `MinecraftLauncherPerso.csproj` → `<Version>` — inutile de fermer/rouvrir le launcher
 pour savoir si une mise à jour est sortie entre-temps. Dès qu'une mise à jour est détectée, les
 vérifications suivantes ne font plus rien (pas de nouvel appel GitHub, pas de son/notification
-répétés) tant qu'elle n'a pas été appliquée. Si une version plus récente existe, un bouton
-"MISE À JOUR X.Y.Z DISPONIBLE" apparaît à côté du statut serveur ; un clic télécharge l'exe joint à
-la release, puis :
+répétés) tant qu'elle n'a pas été appliquée. Chaque vérification est une requête conditionnelle
+(`If-None-Match`, réponse `304` non comptée dans le quota GitHub — voir "Cadence de
+rafraîchissement"). Si une version plus récente existe, un bouton "MISE À JOUR X.Y.Z DISPONIBLE"
+apparaît en haut du tableau de bord ; un clic télécharge l'exe joint à la release (progression en
+pourcentage dans le panneau de chargement, espace disque vérifié avant), puis :
 
 1. Écrit un script `.cmd` temporaire qui attend (boucle sur `tasklist`/PID) que le process courant
    se termine — impossible de remplacer son propre `.exe` pendant qu'il tourne (verrou Windows) —,
@@ -634,14 +691,31 @@ maintenant tracés dans `%AppData%/MinecraftLauncherPerso/launcher.log` (rotatio
 5 Mo) via `Services/Diagnostics/Logger.cs` — best-effort : une erreur d'écriture du journal
 lui-même est ignorée, pour ne jamais devenir une nouvelle source de plantage.
 
-**Tests unitaires :** `tests/MinecraftLauncherPerso.Tests` (xUnit) couvre la logique la plus
-risquée à la main : encodage/décodage VarInt du ping serveur, écriture NBT de `servers.dat`,
-parsing des tags `vX.Y.Z` et de la sortie `java -version`, la récupération de `SettingsManager`
-face à un fichier corrompu ou des valeurs invalides, et la reconnaissance de motifs de
-`CrashDiagnosisService`. Quelques membres
-normalement `private` sont exposés en `internal` (voir `[InternalsVisibleTo]` dans
-`AssemblyInfo.cs`) uniquement pour rester testables sans passer par le réseau ou le disque. Lancé
-en CI (`dotnet test`) avant la publication des artefacts.
+**Filet global contre les exceptions non gérées (`App.xaml.cs`) :** `DispatcherUnhandledException`
+journalise toute exception qui remonte jusqu'au thread UI. Tant que le tableau de bord n'est pas
+affiché, c'est forcément fatal : message clair puis fermeture (auparavant, fermeture *muette*, vécue
+en v1.9.2). Une fois le tableau de bord en place, le launcher **continue** (tout ce qui tourne sur
+le thread UI est best-effort) et prévient une seule fois par session — fermer d'autorité pour un
+rafraîchissement raté serait pire que le bug lui-même. `AppDomain.UnhandledException` (autres
+threads, fatal par construction) et `TaskScheduler.UnobservedTaskException` (tâches lancées sans
+`await`) sont journalisés de la même façon.
+
+**Thread UI jamais bloqué par du travail long :** la détection de Java (`java -version` sur chaque
+candidat, jusqu'à 5 s chacun), l'extraction du JRE et celle du zip du modpack sont synchrones par
+nature et s'exécutaient sur le thread UI (spinner figé, fenêtre "ne répond pas" pendant plusieurs
+secondes après un clic sur JOUER) — déplacées sur le pool de threads (`Task.Run`) en v1.11.0.
+
+**Tests unitaires :** `tests/MinecraftLauncherPerso.Tests` (xUnit, inclus dans le `.sln`, donc
+`dotnet test` à la racine suffit) couvre la logique la plus risquée à la main : encodage/décodage
+VarInt du ping serveur, écriture NBT de `servers.dat`, parsing des tags `vX.Y.Z` et de la sortie
+`java -version`, la récupération de `SettingsManager` face à un fichier corrompu ou des valeurs
+invalides, la reconnaissance de motifs de `CrashDiagnosisService`, le nettoyage des notes de
+release, et la synchro par manifest (chemins confinés, empreinte vérifiée, élagage des mods
+retirés — via un `HttpMessageHandler` factice, sans réseau). Quelques membres normalement `private`
+sont exposés en `internal` (voir `[InternalsVisibleTo]` dans `AssemblyInfo.cs`) uniquement pour
+rester testables sans passer par le réseau ou le disque. Lancé en CI (`dotnet test`) avant la
+publication des artefacts. `.github/dependabot.yml` propose chaque semaine (PR vers `dev`) les mises
+à jour des paquets NuGet et des actions du workflow.
 
 ## Paramètres
 
@@ -761,6 +835,7 @@ Le projet cible `net8.0-windows` (WPF) : à builder/exécuter sous Windows avec 
 ```powershell
 dotnet restore
 dotnet build
+dotnet test
 dotnet run --project src/MinecraftLauncherPerso
 ```
 

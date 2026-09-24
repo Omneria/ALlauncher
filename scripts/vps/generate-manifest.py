@@ -8,7 +8,7 @@ ce dépôt. Ne dépend que de la bibliothèque standard Python 3.
 Usage :
     python3 generate-manifest.py \
         --root /var/www/modpack \
-        --base-url http://185.185.82.180/modpack/files \
+        --base-url http://<adresse-du-vps>/modpack/files \
         --output /var/www/modpack/manifest.json
 
 --root doit contenir les dossiers mods/ et config/ (les seuls synchronisés par le launcher).

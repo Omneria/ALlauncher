@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -17,7 +18,17 @@ public sealed partial class ReleaseChangelogService : IReleaseChangelogService
 {
     private const string ReleasesApiUrlTemplate = "https://api.github.com/repos/Omneria/ALlauncher/releases?per_page={0}";
 
+    /// <summary>Affiché à la place des notes quand le corps de la release ne contient aucune ligne
+    /// "- ..." exploitable (release publiée avant RELEASE_NOTES.md, ou corps jamais rempli).</summary>
+    public const string MissingNotesPlaceholder = "Notes non renseignées pour cette version (voir la release sur GitHub).";
+
     private readonly HttpClient _httpClient;
+
+    // Requête conditionnelle (If-None-Match / 304), même raison que GitHubUpdateService : 60
+    // requêtes/heure/IP sans authentification, interrogé toutes les minutes. Un 304 (le cas
+    // normal, les releases ne bougent que quelques fois par mois) ne consomme pas le quota.
+    private string? _cachedETag;
+    private IReadOnlyList<ReleaseChangelogEntry> _cachedEntries = [];
 
     public ReleaseChangelogService(HttpClient? httpClient = null)
     {
@@ -35,50 +46,35 @@ public sealed partial class ReleaseChangelogService : IReleaseChangelogService
         try
         {
             var url = string.Format(ReleasesApiUrlTemplate, Math.Max(1, count));
-            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.ParseAdd("application/vnd.github+json");
+            if (_cachedETag is not null)
+            {
+                request.Headers.IfNoneMatch.ParseAdd(_cachedETag);
+            }
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotModified)
+            {
+                return _cachedEntries;
+            }
+
             if (!response.IsSuccessStatusCode)
             {
+                Logger.Warn("ReleaseChangelogService", $"Récupération du changelog refusée : HTTP {(int)response.StatusCode} {response.StatusCode}.");
                 return [];
             }
 
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-            var entries = new List<ReleaseChangelogEntry>();
-            var isFirst = true;
+            var entries = ParseReleases(doc.RootElement, count);
 
-            foreach (var release in doc.RootElement.EnumerateArray())
-            {
-                if (release.GetBoolOrDefault("draft") || release.GetBoolOrDefault("prerelease"))
-                {
-                    continue;
-                }
-
-                var tag = release.GetStringOrNull("tag_name");
-                var htmlUrl = release.GetStringOrNull("html_url");
-                var publishedAtRaw = release.GetStringOrNull("published_at");
-                if (tag is null || htmlUrl is null || publishedAtRaw is null
-                    || !DateTimeOffset.TryParse(publishedAtRaw, out var publishedAt))
-                {
-                    continue;
-                }
-
-                var body = release.GetStringOrNull("body");
-                var notes = CleanNotes(body);
-
-                entries.Add(new ReleaseChangelogEntry(
-                    tag,
-                    htmlUrl,
-                    publishedAt,
-                    IsLatest: isFirst,
-                    Notes: notes.Count > 0 ? notes : ["Voir les notes de version sur GitHub."]));
-                isFirst = false;
-
-                if (entries.Count >= count)
-                {
-                    break;
-                }
-            }
-
+            _cachedETag = response.Headers.ETag?.ToString();
+            _cachedEntries = entries;
             return entries;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -87,6 +83,47 @@ public sealed partial class ReleaseChangelogService : IReleaseChangelogService
             Logger.Warn("ReleaseChangelogService", $"Récupération du changelog échouée : {ex.Message}");
             return [];
         }
+    }
+
+    private static List<ReleaseChangelogEntry> ParseReleases(JsonElement root, int count)
+    {
+        var entries = new List<ReleaseChangelogEntry>();
+        var isFirst = true;
+
+        foreach (var release in root.EnumerateArray())
+        {
+            if (release.GetBoolOrDefault("draft") || release.GetBoolOrDefault("prerelease"))
+            {
+                continue;
+            }
+
+            var tag = release.GetStringOrNull("tag_name");
+            var htmlUrl = release.GetStringOrNull("html_url");
+            var publishedAtRaw = release.GetStringOrNull("published_at");
+            if (tag is null || htmlUrl is null || publishedAtRaw is null
+                || !DateTimeOffset.TryParse(publishedAtRaw, out var publishedAt))
+            {
+                continue;
+            }
+
+            var body = release.GetStringOrNull("body");
+            var notes = CleanNotes(body);
+
+            entries.Add(new ReleaseChangelogEntry(
+                tag,
+                htmlUrl,
+                publishedAt,
+                IsLatest: isFirst,
+                Notes: notes.Count > 0 ? notes : [MissingNotesPlaceholder]));
+            isFirst = false;
+
+            if (entries.Count >= count)
+            {
+                break;
+            }
+        }
+
+        return entries;
     }
 
     // internal (voir InternalsVisibleTo dans AssemblyInfo.cs) : testé directement par

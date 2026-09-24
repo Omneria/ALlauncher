@@ -13,6 +13,11 @@ public partial class App : Application
 
     private Mutex? _singleInstanceMutex;
 
+    // Une seule boîte de dialogue d'erreur par session : une exception qui se reproduirait à
+    // chaque tick de timer ou à chaque passe de layout ne doit pas noyer le joueur sous des
+    // MessageBox en boucle — les suivantes ne sont que journalisées.
+    private static int _errorDialogShown;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -24,6 +29,7 @@ public partial class App : Application
         // InvariantGlobalization). Log + message clair au lieu d'une fermeture muette.
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
         if (!createdNew)
@@ -42,14 +48,36 @@ public partial class App : Application
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        Logger.Error("App", "Exception non gérée sur le thread UI, le launcher va se fermer.", e.Exception);
-        MessageBox.Show(
-            $"AL Launcher a rencontré une erreur inattendue et doit se fermer :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (Paramètres → VOIR LES LOGS).",
-            "AL Launcher — Erreur",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        // Tant que le tableau de bord n'est pas affiché, une exception est forcément fatale (rien
+        // d'autre ne peut se passer) : on ferme proprement avec un message. Une fois le dashboard
+        // en place, tout ce qui tourne sur le thread UI est best-effort (rafraîchissements, clics) :
+        // on journalise, on prévient une fois, et le launcher continue — fermer d'autorité le
+        // launcher pour un rafraîchissement d'actus raté serait pire que le bug lui-même.
+        var dashboardIsUp = Current?.MainWindow is MainWindow { IsLoaded: true };
+        Logger.Error("App", dashboardIsUp
+            ? "Exception non gérée sur le thread UI, le launcher continue."
+            : "Exception non gérée sur le thread UI avant l'affichage du tableau de bord, le launcher va se fermer.", e.Exception);
         e.Handled = true;
-        Current.Shutdown();
+
+        if (!dashboardIsUp)
+        {
+            MessageBox.Show(
+                $"AL Launcher a rencontré une erreur inattendue et doit se fermer :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (%AppData%\\MinecraftLauncherPerso).",
+                "AL Launcher — Erreur",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Current?.Shutdown();
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _errorDialogShown, 1) == 0)
+        {
+            MessageBox.Show(
+                $"AL Launcher a rencontré une erreur inattendue mais continue de fonctionner :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (Paramètres → VOIR LES LOGS). Si quelque chose ne répond plus, redémarre le launcher.",
+                "AL Launcher — Erreur",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -62,6 +90,15 @@ public partial class App : Application
         {
             Logger.Error("App", "Exception non gérée hors du thread UI, le launcher va se fermer.", exception);
         }
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        // Tâche "fire-and-forget" (ex. LoadPlayerAvatarAsync lancée sans await) qui a échoué sans
+        // que personne n'observe son exception : ne ferme pas le process depuis .NET 4.5, mais
+        // restait totalement invisible. Tracée, et marquée observée pour être explicite.
+        Logger.Error("App", "Exception non observée dans une tâche d'arrière-plan.", e.Exception);
+        e.SetObserved();
     }
 
     protected override void OnExit(ExitEventArgs e)

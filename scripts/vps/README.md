@@ -14,9 +14,18 @@ SHA-256 de chaque fichier et écrit le `manifest.json` attendu par
 ```bash
 python3 generate-manifest.py \
     --root /var/www/modpack \
-    --base-url http://185.185.82.180/modpack/files \
+    --base-url http://<adresse-du-vps>/modpack/files \
     --output /var/www/modpack/manifest.json
 ```
+
+> L'adresse réelle du VPS n'est volontairement écrite nulle part en clair dans ce dépôt public
+> (voir `LauncherSettings.cs`, URL encodée en base64) : remplacer `<adresse-du-vps>` par la vôtre.
+
+**À chaque régénération, les fichiers de `mods/` absents du nouveau manifest sont supprimés chez
+chaque joueur à la synchro suivante** (mode manifest, depuis v1.11.0) : c'est ce qui permet de
+retirer un mod du pack. En contrepartie, ne jamais publier un manifest généré sur un dossier
+`mods/` incomplet — le launcher refuse d'élaguer si le manifest ne contient aucune entrée `mods/`,
+mais pas s'il en contient une partie seulement.
 
 - `--root` : dossier contenant `mods/` et `config/` (les seuls sous-dossiers
   pris en compte — le launcher ne synchronise que ceux-là).
@@ -53,6 +62,8 @@ Format lu par le launcher (`RefreshMaintenanceBannerAsync`) :
 
 Publier ce fichier à l'URL configurée dans `MaintenanceMessageUrl`
 (settings.json) fait apparaître la bannière sur le dashboard au prochain
-rafraîchissement (démarrage du launcher, ou dans les 5 minutes qui suivent).
+rafraîchissement (démarrage du launcher, ou dans la minute qui suit).
 **Supprimer ou vider le fichier** fait disparaître la bannière (absence =
-ignorée silencieusement, comme le changelog).
+ignorée silencieusement, comme le changelog). Si le VPS ne répond plus du tout,
+la bannière reste dans l'état où elle était (affichée ou non) : elle ne
+disparaît pas pendant la coupure qu'elle annonce.
