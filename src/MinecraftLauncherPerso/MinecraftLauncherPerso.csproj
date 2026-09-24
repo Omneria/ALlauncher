@@ -43,7 +43,7 @@
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="1.1.1" />
     <!-- Authentification Microsoft (navigateur système, flux OAuth interactif) pour obtenir la session Minecraft. -->
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.90.0" />
     <!-- Persistance officielle du cache de token MSAL (chiffré via DPAPI sur Windows) : plus
          robuste que la sérialisation manuelle pour garantir une reconnexion silencieuse fiable
          d'un lancement à l'autre. -->
