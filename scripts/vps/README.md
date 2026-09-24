@@ -41,12 +41,15 @@ Aucune dépendance externe, Python 3 standard suffit.
 
 ```bash
 cp maintenance.txt.example /var/www/modpack/maintenance.txt
-# éditer la première ligne (titre) et les suivantes (sous-titre, optionnel)
+# éditer la première ligne (titre), la ligne FIN: (optionnelle) et le sous-titre
 ```
 
 Format lu par le launcher (`RefreshMaintenanceBannerAsync`) :
 - **1ère ligne** → titre en gras dans la bannière.
-- **lignes suivantes** (optionnelles) → sous-titre, affiché en dessous.
+- **une ligne `FIN: <valeur>`** (n'importe où, optionnelle) → affichée dans le bloc "FIN ESTIMÉE"
+  à droite de la carte (`<valeur>` est un texte libre : une heure `23:00`, une date, "indéterminée"...).
+  Absente = ce bloc ne s'affiche pas.
+- **les autres lignes** (optionnelles) → sous-titre, affiché en dessous du titre.
 
 Publier ce fichier à l'URL configurée dans `MaintenanceMessageUrl`
 (settings.json) fait apparaître la bannière sur le dashboard au prochain
