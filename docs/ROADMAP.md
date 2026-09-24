@@ -1,163 +1,130 @@
-# Pistes d'amélioration (audit complet, v1.11.0)
+# Roadmap
 
-Issu d'une relecture intégrale du dépôt (code C#, XAML, workflow CI, scripts VPS, README). Les
-problèmes trouvés ont été corrigés dans la v1.11.0 (voir `RELEASE_NOTES.md` et l'historique git) ;
-ce document liste ce qui **reste à faire**, classé par rapport valeur/effort, avec le raisonnement
-derrière chaque piste pour pouvoir trancher sans relire tout le code.
+État au 24 septembre 2026, après la publication de la **v1.11.0**. Chaque piste donne le
+raisonnement qui la justifie, pour pouvoir trancher sans relire le code.
 
 Légende effort : ▲ petit (une soirée), ▲▲ moyen (quelques jours), ▲▲▲ gros chantier.
 
-## 1. Sécurité et confiance (à faire en premier)
+## Livré en v1.11.0
 
-### 1.1 HTTPS sur le VPS ▲ — impact fort — **fait en v1.11.0**
+Détail joueur dans `RELEASE_NOTES.md` (et la release GitHub), détail technique dans le README.
 
-URL par défaut en `https://astralnexusmc.duckdns.org/modpack/...` (plus de base64), migration
-des `settings.json` existants, Caddy + Let's Encrypt en place sur le VPS, manifest régénéré en
-HTTPS, aucun repli HTTP côté launcher, plus rien servi en clair côté VPS.
+- **Robustesse** : filet global qui ne ferme plus le launcher une fois le tableau de bord affiché,
+  rafraîchissements best-effort (`RunSafeAsync`), timeouts courts sur `news.txt`/`maintenance.txt`,
+  chargements initiaux en parallèle, plus aucun travail long sur le thread UI (détection Java,
+  extractions), barre de progression protégée contre NaN.
+- **Synchro du modpack** : chemins du manifest confinés au dossier de jeu, empreinte vérifiée avant
+  écriture, mods retirés du pack supprimés chez les joueurs.
+- **HTTPS de bout en bout** : Caddy + Let's Encrypt sur le VPS, URL par défaut en `https://` sur le
+  domaine, plus aucun repli ni service en clair.
+- **Lancement** : orchestration sortie dans `LaunchPipeline` (testable), bouton ANNULER.
+- **Serveur** : port 25566, migré automatiquement, écrit dans `servers.dat`.
+- **GitHub** : requêtes conditionnelles (ETag) pour ne plus épuiser le quota de 60 requêtes/heure.
+- **CI** : notes de release publiées depuis `RELEASE_NOTES.md` et contrôlées, Dependabot vers `dev`.
 
-Tout ce qui vient du VPS (`manifest.json`, chaque `.jar`, `news.txt`, `maintenance.txt`, le zip)
-transite en **HTTP simple**. Le SHA-256 du manifest ne protège que contre la corruption, pas contre
-une altération volontaire : le manifest lui-même arrive par le même canal non chiffré, un
-intermédiaire (Wi-Fi public, FAI, proxy) peut remplacer un mod *et* son empreinte. Un `.jar`
-s'exécute avec les droits du joueur. Depuis v1.11.0 le launcher refuse au moins les chemins hors
-dossier de jeu, mais ça ne couvre pas un jar malveillant à un chemin légitime.
+## Prochaine version : v1.12.0
 
-- Un nom de domaine existe déjà (`astralnexusmc.duckdns.org`) : un reverse proxy Caddy sur le VPS
-  obtient et renouvelle un certificat Let's Encrypt tout seul (2 lignes de Caddyfile).
-- Le launcher n'a **rien** à changer côté code : seules les URL par défaut dans
-  `LauncherSettings.cs` passent en `https://`, et une migration `SettingsManager` (même schéma que
-  `MigrateModpackManifestUrl`) bascule les `settings.json` existants.
-- Ça permet aussi de **retirer l'encodage base64 de l'IP** : avec un domaine, plus rien à cacher,
-  et le base64 n'a jamais protégé quoi que ce soit (décodable en une ligne, l'IP est de toute
-  façon visible dans `servers.dat` et dans n'importe quel outil réseau).
+Classées par priorité. Les deux premières ne sont pas des fonctionnalités mais évitent des
+problèmes à court terme.
 
-### 1.2 Signature de l'exécutable (Authenticode) — **écartée (v1.11.0)**
+### 1. Passer à .NET 10 ▲▲ — urgent
 
-Étudiée puis abandonnée : pas de fichier .pfx possible depuis 2023, services de signature payants
-ou contraignants (SignPath Foundation : licence open source, politique publiée, approbation
-manuelle de chaque release), et SmartScreen avertit de toute façon tant que l'exe n'a pas de
-réputation. Trop coûteux pour un launcher privé ; le `.sha256` des releases reste le contrôle
-d'intégrité des mises à jour.
+**.NET 8 n'est plus maintenu après le 10 novembre 2026** : plus de correctifs de sécurité pour le
+runtime embarqué dans l'exe autonome. .NET 10 est la version LTS suivante (supportée jusqu'en
+novembre 2028). Changer `net8.0-windows` en `net10.0-windows` dans les deux csproj et
+`dotnet-version` dans la CI, vérifier la compatibilité de CmlLib, MSAL et CmlLib.Core.Installer.Forge,
+puis tester un lancement complet. Ne pas en profiter pour réactiver `InvariantGlobalization`
+(crash silencieux de WPF, voir le csproj).
 
-### 1.3 Analyseurs .NET et avertissements bloquants en CI ▲
+### 2. Analyseurs .NET et avertissements bloquants en CI ▲
 
-`<EnableNETAnalyzers>true</EnableNETAnalyzers>`, `<AnalysisLevel>latest-recommended</AnalysisLevel>`
-et `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` dans le csproj, plus
-`dotnet format --verify-no-changes` en CI. À activer sur `dev` d'abord : il y aura une première
-salve d'avertissements à corriger (CA2007 ConfigureAwait est à désactiver pour du WPF, CA1848
-logging aussi). Ça empêche durablement les `catch (Exception)` vides et les `async void` oubliés
-qui sont à l'origine des trois régressions de v1.9.x.
+`<EnableNETAnalyzers>`, `<AnalysisLevel>latest-recommended</AnalysisLevel>` et
+`<TreatWarningsAsErrors>` dans le csproj, plus `dotnet format --verify-no-changes` en CI. Une
+première salve d'avertissements sera à corriger (désactiver CA2007 ConfigureAwait, inadapté à WPF).
+Empêche durablement les `catch` vides et les `async void` oubliés, à l'origine des régressions de
+v1.9.x. À faire juste après la migration .NET 10, sur le même élan.
 
-## 2. Fiabilité du lancement
+### 3. Builds de test identifiables ▲
 
-### 2.1 Bouton ANNULER pendant le pipeline de lancement ▲▲ — **fait en v1.11.0**
+Un exe de test de `dev` porte déjà le numéro de la version à venir : une fois la release publiée,
+son auto-update ne voit rien de plus récent et le joueur reste sur un build intermédiaire (vécu en
+v1.11.0). La CI pourrait marquer les builds hors tag (`-p:InformationalVersion=X.Y.Z-dev.<run>`) et
+`GitHubUpdateService` traiter un build `-dev` comme antérieur à la release de même numéro. Le
+launcher afficherait aussi "v1.12.0-dev" dans la barre latérale, ce qui évite toute confusion.
 
-Une fois JOUER cliqué, aucun moyen d'interrompre un téléchargement Forge/modpack bloqué (VPS qui
-répond au compte-gouttes) autrement qu'en fermant le launcher. Toutes les étapes acceptent déjà un
-`CancellationToken` : il manque un `CancellationTokenSource` dans `PlayButton_Click`, un bouton
-dans `LoadingPanel`, et la gestion propre d'`OperationCanceledException` (message "annulé" plutôt
-que "erreur"). Le `.part` reprenable rend l'annulation sans perte.
+### 4. Compatibilité et latence du serveur ▲
 
-### 2.2 Extraire l'orchestration de `MainWindow` dans un `LaunchPipeline` testable ▲▲▲ — **fait en v1.11.0** (`Services/Launch/LaunchPipeline.cs`, `LaunchPipelineTests`)
+Le Server List Ping renvoie déjà `version.protocol`, `version.name`, le MOTD et permet de mesurer
+la latence, tous ignorés par `ServerStatusService.ParseStatus`. Comparer le protocole à celui de
+`MinecraftVersion` (1.20.1 = 763) avertirait *avant* un lancement de plusieurs minutes voué à finir
+en "Incompatible client" (le scénario de la migration 1.16.5 → 1.20.1). Afficher latence et MOTD
+dans la carte serveur. Prépare aussi la page SERVEUR de la v2.0.0.
 
-`MainWindow.xaml.cs` dépasse 1 100 lignes et mélange orchestration (Java → Forge → sync → auth →
-lancement), état du tableau de bord et détails visuels. Rien de cette orchestration n'est testable
-aujourd'hui (impossible d'instancier une `Window` dans xUnit). Un `LaunchPipeline` (service pur,
-sans WPF) qui prend les cinq interfaces déjà existantes et expose `RunAsync(IProgress<LaunchStep>,
-CancellationToken)` permettrait de tester "que se passe-t-il si Forge échoue après que Java a été
-installé", l'ordre des étapes, le nettoyage. C'est le chantier qui rend 2.1 et 2.3 faciles, et
-MVVM (`DashboardViewModel`) peut suivre ou non — pas indispensable pour un launcher privé.
+### 5. Changelog du modpack visible ▲
 
-### 2.3 Vérification de compatibilité serveur avant de jouer ▲
+`changelog.txt` n'est affiché que dans le journal masqué du panneau de chargement : personne ne le
+voit. `generate-manifest.py` peut comparer l'ancien et le nouveau manifest (mods ajoutés, retirés,
+mis à jour) et écrire `changelog.txt` tout seul ; le launcher l'afficherait dans la carte ACTUS
+avec un badge MODPACK.
 
-Le Server List Ping renvoie déjà `version.protocol` et `version.name`, ignorés par
-`ServerStatusService.ParseStatus`. Comparer au protocole de `MinecraftVersion` (1.20.1 = 763)
-permettrait d'afficher "serveur en 1.20.1, launcher en 1.20.1 ✓" ou d'avertir *avant* un lancement
-de 3 minutes qui finira par un "Incompatible client" — c'est exactement le scénario vécu lors de la
-migration 1.16.5 → 1.20.1. Bonus : afficher la latence (`ms`) et le MOTD dans la carte serveur.
-
-### 2.4 Changelog *du modpack* dans l'interface ▲
-
-`changelog.txt` (nouveautés du pack, côté VPS) n'est affiché que dans `StatusLogTextBox`, qui est
-masqué (`Visibility="Collapsed"`) : personne ne le voit jamais. Deux options : (a) le remonter
-dans la carte ACTUS avec un badge "MODPACK", ou (b) le générer automatiquement —
-`generate-manifest.py` peut diffuser l'ancien et le nouveau manifest (mods ajoutés / retirés / mis
-à jour) et écrire `changelog.txt` sans intervention manuelle. (b) rend (a) utile.
-
-### 2.5 Rollback durable en mode manifest ▲▲
-
-"REVENIR EN ARRIÈRE" est annulé à la synchro suivante en mode manifest (documenté dans le README).
-Une vraie protection : le VPS publie aussi `manifest-previous.json`, et le rollback mémorise
-"épinglé sur la version précédente" dans `settings.json` jusqu'à ce que le manifest courant change
-à nouveau côté VPS. `generate-manifest.py` n'a qu'à renommer l'ancien manifest avant d'écrire.
-
-## 3. Expérience joueur
-
-### 3.1 Dialogues intégrés à la charte à la place de `MessageBox` ▲▲
-
-Les confirmations (serveur hors ligne, crash, mise à jour, erreurs) passent par `MessageBox`
-Windows : chrome gris système au milieu d'une interface bleu-nuit/néon, et modal bloquant. Une
-`OmneriaDialog` (fenêtre sans chrome, mêmes styles que `SettingsWindow`, boutons primaire/fantôme)
-avec une API `ShowAsync(title, message, buttons)` unifierait tout. Même chose pour les erreurs de
-lancement : aujourd'hui elles s'affichent en magenta dans `LoadingPanel` en texte brut, sans bouton
-"réessayer".
-
-### 3.2 Toasts non bloquants dans l'application ▲
-
-"Mise à jour disponible", "serveur de retour en ligne", "avatar indisponible" : aujourd'hui un son
-système + un bouton qui apparaît, ou une bulle `NotifyIcon` dépendante des réglages Windows. Un
-petit empilement de toasts en bas à droite du tableau de bord (fondu 5 s, cliquable) rendrait ces
-événements visibles sans interrompre.
-
-### 3.3 Un seul nom ▲
-
-Titre de fenêtre "Omnéria Launcher", boîtes de dialogue "AL Launcher", exe "AL Launcher.exe",
-texte de version "LAUNCHER v…", mutex `AL_Launcher`. À décider (probablement "AL Launcher"
-partout, "Omnéria" restant la marque graphique) et à aligner — trivial mais visible.
-
-### 3.4 Accessibilité minimale ▲
-
-Les items de navigation sont des `Border` cliquables : pas de focus visuel au clavier, pas de rôle
-"bouton" pour un lecteur d'écran (seul `AutomationProperties.Name` est posé). Les transformer en
-`Button` avec un style dédié (`NavButtonStyle`) règle les deux et supprime `NavItem_KeyDown`.
-Vérifier aussi le contraste `InkDim` (#8494B0) sur `Surface` (#0C1120) : ~5,5:1, correct, mais les
-libellés en 9,5 px (`JOUEURS CONNECTÉS`) sont sous la taille lisible confortable.
-
-### 3.5 Écran "hors ligne" assumé ▲
-
-Sans réseau, tout échoue silencieusement (cartes vides, statut "hors ligne", JOUER qui échoue à
-l'étape Forge). Un état explicite "Pas de connexion internet" en haut du tableau de bord (détecté
-par `NetworkInterface.GetIsNetworkAvailable()` + échec simultané de tous les chargements initiaux)
-évite au joueur de chercher un problème dans le launcher.
-
-## 4. Exploitation
-
-### 4.1 Rapport de problème plus complet ▲
+### 6. Rapport de problème plus complet ▲
 
 "SIGNALER UN PROBLÈME" copie 30 lignes de `launcher.log`. Y ajouter les 50 dernières lignes de
-`logs/latest.log` du jeu, la liste des fichiers de `mods/` avec leur taille, et la RAM physique
-totale — ce sont les trois questions qu'on pose systématiquement ensuite sur Discord.
+`logs/latest.log` du jeu, la liste des fichiers de `mods/` et la RAM physique : ce sont les trois
+questions posées systématiquement ensuite sur Discord.
 
-### 4.2 Un seul appel GitHub au lieu de deux ▲
+### 7. État "pas de connexion internet" ▲
 
-`releases/latest` (mise à jour) et `releases?per_page=4` (changelog) contiennent la même
-information : le premier élément non pré-release du second *est* la dernière release. Un
-`GitHubReleasesClient` partagé, interrogé une fois par minute, alimenterait les deux services.
-Moins urgent depuis les requêtes conditionnelles (v1.11.0), mais ça divise encore par deux le
-trafic et supprime une classe.
+Sans réseau, tout échoue en silence (cartes vides, serveur hors ligne, JOUER qui échoue à Forge).
+Un bandeau explicite, déclenché quand tous les chargements initiaux échouent ensemble, évite au
+joueur de chercher une panne dans le launcher.
 
-### 4.3 Nettoyage des branches ▲
+### 8. Un seul appel GitHub au lieu de deux ▲
 
-`claude/focused-babbage-z2gq3f`, `claude/minecraft-launcher-csharp-942eie` (local) et
-`fix-version-1-8-0` (distante) sont mortes depuis la mise en place du duo `main`/`dev`. À
-supprimer (`git push origin --delete <branche>`) pour que la liste des branches reflète le
-workflow réel. Activer aussi la protection de `main` (PR obligatoire, CI verte requise) pour que
-personne, y compris un outil, ne puisse y pousser directement.
+`releases/latest` (mise à jour) et `releases?per_page=4` (changelog) portent la même information.
+Un client partagé divise encore le trafic par deux et supprime une classe. Faible priorité depuis
+les requêtes conditionnelles de la v1.11.0.
 
-## Ce qui a été volontairement écarté
+### 9. Rollback durable en mode manifest ▲▲
 
+"REVENIR EN ARRIÈRE" est annulé par la synchro suivante. Le VPS pourrait publier
+`manifest-previous.json` (renommé par `generate-manifest.py` avant d'écrire le nouveau) et le
+launcher mémoriser "épinglé sur la version précédente" jusqu'au prochain changement du pack.
+
+## Réservé à la v2.0.0 : refonte de l'interface
+
+Maquettes : <https://claude.ai/artifact/G94daoRRiq13jpF97HV3Qb> (lien privé, à partager depuis la
+page si besoin). Mise de côté volontairement après la v1.11.0.
+
+- **Navigation par pages** dans une seule fenêtre (HUB, ACTUS, SERVEUR, PARAMÈTRES) au lieu de
+  quatre fenêtres sans chrome.
+- **Hub** centré sur un grand bouton JOUER, avec la liste des étapes de `LaunchPipeline`.
+- **Dialogues à la charte** à la place des `MessageBox` Windows, et **toasts** non bloquants.
+- **Accessibilité** : vrais boutons pour la navigation (focus clavier, lecteur d'écran), aucun
+  texte sous 11 px.
+- **Technique** : MVVM, dictionnaires de ressources séparés, contrôles réutilisables
+  (`BevelBorder`, `StatusPill`, `StepList`).
+
+Deux décisions à prendre avant de commencer :
+1. **Un seul nom** : aujourd'hui "Omnéria Launcher" (titre de fenêtre) et "AL Launcher" (exe,
+   dialogues, mutex) coexistent.
+2. **Actus du modpack** dans la page ACTUS : dépend de la piste 5 ci-dessus.
+
+## Exploitation et VPS
+
+- **Fichiers inutiles servis publiquement** : `generate-manifest.py` et l'ancien zip 1.16.5 sont
+  téléchargeables depuis `/modpack/`. Sans danger, mais à déplacer hors de `/var/www/html`.
+- **Redémarrage du VPS** en attente pour charger le nouveau noyau (Caddy repart seul, nginx est
+  désactivé).
+- **Protection de `main`** (optionnel) : exiger une CI verte avant tout push. Ne pas exiger de pull
+  request, sinon le flux actuel (merge de `dev` dans `main` puis tag) ne fonctionne plus.
+
+## Écarté
+
+- **Signature de l'exe (Authenticode)** : plus de fichier .pfx possible depuis 2023, services
+  payants ou contraignants (SignPath Foundation étudié puis abandonné), et SmartScreen avertit de
+  toute façon sans réputation. Le `.sha256` des releases reste le contrôle d'intégrité des mises
+  à jour.
 - **Multi-comptes / multi-profils** : hors périmètre, usage privé mono-serveur.
-- **Discord Rich Presence** : sympathique, mais ajoute une dépendance native pour un gain cosmétique.
+- **Discord Rich Presence** : dépendance native pour un gain cosmétique.
 - **Traduction** : tout est en français, l'audience aussi.
-- **Passage à .NET 9/10** : rien à y gagner tant que `net8.0-windows` est en support (LTS jusqu'en
-  novembre 2026) ; à planifier avant cette date.
