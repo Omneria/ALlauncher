@@ -66,6 +66,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _newsRefreshTimer;
     private readonly DispatcherTimer _maintenanceRefreshTimer;
+    private readonly DispatcherTimer _changelogRefreshTimer;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
@@ -127,34 +128,36 @@ public partial class MainWindow : Window
         _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
         _changelogService = new ReleaseChangelogService(SharedHttpClient.Instance);
 
-        _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        // Toutes les cadences de rafraîchissement du contenu affiché sont alignées sur 1 minute
+        // (v1.10.0) — auparavant un mélange de 30s/1 min/5 min/30 min sans logique d'ensemble
+        // claire ; un seul délai à connaître pour savoir dans quel délai un changement (statut
+        // serveur, actu, maintenance, changelog, avatar) apparaît sans avoir à redémarrer le
+        // launcher. Le watchdog du bouton JOUER (6h, PlayButtonWatchdog) n'est pas concerné : ce
+        // n'est pas un rafraîchissement de contenu mais un filet de sécurité contre un bouton
+        // resté bloqué, sans rapport avec la fraîcheur d'une donnée affichée.
+        _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
 
-        // Re-vérifie une éventuelle mise à jour du launcher toutes les minutes : sans ça, il
-        // fallait fermer/rouvrir le launcher pour la détecter (elle n'était vérifiée qu'au
-        // démarrage). CheckForUpdateAsync ne fait rien de plus si une mise à jour est déjà
-        // détectée et en attente, pour ne pas re-notifier/re-sonner toutes les minutes.
+        // CheckForUpdateAsync ne fait rien de plus si une mise à jour est déjà détectée et en
+        // attente, pour ne pas re-notifier/re-sonner à chaque minute.
         _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdateAsync();
 
-        // Contrairement au statut serveur et aux mises à jour, les actus n'étaient chargées
-        // qu'au démarrage : une actu postée pendant que le launcher est déjà ouvert n'apparaissait
-        // qu'au redémarrage suivant. Même principe de polling, cadence plus lâche (contenu qui
-        // change rarement).
-        _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _newsRefreshTimer.Tick += async (_, _) => await ShowNewsAsync();
 
-        // Même cadence que les actus : une maintenance annoncée pendant que le launcher est déjà
-        // ouvert doit apparaître sans avoir à redémarrer le launcher.
-        _maintenanceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _maintenanceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _maintenanceRefreshTimer.Tick += async (_, _) => await RefreshMaintenanceBannerAsync();
+
+        _changelogRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _changelogRefreshTimer.Tick += async (_, _) => await ShowChangelogAsync();
 
         // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
         // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
         // si le joueur change de skin sur minecraft.net pendant une session déjà longue du
         // launcher, rien ne le détecte avant le prochain redémarrage. Re-vérifie périodiquement
         // tant qu'un profil est affiché.
-        _avatarRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+        _avatarRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _avatarRefreshTimer.Tick += async (_, _) =>
         {
             if (_connectedUuid is not null)
@@ -213,6 +216,7 @@ public partial class MainWindow : Window
         _updateCheckTimer.Start();
         _newsRefreshTimer.Start();
         _maintenanceRefreshTimer.Start();
+        _changelogRefreshTimer.Start();
         await RefreshServerStatusAsync();
         await CheckForUpdateAsync();
 

@@ -319,8 +319,9 @@ que laisser un disque presque plein dans un état corrompu.
 
 Fichiers : `Services/News/NewsService.cs`, `Services/News/NewsHistoryStore.cs`, `MainWindow.xaml.cs`
 
-Au démarrage puis toutes les 5 minutes (`DispatcherTimer`), le launcher tente de récupérer
-`news.txt` (même convention que `changelog.txt` : même dossier que le zip du modpack sur le VPS) —
+Au démarrage puis toutes les minutes (`DispatcherTimer`, voir "Cadence de rafraîchissement" plus
+bas), le launcher tente de récupérer `news.txt` (même convention que `changelog.txt` : même dossier
+que le zip du modpack sur le VPS) —
 pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
 silencieux si absent : la carte ACTUS (colonne gauche du tableau de bord, au-dessus de la carte
 CHANGELOG — voir section suivante) affiche un texte par défaut ("Aucune actualité pour le moment.")
@@ -340,7 +341,7 @@ Fichier : `Services/Changelog/ReleaseChangelogService.cs`
 
 Carte CHANGELOG (colonne gauche du tableau de bord, sous ACTUS — jusqu'ici les deux étaient
 fusionnées dans une seule carte "ACTUS & CHANGELOG" qui n'affichait en réalité que les actus).
-Chargée une fois au démarrage : `GET
+Chargée au démarrage puis toutes les minutes (voir "Cadence de rafraîchissement" plus bas) : `GET
 https://api.github.com/repos/Omneria/ALlauncher/releases` (4 dernières releases non-draft/pré-
 release), **même source et mêmes règles de nettoyage des notes que la carte "Changelog" de la
 landing page** (`Omneria-landing/index.html`) — pas un fichier `changelog.txt` séparé à maintenir
@@ -357,6 +358,28 @@ règles de nettoyage change.
 Best-effort comme les actus : une requête échouée (GitHub indisponible, rate-limit non authentifié)
 laisse la carte sur son dernier contenu affiché plutôt que de la vider, avec un texte par défaut
 uniquement au tout premier chargement.
+
+## Cadence de rafraîchissement
+
+Fichier : `MainWindow.xaml.cs` (constructeur, `DispatcherTimer` par contenu)
+
+Tout ce qui s'actualise en tâche de fond pendant que le launcher reste ouvert tourne sur la
+**même cadence, toutes les minutes** (v1.10.0 — auparavant un mélange de 30 s/1 min/5 min/30 min
+sans logique d'ensemble claire) :
+
+| Contenu | Timer |
+|---|---|
+| Statut du serveur (en ligne/hors ligne, joueurs) | `_serverStatusTimer` |
+| Mise à jour du launcher disponible | `_updateCheckTimer` |
+| Actus (`news.txt`) | `_newsRefreshTimer` |
+| Bannière de maintenance (`maintenance.txt`) | `_maintenanceRefreshTimer` |
+| Changelog (releases GitHub) | `_changelogRefreshTimer` |
+| Avatar du joueur connecté | `_avatarRefreshTimer` |
+
+Chacun démarre après un premier chargement explicite au démarrage (`MainWindow_Loaded`), pour ne
+pas attendre une minute avant d'afficher quoi que ce soit à l'ouverture. Seul le watchdog du bouton
+JOUER (6h, voir "Lancement du jeu") n'est pas concerné : ce n'est pas un rafraîchissement de
+contenu mais un filet de sécurité contre un bouton resté bloqué.
 
 ## Authentification (OAuth Microsoft direct)
 
@@ -474,7 +497,7 @@ s'étaler sur plusieurs, sans format imposé côté VPS au-delà de cette ligne 
 Absence de fichier (404), fichier vide, ou VPS injoignable = pas de carte, même logique que le
 changelog optionnel du modpack — **publier ou supprimer `maintenance.txt` sur le VPS suffit donc à
 afficher/masquer la bannière chez tous les joueurs**, sans jamais toucher au launcher. Revérifiée
-toutes les 5 minutes (même cadence que les actus), pas seulement au démarrage.
+toutes les minutes (voir "Cadence de rafraîchissement" plus haut), pas seulement au démarrage.
 
 ## Statut du serveur
 
@@ -484,7 +507,7 @@ Implémente le protocole *Server List Ping* de Minecraft (le même que l'écran 
 utilise pour afficher joueurs connectés/latence à côté de chaque serveur) : handshake puis requête
 status sur une connexion TCP brute vers `ServerHost:ServerPort`, sans authentification, réponse
 JSON parsée pour en extraire `players.online`/`players.max`. `MainWindow` l'interroge au démarrage
-puis toutes les 30 secondes (`DispatcherTimer`) et affiche le statut dans la carte serveur de la
+puis toutes les minutes (voir "Cadence de rafraîchissement" plus haut) et affiche le statut dans la carte serveur de la
 colonne droite (v1.5.0) : pastille + libellé "EN LIGNE"/"HORS LIGNE", et le nombre de joueurs en
 gros chiffres mono (`X/8`) à côté du crest du serveur. N'importe quel échec (timeout, port fermé,
 DNS invalide) est traité comme "hors ligne" plutôt que de propager une erreur.
@@ -693,7 +716,8 @@ navigateur.
 **Rafraîchi périodiquement :** l'avatar n'était auparavant récupéré qu'à la connexion (ou à la
 restauration de session au démarrage) — un changement de skin fait sur minecraft.net pendant une
 session déjà longue du launcher n'était visible qu'au redémarrage suivant. Un `DispatcherTimer`
-(30 min) le re-télécharge tant qu'un profil reste affiché.
+(1 min, voir "Cadence de rafraîchissement" ci-dessous) le re-télécharge tant qu'un profil reste
+affiché.
 
 ## Identité visuelle (branding Omnéria)
 
