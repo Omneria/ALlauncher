@@ -272,50 +272,124 @@
                             <ColumnDefinition x:Name="ServerColumn" Width="1*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Colonne actus (news.txt optionnel) : carte toujours visible, avec un
-                             état vide explicite plutôt que de disparaître entièrement (la mise en
-                             page deux colonnes suppose sa présence). -->
-                        <Border x:Name="NewsCardBorder" Grid.Column="0" Style="{StaticResource CardBorderStyle}"
-                                RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="NewsCardScale" />
-                            </Border.RenderTransform>
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="ACTUS &amp; CHANGELOG" Style="{StaticResource EyebrowTextStyle}"
-                                           Margin="18,16,18,8" />
-                                <!-- Historique (pas juste la dernière actu) : news.txt côté VPS est un simple
-                                     fichier "à plat" sans historique propre, donc chaque contenu distinct
-                                     observé est horodaté et conservé localement (NewsHistoryStore) plutôt que
-                                     remplacé à chaque rafraîchissement. -->
-                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                    <StackPanel Margin="18,0,18,16">
-                                        <TextBlock x:Name="NewsEmptyText" TextWrapping="Wrap"
-                                                   FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
-                                                   Foreground="{StaticResource InkBrush}"
-                                                   Text="Aucune actualité pour le moment." />
-                                        <ItemsControl x:Name="NewsHistoryList">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Margin="0,0,0,16">
-                                                        <TextBlock Text="{Binding FetchedAtLabel}"
-                                                                   FontFamily="{StaticResource MonoFontFamily}"
-                                                                   FontSize="10" Foreground="{StaticResource InkDimBrush}"
-                                                                   Margin="0,0,0,4" />
-                                                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
-                                                                   FontFamily="{StaticResource BodyFontFamily}"
-                                                                   FontSize="13" Foreground="{StaticResource InkBrush}" />
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </ScrollViewer>
-                            </Grid>
-                        </Border>
+                        <!-- Colonne gauche : ACTUS (news.txt, VPS) et CHANGELOG (releases GitHub) sont
+                             deux sources indépendantes, jusqu'ici affichées dans une même carte
+                             "ACTUS & CHANGELOG" qui ne montrait en réalité que les actus — séparées
+                             en deux cartes empilées. -->
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="18" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Actus (news.txt optionnel) : carte toujours visible, avec un état vide
+                                 explicite plutôt que de disparaître entièrement (la mise en page
+                                 suppose sa présence). -->
+                            <Border x:Name="NewsCardBorder" Grid.Row="0" Style="{StaticResource CardBorderStyle}"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="NewsCardScale" />
+                                </Border.RenderTransform>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="ACTUS" Style="{StaticResource EyebrowTextStyle}"
+                                               Margin="18,16,18,8" />
+                                    <!-- Historique (pas juste la dernière actu) : news.txt côté VPS est un simple
+                                         fichier "à plat" sans historique propre, donc chaque contenu distinct
+                                         observé est horodaté et conservé localement (NewsHistoryStore) plutôt que
+                                         remplacé à chaque rafraîchissement. -->
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="18,0,18,16">
+                                            <TextBlock x:Name="NewsEmptyText" TextWrapping="Wrap"
+                                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                                                       Foreground="{StaticResource InkBrush}"
+                                                       Text="Aucune actualité pour le moment." />
+                                            <ItemsControl x:Name="NewsHistoryList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,16">
+                                                            <TextBlock Text="{Binding FetchedAtLabel}"
+                                                                       FontFamily="{StaticResource MonoFontFamily}"
+                                                                       FontSize="10" Foreground="{StaticResource InkDimBrush}"
+                                                                       Margin="0,0,0,4" />
+                                                            <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
+                                                                       FontFamily="{StaticResource BodyFontFamily}"
+                                                                       FontSize="13" Foreground="{StaticResource InkBrush}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+
+                            <!-- Changelog : releases GitHub du launcher (même source et mêmes règles
+                                 de nettoyage des notes que la carte "Changelog" de la landing page),
+                                 pas un fichier changelog.txt séparé à maintenir côté VPS. -->
+                            <Border x:Name="ChangelogCardBorder" Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="CHANGELOG" Style="{StaticResource EyebrowTextStyle}"
+                                               Margin="18,16,18,8" />
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="18,0,18,16">
+                                            <TextBlock x:Name="ChangelogEmptyText" TextWrapping="Wrap"
+                                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                                                       Foreground="{StaticResource InkDimBrush}"
+                                                       Text="Notes de version indisponibles pour le moment."
+                                                       Visibility="Collapsed" />
+                                            <ItemsControl x:Name="ChangelogList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,16">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                                                <TextBlock Text="{Binding Tag}"
+                                                                           FontFamily="{StaticResource MonoFontFamily}"
+                                                                           FontWeight="Bold" FontSize="13"
+                                                                           Foreground="{StaticResource InkBrush}" />
+                                                                <Border Margin="8,0,0,0" Padding="5,1" BorderThickness="1"
+                                                                        BorderBrush="{StaticResource CyanBrush}"
+                                                                        Visibility="{Binding LatestBadgeVisibility}">
+                                                                    <TextBlock Text="DERNIÈRE"
+                                                                               FontFamily="{StaticResource MonoFontFamily}"
+                                                                               FontSize="9" Foreground="{StaticResource CyanBrush}" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding DateLabel}"
+                                                                       FontFamily="{StaticResource MonoFontFamily}"
+                                                                       FontSize="10" Foreground="{StaticResource InkDimBrush}"
+                                                                       Margin="0,0,0,6" />
+                                                            <ItemsControl ItemsSource="{Binding Notes}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                                            <TextBlock Text="—" Foreground="{StaticResource CyanBrush}"
+                                                                                       FontFamily="{StaticResource MonoFontFamily}"
+                                                                                       FontSize="12" Margin="0,0,6,0" VerticalAlignment="Top" />
+                                                                            <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                                                                                       FontFamily="{StaticResource BodyFontFamily}"
+                                                                                       FontSize="12" Foreground="{StaticResource InkBrush}" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+                        </Grid>
 
                         <!-- Colonne serveur + lancement -->
                         <Grid Grid.Column="2">

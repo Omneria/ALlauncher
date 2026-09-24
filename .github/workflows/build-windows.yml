@@ -17,7 +17,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # fetch-depth 0 (historique + tags complets) : nécessaire à l'étape "Vérifie que
+      # RELEASE_NOTES.md a été mis à jour" ci-dessous, qui compare son contenu au tag précédent.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Incident passé (v1.2.5) : <Version> dans le csproj avait dérivé en avance sur les tags
       # réellement publiés, cassant silencieusement l'auto-update pendant un moment (voir README).
@@ -40,6 +44,29 @@ jobs:
             exit 1
           }
           Write-Host "OK : tag ${{ github.ref_name }} == <Version>$csprojVersion</Version>"
+
+      # Les notes générées automatiquement par GitHub à partir des titres de PR/commits sont
+      # illisibles pour un joueur ("Merge dev dans main : correctif urgent..."). RELEASE_NOTES.md
+      # (à la racine du dépôt) contient à la place un texte rédigé à la main, en langage clair,
+      # utilisé tel quel comme corps de la release (voir job "release" plus bas, --notes-file).
+      # Ce check échoue le build si ce fichier n'a pas changé depuis le tag précédent : sans lui,
+      # rien n'empêcherait de tagger une version avec des notes qui décrivent encore la précédente.
+      - name: Vérifie que RELEASE_NOTES.md a été mis à jour
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          $previousTag = git tag --sort=-v:refname --merged HEAD | Where-Object { $_ -ne $currentTag } | Select-Object -First 1
+          if (-not $previousTag) {
+            Write-Host "Pas de tag précédent trouvé, rien à comparer (probablement la toute première release)."
+            exit 0
+          }
+          $diff = git diff --name-only "$previousTag" HEAD -- RELEASE_NOTES.md
+          if (-not $diff) {
+            Write-Error "RELEASE_NOTES.md n'a pas changé depuis $previousTag : décris cette version en langage clair pour les joueurs (une ligne '- ...' par changement visible) avant de poser le tag $currentTag."
+            exit 1
+          }
+          Write-Host "OK : RELEASE_NOTES.md a été mis à jour depuis $previousTag."
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -95,7 +122,8 @@ jobs:
   # Publie une GitHub Release (exe self-contained en pièce jointe) quand un tag v*.*.* est
   # poussé : c'est ce que GitHubUpdateService (Services/Update/) interroge pour l'auto-update du
   # launcher - il compare LauncherSettings.csproj <Version> au tag_name de la dernière release.
-  # Pense à incrémenter <Version> dans MinecraftLauncherPerso.csproj avant de tagger.
+  # Pense à incrémenter <Version> ET à mettre à jour RELEASE_NOTES.md (à la racine du dépôt, notes
+  # en langage clair pour les joueurs) dans le même commit, avant de tagger.
   release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -104,6 +132,10 @@ jobs:
       contents: write
 
     steps:
+      # Nécessaire pour RELEASE_NOTES.md (--notes-file ci-dessous) : ce job ne fait sinon que
+      # télécharger l'exe déjà construit, sans checkout du dépôt.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
@@ -132,5 +164,8 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag $exe $hashFile --repo $repo --clobber
           } else {
-            gh release create $tag $exe $hashFile --repo $repo --title $tag --generate-notes
+            # RELEASE_NOTES.md (rédigé à la main, langage clair pour un joueur) plutôt que
+            # --generate-notes (titres de PR/commits, illisibles pour un joueur) — voir le check
+            # "Vérifie que RELEASE_NOTES.md a été mis à jour" dans le job "build" ci-dessus.
+            gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file RELEASE_NOTES.md
           }
