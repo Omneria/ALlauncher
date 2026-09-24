@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Media;
 using System.Net.Http;
@@ -15,6 +16,7 @@ using CmlLib.Core;
 using CmlLib.Core.ProcessBuilder;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
+using MinecraftLauncherPerso.Services.Changelog;
 using MinecraftLauncherPerso.Services.Configuration;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Forge;
@@ -58,6 +60,7 @@ public partial class MainWindow : Window
     private readonly INewsService _newsService;
     private readonly NewsHistoryStore _newsHistoryStore;
     private readonly IMaintenanceService _maintenanceService;
+    private readonly IReleaseChangelogService _changelogService;
     private readonly SettingsManager _settingsManager;
     private readonly DispatcherTimer _serverStatusTimer;
     private readonly DispatcherTimer _updateCheckTimer;
@@ -122,6 +125,7 @@ public partial class MainWindow : Window
         _newsHistoryStore = new NewsHistoryStore();
         _newsHistory = _newsHistoryStore.Load();
         _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
+        _changelogService = new ReleaseChangelogService(SharedHttpClient.Instance);
 
         _serverStatusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _serverStatusTimer.Tick += async (_, _) => await RefreshServerStatusAsync();
@@ -203,6 +207,7 @@ public partial class MainWindow : Window
         }
 
         await ShowNewsAsync();
+        await ShowChangelogAsync();
         await RefreshMaintenanceBannerAsync();
         _serverStatusTimer.Start();
         _updateCheckTimer.Start();
@@ -264,6 +269,36 @@ public partial class MainWindow : Window
 
     /// <summary>Vue d'affichage d'une NewsHistoryEntry, avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
     private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
+
+    private static readonly CultureInfo FrenchCulture = CultureInfo.GetCultureInfo("fr-FR");
+
+    /// <summary>
+    /// Changelog (releases GitHub du launcher, pas un fichier changelog.txt séparé côté VPS) : même
+    /// source et mêmes règles de nettoyage des notes que la carte "Changelog" de la landing page
+    /// (ReleaseChangelogService). Best-effort comme les actus : une requête échouée laisse le
+    /// dernier contenu affiché plutôt que de vider la carte.
+    /// </summary>
+    private async Task ShowChangelogAsync()
+    {
+        var releases = await _changelogService.GetRecentReleasesAsync(count: 4);
+        if (releases.Count == 0)
+        {
+            ChangelogEmptyText.Visibility = ChangelogList.ItemsSource is null ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+
+        ChangelogEmptyText.Visibility = Visibility.Collapsed;
+        ChangelogList.ItemsSource = releases
+            .Select(release => new ChangelogItem(
+                release.Tag,
+                release.PublishedAt.ToLocalTime().ToString("d MMMM yyyy", FrenchCulture),
+                release.IsLatest ? Visibility.Visible : Visibility.Collapsed,
+                release.Notes))
+            .ToList();
+    }
+
+    /// <summary>Vue d'affichage d'une ReleaseChangelogEntry pour le binding XAML.</summary>
+    private sealed record ChangelogItem(string Tag, string DateLabel, Visibility LatestBadgeVisibility, IReadOnlyList<string> Notes);
 
     // Ligne optionnelle "FIN: <valeur>" (n'importe où après le titre) : affichée dans le bloc
     // "FIN ESTIMÉE" à droite de la carte (mockup Option B), plutôt qu'un champ dédié qui aurait

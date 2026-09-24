@@ -98,6 +98,10 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │           │   ├── INewsService.cs
 │           │   ├── NewsService.cs
 │           │   └── NewsHistoryStore.cs     # historique local des actus (news.txt lui-même n'en garde aucun)
+│           ├── Changelog/                  # changelog du launcher (releases GitHub, pas un fichier VPS)
+│           │   ├── IReleaseChangelogService.cs
+│           │   ├── ReleaseChangelogService.cs
+│           │   └── ReleaseChangelogEntry.cs
 │           ├── Notifications/
 │           │   └── DesktopNotificationService.cs  # bulle Windows native (NotifyIcon), ex. serveur de retour en ligne
 │           ├── Maintenance/                # bannière de maintenance optionnelle (v1.9.0)
@@ -317,9 +321,10 @@ Fichiers : `Services/News/NewsService.cs`, `Services/News/NewsHistoryStore.cs`, 
 Au démarrage puis toutes les 5 minutes (`DispatcherTimer`), le launcher tente de récupérer
 `news.txt` (même convention que `changelog.txt` : même dossier que le zip du modpack sur le VPS) —
 pratique pour annoncer un event, une maintenance prévue, etc. sans passer par Discord. Optionnel,
-silencieux si absent : la carte ACTUS & CHANGELOG (colonne gauche du tableau de bord) affiche un
-texte par défaut ("Aucune actualité pour le moment.") tant qu'aucun `news.txt` n'est disponible,
-plutôt que de disparaître entièrement (la mise en page deux colonnes suppose sa présence).
+silencieux si absent : la carte ACTUS (colonne gauche du tableau de bord, au-dessus de la carte
+CHANGELOG — voir section suivante) affiche un texte par défaut ("Aucune actualité pour le moment.")
+tant qu'aucun `news.txt` n'est disponible, plutôt que de disparaître entièrement (la mise en page
+suppose sa présence).
 
 **Historique, pas juste la dernière actu :** `news.txt` côté VPS est un simple fichier "à plat" —
 il ne garde lui-même aucun historique, chaque requête ne renvoie que son contenu actuel. Pour
@@ -327,6 +332,30 @@ afficher un historique malgré tout, `NewsHistoryStore` horodate et conserve loc
 (`%AppData%/MinecraftLauncherPerso/news-history.json`, plafonné à 20 entrées) chaque contenu
 distinct observé, dédupliqué sur les rafraîchissements consécutifs identiques : la carte affiche
 la liste complète, la plus récente en tête, plutôt que de se contenter d'écraser le texte affiché.
+
+## Changelog (releases GitHub du launcher)
+
+Fichier : `Services/Changelog/ReleaseChangelogService.cs`
+
+Carte CHANGELOG (colonne gauche du tableau de bord, sous ACTUS — jusqu'ici les deux étaient
+fusionnées dans une seule carte "ACTUS & CHANGELOG" qui n'affichait en réalité que les actus).
+Chargée une fois au démarrage : `GET
+https://api.github.com/repos/Omneria/ALlauncher/releases` (4 dernières releases non-draft/pré-
+release), **même source et mêmes règles de nettoyage des notes que la carte "Changelog" de la
+landing page** (`Omneria-landing/index.html`) — pas un fichier `changelog.txt` séparé à maintenir
+côté VPS, contrairement au changelog *du modpack* (voir "Synchronisation mods/config" ci-dessus,
+sans rapport avec celui-ci qui concerne le launcher lui-même).
+
+**Notes nettoyées à partir du corps de la release** (texte généré par `gh release create
+--generate-notes`) : seules les lignes `- ...`/`* ...` sont gardées, liens Markdown/gras/backticks
+retirés, mentions `by @user in <url>` et URLs brutes supprimées, 4 notes max par release — un
+message par défaut ("Voir les notes de version sur GitHub.") si le nettoyage ne laisse rien. Les
+deux implémentations (launcher en C#, landing page en JS) doivent rester alignées si l'une des deux
+règles de nettoyage change.
+
+Best-effort comme les actus : une requête échouée (GitHub indisponible, rate-limit non authentifié)
+laisse la carte sur son dernier contenu affiché plutôt que de la vider, avec un texte par défaut
+uniquement au tout premier chargement.
 
 ## Authentification (OAuth Microsoft direct)
 
