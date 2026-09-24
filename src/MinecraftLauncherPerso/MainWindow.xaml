@@ -211,13 +211,16 @@
                          (option B retenue) — plus imposante que les bandeaux discrets déjà en place
                          (mise à jour du launcher, etc.) puisqu'elle porte une information dont
                          l'absence de lecture a un vrai coût (jouer alors que le serveur va couper).
-                         Coins coupés en biseau (comme le mockup Option B et PrimaryButtonTemplate),
-                         recalculés dynamiquement dans MaintenanceBanner_SizeChanged puisque cette
-                         carte n'a pas de taille fixe contrairement au bouton CTA.
+                         Coins coupés en biseau (comme le mockup Option B et PrimaryButtonTemplate) :
+                         points fixes (même repère 700x120 que le mockup), étirés par Stretch="Fill"
+                         nativement par WPF pour épouser la largeur variable de la colonne. Un calcul
+                         dynamique des points via SizeChanged a été essayé puis retiré (v1.9.2) : il
+                         réinvalidait la mesure du Polygon à chaque changement de taille alors que ce
+                         Polygon est dans la même cellule Auto que celle qui détermine la hauteur de
+                         la bannière, ce qui a cassé l'affichage de tout le dashboard en production.
                          Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
-                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed"
-                          SizeChanged="MaintenanceBanner_SizeChanged">
-                        <Polygon x:Name="MaintenanceBannerShape"
+                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed">
+                        <Polygon Points="14,0 700,0 700,106 686,120 0,120 0,14" Stretch="Fill"
                                  Fill="{StaticResource SurfaceBrush}"
                                  Stroke="{StaticResource MagentaBrush}" StrokeThickness="1.5" />
                         <Grid Margin="24,18,24,18">
