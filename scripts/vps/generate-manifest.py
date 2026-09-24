@@ -19,7 +19,9 @@ Chaque fichier trouvé est publié à <base-url>/<chemin relatif>, donc les fich
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 SYNCED_SUBDIRS = ("mods", "config")
@@ -68,7 +70,21 @@ def main() -> None:
         parser.error(f"--root {args.root} n'existe pas ou n'est pas un dossier")
 
     manifest = build_manifest(args.root, args.base_url)
-    args.output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Écriture atomique : fichier temporaire dans le même dossier, puis remplacement d'un coup.
+    # Un launcher qui télécharge le manifest pendant sa régénération reçoit soit l'ancien, soit
+    # le nouveau, jamais un JSON à moitié écrit (qui ferait échouer sa synchro).
+    content = json.dumps(manifest, indent=2, ensure_ascii=False)
+    fd, tmp_path = tempfile.mkstemp(dir=args.output.parent, prefix=".manifest-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+            tmp.write(content)
+        os.chmod(tmp_path, 0o644)
+        os.replace(tmp_path, args.output)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
 
     print(f"{len(manifest['files'])} fichiers indexés -> {args.output}")
 
