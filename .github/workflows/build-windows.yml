@@ -150,7 +150,7 @@ jobs:
       # télécharger l'exe déjà construit, sans checkout du dépôt.
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained
