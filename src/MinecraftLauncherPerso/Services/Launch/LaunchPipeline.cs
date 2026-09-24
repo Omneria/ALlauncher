@@ -102,7 +102,7 @@ public sealed class LaunchPipeline
         CancellationToken cancellationToken = default)
     {
         // 1. Java 17 : seule étape avec une progression chiffrée dès le départ (téléchargement).
-        var javaProgress = new Progress<JavaSetupProgress>(report =>
+        var javaProgress = new Relay<JavaSetupProgress>(report =>
             progress?.Report(new LaunchProgress(LaunchStep.Java, report.Message, report.PercentComplete / 100)));
         AnnounceStep(progress, LaunchStep.Java);
         var javaPath = await RunStepAsync(LaunchStep.Java, cancellationToken,
@@ -112,22 +112,22 @@ public sealed class LaunchPipeline
         var launcher = _launcherFactory(settings.GameDirectory);
 
         // 2. Forge : progression en octets exposée par CmlLib.
-        var forgeProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Forge, message)));
-        var forgeDownloadProgress = new Progress<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.Forge, "Téléchargement de Forge...", fraction)));
+        var forgeProgress = new Relay<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Forge, message)));
+        var forgeDownloadProgress = new Relay<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.Forge, "Téléchargement de Forge...", fraction)));
         AnnounceStep(progress, LaunchStep.Forge);
         var versionId = await RunStepAsync(LaunchStep.Forge, cancellationToken,
             () => _forgeManager.EnsureForgeInstalledAsync(launcher, settings.MinecraftVersion, settings.ForgeVersion, forgeProgress, forgeDownloadProgress, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Forge, $"Forge prêt : {versionId}", 1));
 
         // 3. Synchronisation mods/config depuis le VPS.
-        var syncProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.ModSync, message)));
-        var syncDownloadProgress = new Progress<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.ModSync, "Téléchargement du modpack...", fraction)));
+        var syncProgress = new Relay<string>(message => progress?.Report(new LaunchProgress(LaunchStep.ModSync, message)));
+        var syncDownloadProgress = new Relay<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.ModSync, "Téléchargement du modpack...", fraction)));
         AnnounceStep(progress, LaunchStep.ModSync);
         await RunVoidStepAsync(LaunchStep.ModSync, cancellationToken,
             () => _modSyncService.SyncAsync(settings.ModpackZipUrl, settings.ModpackManifestUrl, settings.GameDirectory, syncProgress, syncDownloadProgress, cancellationToken));
 
         // 4. Session Microsoft (Xbox Live -> XSTS -> Minecraft) : pas de progression chiffrée.
-        var authProgress = new Progress<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Auth, message)));
+        var authProgress = new Relay<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Auth, message)));
         AnnounceStep(progress, LaunchStep.Auth);
         var session = await RunStepAsync(LaunchStep.Auth, cancellationToken,
             () => _authService.GetActiveSessionAsync(authProgress, cancellationToken));
@@ -187,6 +187,18 @@ public sealed class LaunchPipeline
             await action();
             return true;
         });
+    }
+
+    /// <summary>
+    /// Relaie un rapport de progression immédiatement, sur le thread de l'appelant. Pas de
+    /// Progress&lt;T&gt; ici : le pipeline tourne hors du thread UI (voir MainWindow), où Progress&lt;T&gt;
+    /// posterait chaque rapport sur le pool de threads, dans le désordre (un vieux "42 %" pouvait
+    /// arriver après "Java 17 prêt"). C'est l'IProgress final, fourni par l'appelant, qui décide
+    /// comment et quand rejoindre l'interface (CoalescingProgress dans le launcher).
+    /// </summary>
+    private sealed class Relay<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     public static string DescribeStep(LaunchStep step) => step switch

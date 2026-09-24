@@ -503,9 +503,6 @@
                                                 FontSize="11" Foreground="{StaticResource MagentaBrush}"
                                                 Click="CancelLaunchButton_Click" />
                                     </StackPanel>
-                                    <TextBox x:Name="StatusLogTextBox" Grid.Row="1" Style="{StaticResource StatusLogStyle}"
-                                             IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                             Visibility="Collapsed" />
                                 </Grid>
                             </Border>
 
