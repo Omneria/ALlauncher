@@ -83,7 +83,8 @@ Adresse, dossier ou délai différents : variables `MODPACK_ROOT`, `BASE_URL`,
 Le mod client Astral Nexus (dépôt privé `Astral-Nexus-MC/Astral-launcher`) publie une release
 GitHub à chaque tag `vX.Y.Z` (workflow `release.yml` de ce dépôt : jar + `.sha256`).
 `sync-astralnexus-mod.py`, lancé toutes les 5 minutes par un timer systemd, installe la
-dernière release dans `modpack/mods/` et supprime l'ancienne version. Le manifest est ensuite
+dernière release (`astral-nexus-launcher-<version>.jar`) dans `modpack/mods/` et supprime
+l'ancienne version, y compris celles nommées `astralnexus-*.jar` d'avant le renommage. Le manifest est ensuite
 régénéré par `modpack-manifest.path` (section précédente) : les joueurs reçoivent la nouvelle
 version à leur prochain clic sur JOUER, sans rien déposer à la main.
 

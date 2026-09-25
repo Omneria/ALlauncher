@@ -5,13 +5,15 @@ Astral-Nexus-MC/Astral-launcher, publiée par son workflow release.yml à chaque
 Lancé toutes les 5 minutes par astralnexus-mod-sync.timer. Quand une nouvelle release existe :
   1. télécharge le jar et son .sha256, vérifie l'empreinte (jar refusé si elle ne correspond pas) ;
   2. le dépose dans chaque dossier cible (modpack, et serveur Minecraft si configuré) ;
-  3. supprime les anciennes versions (astralnexus-*.jar) de ces dossiers.
+  3. supprime les anciennes versions du mod de ces dossiers (MOD_PREFIX et OLD_PREFIXES).
 Côté modpack, modpack-manifest.path voit le changement et régénère le manifest tout seul.
 
 Configuration par variables d'environnement (voir astralnexus-mod-sync.service) :
   GITHUB_REPO      dépôt du mod (défaut Astral-Nexus-MC/Astral-launcher)
   GITHUB_TOKEN_FILE fichier contenant un token GitHub en lecture seule (dépôt privé)
-  MOD_PREFIX       préfixe des jars du mod (défaut astralnexus-)
+  MOD_PREFIX       préfixe du jar publié dans la release (défaut astral-nexus-launcher-)
+  OLD_PREFIXES     anciens préfixes du mod, séparés par ":" : leurs jars sont aussi retirés
+                   (défaut astralnexus-, nom du jar avant le renommage)
   TARGET_DIRS      dossiers mods/ où installer le jar, séparés par ":"
   STATE_FILE       mémorise la dernière release vue (ETag : les réponses 304 ne comptent pas
                    dans le quota d'appels à l'API GitHub)
@@ -32,7 +34,8 @@ from pathlib import Path
 
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "Astral-Nexus-MC/Astral-launcher")
 TOKEN_FILE = os.environ.get("GITHUB_TOKEN_FILE", "/etc/modpack-tools/github-token")
-MOD_PREFIX = os.environ.get("MOD_PREFIX", "astralnexus-")
+MOD_PREFIX = os.environ.get("MOD_PREFIX", "astral-nexus-launcher-")
+OLD_PREFIXES = [p for p in os.environ.get("OLD_PREFIXES", "astralnexus-").split(":") if p]
 TARGET_DIRS = [Path(d) for d in os.environ.get("TARGET_DIRS", "/var/www/html/modpack/mods").split(":") if d]
 STATE_FILE = Path(os.environ.get("STATE_FILE", "/var/lib/modpack-tools/astralnexus-mod.json"))
 USER_AGENT = "astralnexus-mod-sync"
@@ -116,7 +119,8 @@ def install(target_dir: Path, jar_name: str, content: bytes, expected_hash: str)
         print(f"{destination} installé.")
         changed = True
 
-    for old in target_dir.glob(f"{MOD_PREFIX}*.jar"):
+    old_jars = {old for prefix in [MOD_PREFIX, *OLD_PREFIXES] for old in target_dir.glob(f"{prefix}*.jar")}
+    for old in sorted(old_jars):
         if old.name != jar_name:
             old.unlink()
             print(f"{old} supprimé (ancienne version).")
