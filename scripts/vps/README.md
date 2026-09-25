@@ -84,14 +84,14 @@ Le mod client Astral Nexus (dépôt privé `Astral-Nexus-MC/Astral-launcher`) pu
 GitHub à chaque tag `vX.Y.Z` (workflow `release.yml` de ce dépôt : jar + `.sha256`).
 `sync-astralnexus-mod.py`, lancé toutes les 5 minutes par un timer systemd, installe la
 dernière release (`astral-nexus-launcher-<version>.jar`) dans `modpack/mods/` et supprime
-l'ancienne version, y compris celles nommées `astralnexus-*.jar` d'avant le renommage. Le manifest est ensuite
+l'ancienne version (seuls les `astral-nexus-launcher-*.jar` sont touchés). Le manifest est ensuite
 régénéré par `modpack-manifest.path` (section précédente) : les joueurs reçoivent la nouvelle
 version à leur prochain clic sur JOUER, sans rien déposer à la main.
 
 Publier une nouvelle version du mod :
 
 1. passer `mod_version` à la nouvelle version dans `gradle.properties`, committer, pousser ;
-2. créer le tag correspondant (`v1.0.3` pour `mod_version=1.0.3`) : le workflow refuse un tag
+2. créer le tag correspondant (`v1.0.1` pour `mod_version=1.0.1`) : le workflow refuse un tag
    qui ne correspond pas.
 
 Le mod ne s'exécute que côté client (écrans de titre et de déconnexion) et n'ouvre aucun canal
