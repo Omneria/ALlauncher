@@ -6,7 +6,7 @@ Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé
 
 ## Contexte serveur
 
-- Minecraft **1.20.1**, Forge **47.3.0** (migré depuis 1.16.5/Forge 36.2.34, voir `MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`)
+- Minecraft **1.20.1**, Forge **47.4.23** (même version que le serveur) (migré depuis 1.16.5/Forge 36.2.34, voir `MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`)
 - Liste de mods gérée côté VPS (voir manifeste ci-dessous) — plus de liste figée dans ce README depuis la migration
 - **Java 17 obligatoire** (Minecraft ne démarre plus sur un JRE antérieur à 17 depuis la 1.18, et Forge 1.20.1 l'exige explicitement)
 - Mods/config hébergés sur un VPS perso, accessibles en HTTP direct (voir manifeste ci-dessous)
@@ -14,7 +14,7 @@ Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé
 ## Ce que fait le launcher
 
 1. Vérifie/installe Java 17 (build Temurin/Adoptium si absent) — **implémenté**
-2. Installe Forge 1.20.1-47.3.0 via CmlLib.Core.Installer.Forge — **implémenté**
+2. Installe Forge 1.20.1-47.4.23 via CmlLib.Core.Installer.Forge — **implémenté**
 3. Synchronise `mods/` et `config/` depuis le VPS (par hash, pas à chaque lancement), affiche un
    changelog optionnel quand une mise à jour est détectée — **implémenté**
 4. Authentifie via OAuth Microsoft direct (navigateur système, sans dépendre du launcher officiel)
@@ -37,7 +37,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 > peut être restauré temporairement.
 
 > **Migration 1.20.1 :** le serveur et le modpack sont passés de 1.16.5/Forge 36.2.34 à
-> 1.20.1/Forge 47.3.0 (`MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`) — Java 8 n'est
+> 1.20.1/Forge 47.4.23 (`MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`) — Java 8 n'est
 > plus utilisable, `JavaManager` installe désormais Java 17 (Minecraft ne démarre plus sur un JRE
 > antérieur à 17 depuis la 1.18). Un joueur passant d'une ancienne version du launcher verra son
 > Java 8 portable (`runtime/java8`) ignoré au profit d'un Java 17 fraîchement téléchargé
@@ -169,7 +169,7 @@ Fichier : `src/MinecraftLauncherPerso/Services/Forge/ForgeManager.cs`
 
 Utilise le package `CmlLib.Core.Installer.Forge` :
 `ForgeInstaller.Install(minecraftVersion, forgeVersion, options)` installe/mappe le profil de
-version composé (vanilla + Forge) et retourne son identifiant (ex. `1.20.1-forge-47.3.0`).
+version composé (vanilla + Forge) et retourne son identifiant (ex. `1.20.1-forge-47.4.23`).
 Ce mapping seul ne télécharge pas les fichiers de la version : `MinecraftLauncher.InstallAsync`
 est appelé juste après pour installer réellement le jar, les libs et les assets vanilla dont
 Forge dépend.

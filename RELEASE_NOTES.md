@@ -7,4 +7,5 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Le launcher ne se fige plus pendant les téléchargements après un clic sur JOUER : la fenêtre reste utilisable, la barre de progression avance et le bouton ANNULER répond.
+- Le launcher installe désormais Forge 47.4.23, la même version que le serveur : les mods qui demandent un Forge récent se chargent correctement. Le premier lancement après la mise à jour installe cette nouvelle version de Forge (quelques secondes de plus).
+- Mise à jour du composant de connexion Microsoft.

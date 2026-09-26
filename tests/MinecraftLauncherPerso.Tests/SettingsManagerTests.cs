@@ -133,6 +133,30 @@ public sealed class SettingsManagerTests : IDisposable
     }
 
     [Fact]
+    public void Load_aligne_l_ancien_Forge_par_defaut_sur_celui_du_serveur()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MinecraftVersion": "1.20.1", "ForgeVersion": "47.3.0" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal(LauncherSettings.DefaultForgeVersion, settings.ForgeVersion);
+    }
+
+    [Fact]
+    public void Load_garde_une_version_de_Forge_choisie_a_la_main()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MinecraftVersion": "1.20.1", "ForgeVersion": "47.2.0" }""");
+        var manager = new SettingsManager(_settingsPath);
+
+        var settings = manager.Load();
+
+        Assert.Equal("47.2.0", settings.ForgeVersion);
+    }
+
+    [Fact]
     public void Load_ne_migre_pas_une_version_personnalisee_par_le_joueur()
     {
         // Seul MinecraftVersion a été changé à la main (ForgeVersion reste l'ancien défaut) : pas
