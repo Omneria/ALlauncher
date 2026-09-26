@@ -8,6 +8,13 @@ on:
       - "claude/**"
     tags:
       - "v*"
+  # PR vers main/dev (Dependabot notamment) : sans ce déclencheur, une PR dont la branche ne
+  # correspond à aucun motif "push" ci-dessus (dependabot/**) n'était jamais compilée ni testée
+  # avant d'être mergée. Le job "release" reste réservé aux tags (if plus bas).
+  pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch: {}
 
 # Moindre privilège : le job de build n'a besoin que de lire le dépôt. Seul le job "release"
@@ -24,7 +31,7 @@ jobs:
     steps:
       # fetch-depth 0 (historique + tags complets) : nécessaire à l'étape "Vérifie que
       # RELEASE_NOTES.md a été mis à jour" ci-dessous, qui compare son contenu au tag précédent.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -82,7 +89,7 @@ jobs:
           }
           Write-Host "OK : RELEASE_NOTES.md a été mis à jour depuis $previousTag."
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.x"
 
@@ -109,7 +116,7 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish/win-x64-selfcontained
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained/**
@@ -127,7 +134,7 @@ jobs:
           --self-contained false
           -o publish/win-x64-framework-dependent
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MinecraftLauncherPerso-win-x64-framework-dependent
           path: publish/win-x64-framework-dependent/**
@@ -148,9 +155,9 @@ jobs:
     steps:
       # Nécessaire pour RELEASE_NOTES.md (--notes-file ci-dessous) : ce job ne fait sinon que
       # télécharger l'exe déjà construit, sans checkout du dépôt.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: MinecraftLauncherPerso-win-x64-selfcontained
           path: publish/win-x64-selfcontained

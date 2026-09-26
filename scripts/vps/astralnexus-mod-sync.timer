@@ -1,0 +1,10 @@
+# Vérifie toutes les 5 minutes s'il existe une nouvelle release du mod Astral Nexus.
+[Unit]
+Description=Vérifie régulièrement les releases du mod Astral Nexus
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

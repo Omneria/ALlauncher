@@ -1,0 +1,8 @@
+# Régénère manifest.json (voir update-manifest.sh). Déclenché par modpack-manifest.path, ou à
+# la main : systemctl start modpack-manifest.service
+[Unit]
+Description=Régénère manifest.json du modpack
+
+[Service]
+Type=oneshot
+ExecStart=/opt/modpack-tools/update-manifest.sh

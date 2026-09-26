@@ -1,0 +1,14 @@
+# Installe la dernière release du mod Astral Nexus (voir sync-astralnexus-mod.py). Déclenché
+# toutes les 5 minutes par astralnexus-mod-sync.timer, ou à la main :
+#   systemctl start astralnexus-mod-sync.service
+[Unit]
+Description=Synchronise le mod Astral Nexus depuis ses releases GitHub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Dossiers mods/ où installer le jar, séparés par ":". Ajouter celui du serveur Minecraft
+# seulement s'il doit aussi l'avoir (le mod est client uniquement, voir README).
+Environment=TARGET_DIRS=/var/www/html/modpack/mods
+ExecStart=/opt/modpack-tools/sync-astralnexus-mod.py
