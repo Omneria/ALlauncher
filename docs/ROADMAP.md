@@ -1,6 +1,6 @@
 # Roadmap
 
-État au 24 septembre 2026, après la publication de la **v1.11.0**. Chaque piste donne le
+État au 26 septembre 2026, après la **v1.11.2**. Chaque piste donne le
 raisonnement qui la justifie, pour pouvoir trancher sans relire le code.
 
 Légende effort : ▲ petit (une soirée), ▲▲ moyen (quelques jours), ▲▲▲ gros chantier.
@@ -21,6 +21,14 @@ Détail joueur dans `RELEASE_NOTES.md` (et la release GitHub), détail technique
 - **Serveur** : port 25566, migré automatiquement, écrit dans `servers.dat`.
 - **GitHub** : requêtes conditionnelles (ETag) pour ne plus épuiser le quota de 60 requêtes/heure.
 - **CI** : notes de release publiées depuis `RELEASE_NOTES.md` et contrôlées, Dependabot vers `dev`.
+
+## Livré depuis (v1.11.1, v1.11.2, VPS)
+
+- **v1.11.1** : plus de gel de la fenêtre pendant les téléchargements.
+- **v1.11.2** : Forge 47.4.23 (celle du serveur) au lieu de 47.3.0, migration automatique ;
+  dépendances à jour (MSAL 4.90).
+- **VPS** : manifest régénéré tout seul à chaque changement de `mods/` ou `config/` ; mod
+  Astral Nexus installé automatiquement depuis ses releases GitHub (voir `scripts/vps/README.md`).
 
 ## Prochaine version : v1.12.0
 
@@ -90,6 +98,13 @@ les requêtes conditionnelles de la v1.11.0.
 "REVENIR EN ARRIÈRE" est annulé par la synchro suivante. Le VPS pourrait publier
 `manifest-previous.json` (renommé par `generate-manifest.py` avant d'écrire le nouveau) et le
 launcher mémoriser "épinglé sur la version précédente" jusqu'au prochain changement du pack.
+
+### 10. Version de Forge publiée par le VPS ▲
+
+Aujourd'hui, changer de version de Forge sur le serveur impose une release du launcher (cas de
+la v1.11.2). Le manifest pourrait porter `"forgeVersion": "47.4.23"`, que le launcher
+appliquerait à la place de sa valeur par défaut : une ligne à changer côté VPS, et clients et
+serveur restent alignés sans nouvelle version.
 
 ## Réservé à la v2.0.0 : refonte de l'interface
 
