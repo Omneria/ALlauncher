@@ -9,7 +9,18 @@ public sealed class LauncherSettings
 {
     public string MinecraftVersion { get; set; } = "1.20.1";
 
-    public string ForgeVersion { get; set; } = "47.3.0";
+    /// <summary>
+    /// Doit suivre la version de Forge du serveur : un mod qui exige un Forge plus récent que celui
+    /// du client refuse de se charger chez le joueur. Un settings.json qui porte encore un ancien
+    /// défaut est migré par SettingsManager (MigrateForgeVersion).
+    /// </summary>
+    public string ForgeVersion { get; set; } = DefaultForgeVersion;
+
+    internal const string DefaultForgeVersion = "47.4.23";
+
+    /// <summary>Anciens défauts de <see cref="ForgeVersion"/> pour Minecraft 1.20.1, reconnus pour
+    /// la migration (47.3.0 : v1.9.0 à v1.11.1).</summary>
+    internal static readonly string[] LegacyDefaultForgeVersions = ["47.3.0"];
 
     /// <summary>
     /// Base HTTPS du dossier modpack sur le VPS (v1.11.0) : nom de domaine DuckDNS (le même que

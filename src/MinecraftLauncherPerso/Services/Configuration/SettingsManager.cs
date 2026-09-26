@@ -112,6 +112,20 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// Alignement de Forge sur le serveur (v1.11.2, 47.3.0 -> 47.4.23) : même raisonnement que
+    /// <see cref="MigrateServerPort"/>. Ne migre qu'un ancien défaut exact sur Minecraft 1.20.1 :
+    /// une version choisie à la main est laissée telle quelle.
+    /// </summary>
+    private static void MigrateForgeVersion(LauncherSettings settings)
+    {
+        if (settings.MinecraftVersion == new LauncherSettings().MinecraftVersion
+            && LauncherSettings.LegacyDefaultForgeVersions.Contains(settings.ForgeVersion))
+        {
+            settings.ForgeVersion = LauncherSettings.DefaultForgeVersion;
+        }
+    }
+
     private static string UpgradeLegacyVpsUrl(string url) =>
         LauncherSettings.LegacyVpsUrlDefaults.TryGetValue(url, out var upgraded) ? upgraded : url;
 
@@ -152,6 +166,7 @@ public sealed class SettingsManager
         }
 
         MigrateMinecraftVersion(settings);
+        MigrateForgeVersion(settings);
         MigrateModpackManifestUrl(settings);
         MigrateMaintenanceMessageUrl(settings);
         MigrateLegacyVpsUrls(settings);

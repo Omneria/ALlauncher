@@ -45,7 +45,7 @@ public sealed class LaunchPipelineTests : IDisposable
 
         Assert.Equal(["java", "forge", "sync", "auth", "launch"], _calls);
         Assert.Equal("C:\\java\\bin\\java.exe", result.JavaPath);
-        Assert.Equal("1.20.1-forge-47.3.0", result.VersionId);
+        Assert.Equal($"1.20.1-forge-{LauncherSettings.DefaultForgeVersion}", result.VersionId);
         Assert.Equal("Steve", result.Session.Username);
         Assert.NotNull(acquired);
         Assert.True(File.Exists(Path.Combine(_gameDirectory, "servers.dat"))); // ServerHost renseigné → liste écrite
