@@ -121,8 +121,6 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 ├── tests/
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager, ModSync (manifest)
 ├── scripts/vps/                            # outils côté VPS : generate-manifest.py, Caddyfile (HTTPS), modèle de maintenance.txt
-├── docs/
-│   └── ROADMAP.md                          # roadmap : v1.12.0 priorisée, v2.0.0, pistes écartées
 ├── .github/
 │   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release sur tag v*
 │   └── dependabot.yml                      # PR hebdomadaires de mise à jour NuGet / actions, vers dev
