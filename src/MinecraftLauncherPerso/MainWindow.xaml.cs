@@ -27,6 +27,7 @@ using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.Maintenance;
 using MinecraftLauncherPerso.Services.ModSync;
+using MinecraftLauncherPerso.Services.Network;
 using MinecraftLauncherPerso.Services.News;
 using MinecraftLauncherPerso.Services.Notifications;
 using MinecraftLauncherPerso.Services.Status;
@@ -70,6 +71,11 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _newsRefreshTimer;
     private readonly DispatcherTimer _maintenanceRefreshTimer;
     private readonly DispatcherTimer _changelogRefreshTimer;
+    private readonly DispatcherTimer _connectivityTimer;
+    private readonly IConnectivityService _connectivityService;
+
+    /// <summary>Vrai tant que le bandeau "pas de connexion internet" est affiché (v1.14.0).</summary>
+    private bool _isOffline;
     private LauncherSettings _settings;
     private UpdateInfo? _pendingUpdate;
     private ServerStatus? _lastServerStatus;
@@ -140,6 +146,7 @@ public partial class MainWindow : Window
         _newsHistory = _newsHistoryStore.Load();
         _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
         _changelogService = new ReleaseChangelogService(releasesClient);
+        _connectivityService = new ConnectivityService(SharedHttpClient.Instance);
 
         // Toutes les cadences de rafraîchissement du contenu affiché sont alignées sur 1 minute
         // (v1.10.0) — auparavant un mélange de 30s/1 min/5 min/30 min sans logique d'ensemble
@@ -168,6 +175,9 @@ public partial class MainWindow : Window
 
         _changelogRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _changelogRefreshTimer.Tick += async (_, _) => await RunSafeAsync("Changelog", ShowChangelogAsync);
+
+        _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _connectivityTimer.Tick += async (_, _) => await RunSafeAsync("Connexion internet", RefreshConnectivityAsync);
 
         // L'avatar (cache disque depuis v1.6.0) n'était rafraîchi qu'aux moments où
         // ShowConnectedPlayer était appelée (connexion, restauration de session au démarrage) :
@@ -258,12 +268,26 @@ public partial class MainWindow : Window
         _newsRefreshTimer.Start();
         _maintenanceRefreshTimer.Start();
         _changelogRefreshTimer.Start();
+        _connectivityTimer.Start();
 
-        // Tous les chargements initiaux en parallèle : enchaînés l'un après l'autre (comme avant),
-        // un VPS lent ou GitHub injoignable retardait l'affichage de TOUT le tableau de bord (statut
-        // serveur, session) du temps de chaque timeout cumulé. Sûr côté UI : chaque tâche ne touche
-        // aux contrôles qu'après ses propres await, toujours sur le thread du Dispatcher.
+        // La sonde de connexion tourne en même temps que les chargements : hors ligne, le bandeau
+        // apparaît après quelques secondes au lieu d'attendre la fin de tous leurs délais.
         await Task.WhenAll(
+            LoadDashboardAsync(),
+            RunSafeAsync("Connexion internet", RefreshConnectivityAsync));
+
+        StartModpackPrefetch();
+    }
+
+    /// <summary>
+    /// Tous les chargements du tableau de bord en parallèle : enchaînés l'un après l'autre (comme
+    /// avant la v1.11.0), un VPS lent ou GitHub injoignable retardait l'affichage de TOUT le tableau
+    /// de bord du temps de chaque timeout cumulé. Sûr côté UI : chaque tâche ne touche aux contrôles
+    /// qu'après ses propres await, toujours sur le thread du Dispatcher. Relancé en entier au
+    /// retour de la connexion (voir RefreshConnectivityAsync).
+    /// </summary>
+    private Task LoadDashboardAsync() =>
+        Task.WhenAll(
             RunSafeAsync("Actus", ShowNewsAsync),
             RunSafeAsync("Changelog", ShowChangelogAsync),
             RunSafeAsync("Bannière de maintenance", RefreshMaintenanceBannerAsync),
@@ -272,7 +296,54 @@ public partial class MainWindow : Window
             RunSafeAsync("Restauration de session", RestoreCachedSessionAsync),
             RunSafeAsync("Réglages du pack", LoadPackSettingsAsync));
 
-        StartModpackPrefetch();
+    /// <summary>
+    /// Affiche ou masque le bandeau "pas de connexion internet" (v1.14.0). Sondes : le VPS
+    /// (manifest du modpack) et l'API GitHub, deux hébergeurs indépendants : si aucun ne répond,
+    /// c'est la connexion du joueur qui est en cause, pas un serveur en panne. Au retour de la
+    /// connexion, tout le tableau de bord est rechargé d'un coup plutôt que d'attendre, carte par
+    /// carte, le rafraîchissement suivant.
+    /// </summary>
+    private async Task RefreshConnectivityAsync()
+    {
+        var online = await _connectivityService.IsOnlineAsync(
+            [_settings.ModpackManifestUrl, _settings.MaintenanceMessageUrl, GitHubApiProbeUrl]);
+
+        if (!online)
+        {
+            if (!_isOffline)
+            {
+                Logger.Warn("MainWindow", "Aucune connexion internet détectée.");
+            }
+
+            _isOffline = true;
+            OfflineBanner.Visibility = Visibility.Visible;
+            return;
+        }
+
+        OfflineBanner.Visibility = Visibility.Collapsed;
+        if (_isOffline)
+        {
+            _isOffline = false;
+            Logger.Info("MainWindow", "Connexion internet rétablie, rechargement du tableau de bord.");
+            await LoadDashboardAsync();
+        }
+    }
+
+    private const string GitHubApiProbeUrl = "https://api.github.com/";
+
+    private async void OfflineRetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        OfflineRetryButton.IsEnabled = false;
+        OfflineRetryButton.Content = "VÉRIFICATION...";
+        try
+        {
+            await RunSafeAsync("Connexion internet", RefreshConnectivityAsync);
+        }
+        finally
+        {
+            OfflineRetryButton.IsEnabled = true;
+            OfflineRetryButton.Content = "RÉESSAYER";
+        }
     }
 
     /// <summary>

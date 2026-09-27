@@ -413,6 +413,14 @@ pas attendre une minute avant d'afficher quoi que ce soit à l'ouverture. Seul l
 JOUER (6h, voir "Lancement du jeu") n'est pas concerné : ce n'est pas un rafraîchissement de
 contenu mais un filet de sécurité contre un bouton resté bloqué.
 
+**Pas de connexion internet (v1.14.0) :** `Services/Network/ConnectivityService.cs` sonde le
+VPS et l'API GitHub (requête HEAD, 8 s maximum, n'importe quelle réponse HTTP compte) au démarrage
+puis chaque minute. Si Windows ne voit aucun réseau ou qu'aucune sonde ne répond, un bandeau
+ambre "PAS DE CONNEXION INTERNET" s'affiche avec un bouton RÉESSAYER, au lieu de cartes qui
+échouent chacune en silence. Au retour de la connexion, le bandeau disparaît et tout le tableau
+de bord est rechargé (`LoadDashboardAsync`). Un VPS en panne alors que GitHub répond n'est pas
+une coupure internet : pas de bandeau dans ce cas (la carte serveur l'indique déjà).
+
 **Chargements initiaux en parallèle (v1.11.0) :** au démarrage, ces premiers chargements tournent
 tous en même temps (`Task.WhenAll`) et non plus l'un après l'autre — un VPS lent ou GitHub
 injoignable retardait sinon l'affichage de *tout* le tableau de bord du temps de chaque timeout

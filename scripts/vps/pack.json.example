@@ -7,8 +7,6 @@
     "config/simple-custom-early-loading/*"
   ],
   "clientOnlyMods": [
-    "jei-*.jar",
-    "journeymap-*.jar",
     "appleskin-*.jar",
     "Controlling-*.jar",
     "Searchables-*.jar",
