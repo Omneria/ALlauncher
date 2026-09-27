@@ -24,7 +24,7 @@ Réglages du pack (optionnel) : <root>/pack.json, recopié dans la section "pack
       "enforcedConfigs": ["config/simple-custom-early-loading.json"],
       "serverOnlyMods": ["Chunky-*.jar"]
     }
-- enforcedConfigs : motifs (style shell) des fichiers de config/ imposés à tous les joueurs,
+- enforcedConfigs : motifs (style shell, insensibles à la casse) des fichiers de config/ imposés à tous les joueurs,
   réécrits à chaque lancement. Les autres fichiers de config/ sont des réglages "par défaut" :
   installés seulement s'ils manquent, un joueur garde ce qu'il y a changé.
 - serverOnlyMods : motifs des fichiers de mods/ utiles au serveur seul, jamais envoyés aux joueurs.
@@ -68,8 +68,11 @@ def load_pack_settings(root: Path) -> dict:
 
 
 def matches_any(relative_path: str, patterns) -> bool:
-    name = relative_path.rsplit("/", 1)[-1]
-    return any(fnmatch.fnmatch(relative_path, p) or fnmatch.fnmatch(name, p) for p in patterns)
+    # Insensible à la casse : les noms de jars varient d'un auteur à l'autre ("Krypton..." dans la
+    # doc, "krypton-reno-..." sur le disque), et fnmatch respecte la casse sous Linux.
+    path = relative_path.lower()
+    name = path.rsplit("/", 1)[-1]
+    return any(fnmatch.fnmatchcase(path, p.lower()) or fnmatch.fnmatchcase(name, p.lower()) for p in patterns)
 
 
 def build_manifest(root: Path, base_url: str, pack_settings: dict) -> dict:

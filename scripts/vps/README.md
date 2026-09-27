@@ -64,7 +64,7 @@ Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), l
 - `recommendedRamMb`, `minRamMb` : affichés dans les Paramètres du launcher ; sous le minimum,
   le launcher avertit le joueur avant de lancer (une fois par session).
 - `enforcedConfigs` : fichiers de `config/` **imposés** à tous les joueurs, réécrits à chaque
-  lancement s'ils diffèrent (motifs style shell, chemin complet ou nom de fichier). Tous les
+  lancement s'ils diffèrent (motifs style shell, chemin complet ou nom de fichier, sans tenir compte des majuscules). Tous les
   autres fichiers de `config/` sont des **réglages par défaut** : installés s'ils manquent, puis
   laissés au joueur (JourneyMap, Quark, JEI...). Pour pousser une nouvelle valeur d'une config
   par défaut à tout le monde, l'ajouter à `enforcedConfigs`.
