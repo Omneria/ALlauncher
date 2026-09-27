@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
+using MinecraftLauncherPerso.Services.Hardware;
 
 namespace MinecraftLauncherPerso.Services.Configuration;
 
@@ -12,12 +13,16 @@ public sealed class SettingsManager
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _settingsFilePath;
+    private readonly Func<int?> _totalPhysicalMemoryMb;
 
-    public SettingsManager(string? settingsFilePath = null)
+    /// <param name="totalPhysicalMemoryMb">RAM de la machine, injectable pour les tests (défaut :
+    /// SystemInfo).</param>
+    public SettingsManager(string? settingsFilePath = null, Func<int?>? totalPhysicalMemoryMb = null)
     {
         _settingsFilePath = settingsFilePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MinecraftLauncherPerso", "settings.json");
+        _totalPhysicalMemoryMb = totalPhysicalMemoryMb ?? SystemInfo.GetTotalPhysicalMemoryMb;
     }
 
     /// <summary>
@@ -126,6 +131,23 @@ public sealed class SettingsManager
         }
     }
 
+    /// <summary>
+    /// RAM par défaut relevée pour le pack de la saison 6 (v1.12.0) : même raisonnement que
+    /// <see cref="MigrateServerPort"/>, un settings.json porte l'ancienne valeur calculée pour
+    /// cette machine. Ne migre que si la valeur est exactement l'ancien défaut de cette machine et
+    /// que le nouveau est plus élevé : un réglage choisi à la main n'est pas touché.
+    /// </summary>
+    private void MigrateMaxRam(LauncherSettings settings)
+    {
+        var totalMb = _totalPhysicalMemoryMb();
+        var legacy = LauncherSettings.LegacyRecommendMaxRamMb(totalMb);
+        var current = LauncherSettings.RecommendMaxRamMb(totalMb);
+        if (settings.MaxRamMb == legacy && current > legacy)
+        {
+            settings.MaxRamMb = current;
+        }
+    }
+
     private static string UpgradeLegacyVpsUrl(string url) =>
         LauncherSettings.LegacyVpsUrlDefaults.TryGetValue(url, out var upgraded) ? upgraded : url;
 
@@ -172,6 +194,7 @@ public sealed class SettingsManager
         MigrateLegacyVpsUrls(settings);
         // Après la migration de ServerHost ci-dessus (typo corrigée) : l'hôte comparé est le bon.
         MigrateServerPort(settings);
+        MigrateMaxRam(settings);
 
         var normalized = Normalize(settings);
         Save(normalized);

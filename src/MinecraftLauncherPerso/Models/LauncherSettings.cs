@@ -124,12 +124,32 @@ public sealed class LauncherSettings
     /// </summary>
     public int MaxRamMb { get; set; } = RecommendMaxRamMb();
 
-    private static int RecommendMaxRamMb()
+    private static int RecommendMaxRamMb() => RecommendMaxRamMb(SystemInfo.GetTotalPhysicalMemoryMb());
+
+    /// <summary>
+    /// RAM max par défaut selon la RAM de la machine (v1.12.0) : le pack 1.20.1 de la saison 6
+    /// (Create, MineColonies, Botania, Twilight Forest, deux mods de biomes...) demande 4 Go au
+    /// minimum, 6 Go conseillés. Seuils un peu sous les tailles nominales : Windows annonce
+    /// souvent 7,8 Go pour une barrette de 8 Go, 11,8 Go pour 12 Go. Sous 7 Go, la moitié de la
+    /// RAM (le pack y sera à l'étroit, le launcher avertit avant de lancer).
+    /// internal : testé directement, et réutilisé par la migration de SettingsManager.
+    /// </summary>
+    internal static int RecommendMaxRamMb(int? totalMb) => totalMb switch
     {
-        var totalMb = SystemInfo.GetTotalPhysicalMemoryMb();
+        // RAM système indéterminable (API Windows indisponible) : valeur conseillée du pack.
+        null => 6144,
+        < 7168 => Math.Max(1024, totalMb.Value / 2 / 256 * 256),
+        < 11264 => 4096,
+        < 15360 => 6144,
+        _ => 8192,
+    };
+
+    /// <summary>Ancienne valeur par défaut (jusqu'à la v1.11.2), reconnue par la migration de
+    /// SettingsManager : un joueur qui ne l'a jamais changée passe à la nouvelle.</summary>
+    internal static int LegacyRecommendMaxRamMb(int? totalMb)
+    {
         if (totalMb is null)
         {
-            // RAM système indéterminable (API Windows indisponible) : repli sur l'ancienne valeur fixe.
             return 6144;
         }
 
@@ -141,7 +161,6 @@ public sealed class LauncherSettings
             _ => 8192,
         };
 
-        // Jamais plus de la moitié de la RAM totale, pour laisser de la marge à l'OS et au reste.
         return Math.Min(recommended, totalMb.Value / 2);
     }
 

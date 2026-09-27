@@ -28,7 +28,9 @@ public partial class SettingsWindow : Window
     /// <summary>True si l'utilisateur a cliqué "Enregistrer" (par opposition à fermer sans sauver).</summary>
     public bool SettingsSaved { get; private set; }
 
-    public SettingsWindow(LauncherSettings settings, IModSyncService modSyncService)
+    /// <param name="packSettings">Réglages publiés par le pack (RAM conseillée et minimum), pour
+    /// l'indication sous le réglage RAM. Null si inconnus (VPS injoignable, mode zip).</param>
+    public SettingsWindow(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings = null)
     {
         InitializeComponent();
         _settings = settings;
@@ -50,6 +52,31 @@ public partial class SettingsWindow : Window
         GameDirectoryTextBox.Text = _settings.GameDirectory;
         DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
         UpdateRollbackButtonState();
+        ShowRamPackHint(packSettings);
+    }
+
+    private void ShowRamPackHint(ModpackPackSettings? packSettings)
+    {
+        var recommendedMb = packSettings?.RecommendedRamMb;
+        var minMb = packSettings?.MinRamMb;
+        if (recommendedMb is not > 0 && minMb is not > 0)
+        {
+            return;
+        }
+
+        var parts = new List<string>();
+        if (recommendedMb is > 0)
+        {
+            parts.Add($"conseillé {recommendedMb / 1024.0:0.#} Go");
+        }
+
+        if (minMb is > 0)
+        {
+            parts.Add($"minimum {minMb / 1024.0:0.#} Go");
+        }
+
+        RamPackHintText.Text = $"Modpack : {string.Join(", ", parts)} (RAM max, poignée de droite). Ton PC : {_ramCeilingMb / 1024.0:0.#} Go.";
+        RamPackHintText.Visibility = Visibility.Visible;
     }
 
     // Un seul slider à deux poignées (au lieu de deux sliders min/max distincts, remplacé v1.8.0) :

@@ -318,10 +318,20 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="0,0,0,16">
-                                                            <TextBlock Text="{Binding FetchedAtLabel}"
-                                                                       FontFamily="{StaticResource MonoFontFamily}"
-                                                                       FontSize="10" Foreground="{StaticResource InkDimBrush}"
-                                                                       Margin="0,0,0,4" />
+                                                            <!-- Badge MODPACK (v1.12.0) : mise à jour du pack lue
+                                                                 dans changelog.json, mêlée aux actus par date. -->
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                                <Border Margin="0,0,8,0" Padding="5,1" BorderThickness="1"
+                                                                        BorderBrush="{StaticResource CyanBrush}"
+                                                                        Visibility="{Binding ModpackBadgeVisibility}">
+                                                                    <TextBlock Text="MODPACK"
+                                                                               FontFamily="{StaticResource MonoFontFamily}"
+                                                                               FontSize="9" Foreground="{StaticResource CyanBrush}" />
+                                                                </Border>
+                                                                <TextBlock Text="{Binding FetchedAtLabel}" VerticalAlignment="Center"
+                                                                           FontFamily="{StaticResource MonoFontFamily}"
+                                                                           FontSize="10" Foreground="{StaticResource InkDimBrush}" />
+                                                            </StackPanel>
                                                             <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
                                                                        FontFamily="{StaticResource BodyFontFamily}"
                                                                        FontSize="13" Foreground="{StaticResource InkBrush}" />

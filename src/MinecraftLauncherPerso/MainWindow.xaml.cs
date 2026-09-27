@@ -20,6 +20,7 @@ using MinecraftLauncherPerso.Services.Changelog;
 using MinecraftLauncherPerso.Services.Configuration;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Forge;
+using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
 using MinecraftLauncherPerso.Services.Launch;
@@ -265,7 +266,8 @@ public partial class MainWindow : Window
             RunSafeAsync("Bannière de maintenance", RefreshMaintenanceBannerAsync),
             RunSafeAsync("Statut du serveur", RefreshServerStatusAsync),
             RunSafeAsync("Vérification de mise à jour", CheckForUpdateAsync),
-            RunSafeAsync("Restauration de session", RestoreCachedSessionAsync));
+            RunSafeAsync("Restauration de session", RestoreCachedSessionAsync),
+            RunSafeAsync("Réglages du pack", LoadPackSettingsAsync));
 
         StartModpackPrefetch();
     }
@@ -311,20 +313,37 @@ public partial class MainWindow : Window
         // latérale) ; seul son contenu change. Historique (pas juste la dernière actu) : chaque
         // contenu distinct observé est horodaté et conservé localement (NewsHistoryStore), puisque
         // news.txt côté VPS ne garde lui-même aucun historique.
-        var news = await _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
+        // Mises à jour du pack (changelog.json, v1.12.0) mêlées aux actus par date, avec un badge
+        // MODPACK : pendant le déploiement du pack en plusieurs salves, les joueurs voient ce qui
+        // arrive sans qu'il faille l'annoncer à la main dans news.txt.
+        var newsTask = _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
+        var changelogTask = _modSyncService.FetchChangelogAsync(_settings.ModpackManifestUrl);
+        var news = await newsTask;
+        var changelog = await changelogTask;
         if (news is not null)
         {
             _newsHistory = _newsHistoryStore.RecordIfNew(_newsHistory, news);
         }
 
-        NewsEmptyText.Visibility = _newsHistory.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        NewsHistoryList.ItemsSource = _newsHistory
-            .Select(entry => new NewsHistoryItem(entry.FetchedAt.ToLocalTime().ToString("dd/MM HH:mm"), entry.Content))
+        var items = _newsHistory
+            .Select(entry => (Date: entry.FetchedAt, Item: new NewsHistoryItem(FormatNewsDate(entry.FetchedAt), entry.Content, Visibility.Collapsed)))
+            .Concat(changelog.Select(entry => (Date: entry.Date, Item: new NewsHistoryItem(FormatNewsDate(entry.Date), string.Join("\n", entry.Lines), Visibility.Visible))))
+            .OrderByDescending(item => item.Date)
+            .Take(MaxNewsItems)
+            .Select(item => item.Item)
             .ToList();
+
+        NewsEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NewsHistoryList.ItemsSource = items;
     }
 
-    /// <summary>Vue d'affichage d'une NewsHistoryEntry, avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
-    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
+    private const int MaxNewsItems = 20;
+
+    private static string FormatNewsDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM HH:mm");
+
+    /// <summary>Vue d'affichage d'une actu (news.txt) ou d'une mise à jour du pack
+    /// (changelog.json), avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
+    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content, Visibility ModpackBadgeVisibility);
 
     private static readonly CultureInfo FrenchCulture = CultureInfo.GetCultureInfo("fr-FR");
 
@@ -505,8 +524,53 @@ public partial class MainWindow : Window
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
     }
 
+    /// <summary>Réglages publiés par le pack (RAM conseillée/minimum, Forge), lus au démarrage
+    /// pour l'avertissement de RAM et l'indication des Paramètres. Null tant qu'inconnus.</summary>
+    private ModpackPackSettings? _packSettings;
+
+    /// <summary>L'avertissement "RAM insuffisante" n'est montré qu'une fois par session : un PC
+    /// de 8 Go ne peut rien y changer, inutile de le lui répéter à chaque partie.</summary>
+    private bool _ramWarningShown;
+
+    private async Task LoadPackSettingsAsync()
+    {
+        _packSettings = await _modSyncService.FetchPackSettingsAsync(_settings.ModpackManifestUrl);
+    }
+
+    /// <summary>
+    /// Vrai si le lancement peut continuer. Avertit (une fois par session) quand la RAM max
+    /// réglée est sous le minimum demandé par le pack : le jeu risque de manquer de mémoire en
+    /// pleine partie, sans message clair.
+    /// </summary>
+    private bool ConfirmRamIsEnough()
+    {
+        var minRamMb = _packSettings?.MinRamMb;
+        if (_ramWarningShown || minRamMb is not > 0 || _settings.MaxRamMb >= minRamMb)
+        {
+            return true;
+        }
+
+        _ramWarningShown = true;
+        var totalMb = SystemInfo.GetTotalPhysicalMemoryMb();
+        var canRaise = totalMb is null || totalMb.Value - minRamMb.Value >= 3072;
+        var advice = canRaise
+            ? "Augmente la RAM dans Paramètres (poignée de droite du réglage RAM)."
+            : $"Ton PC a {totalMb / 1024.0:0.#} Go de RAM : ferme les autres programmes (navigateur, Discord...) pendant la partie.";
+        var result = MessageBox.Show(
+            $"Le modpack demande au moins {minRamMb / 1024.0:0.#} Go de RAM, le launcher est réglé sur {_settings.MaxRamMb / 1024.0:0.#} Go.\n\n{advice}\n\nLancer quand même ?",
+            "RAM insuffisante pour le modpack",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        return result == MessageBoxResult.Yes;
+    }
+
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!ConfirmRamIsEnough())
+        {
+            return;
+        }
+
         if (_lastServerStatus is { IsOnline: false })
         {
             var result = MessageBox.Show(
@@ -1028,7 +1092,7 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = new SettingsWindow(_settings, _modSyncService) { Owner = this };
+        var window = new SettingsWindow(_settings, _modSyncService, _packSettings) { Owner = this };
         window.ShowDialog();
 
         if (window.SettingsSaved)

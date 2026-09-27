@@ -66,6 +66,10 @@
                     </Thumb.Template>
                 </Thumb>
             </Canvas>
+            <!-- Besoin en RAM publié par le pack (v1.12.0), masqué s'il est inconnu. -->
+            <TextBlock x:Name="RamPackHintText" TextWrapping="Wrap" Margin="0,-10,0,16"
+                       FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
+                       Foreground="{StaticResource InkDimBrush}" Visibility="Collapsed" />
 
             <TextBlock Text="RÉSOLUTION DU JEU (0 = automatique)" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,4" />
             <Grid Margin="0,0,0,16">

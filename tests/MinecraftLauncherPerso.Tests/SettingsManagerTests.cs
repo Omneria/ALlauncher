@@ -270,4 +270,42 @@ public sealed class SettingsManagerTests : IDisposable
 
         Assert.Equal("https://autre-vps/maintenance.txt", settings.MaintenanceMessageUrl);
     }
+
+    [Theory]
+    [InlineData(7900, 3072, 4096)] // PC de 8 Go : ancien défaut 3 Go -> 4 Go
+    [InlineData(12100, 4096, 6144)] // PC de 12 Go : ancien défaut 4 Go -> 6 Go
+    public void Load_releve_la_RAM_par_defaut_jamais_modifiee(int totalMb, int legacyMaxRamMb, int expectedMaxRamMb)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, $$"""{ "MinRamMb": 2048, "MaxRamMb": {{legacyMaxRamMb}} }""");
+        var manager = new SettingsManager(_settingsPath, () => totalMb);
+
+        var settings = manager.Load();
+
+        Assert.Equal(expectedMaxRamMb, settings.MaxRamMb);
+    }
+
+    [Fact]
+    public void Load_garde_une_RAM_choisie_a_la_main()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        File.WriteAllText(_settingsPath, """{ "MinRamMb": 2048, "MaxRamMb": 5120 }""");
+        var manager = new SettingsManager(_settingsPath, () => 12100);
+
+        var settings = manager.Load();
+
+        Assert.Equal(5120, settings.MaxRamMb);
+    }
+
+    [Theory]
+    [InlineData(null, 6144)]
+    [InlineData(4096, 2048)] // petite machine : la moitié, arrondie au palier de 256 Mo
+    [InlineData(7900, 4096)]
+    [InlineData(12100, 6144)]
+    [InlineData(16200, 8192)]
+    [InlineData(65536, 8192)]
+    public void RecommendMaxRamMb_suit_la_RAM_de_la_machine(int? totalMb, int expected)
+    {
+        Assert.Equal(expected, LauncherSettings.RecommendMaxRamMb(totalMb));
+    }
 }
