@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net8.0-windows (sans UseWPF) : la même cible que le projet référencé (une WinExe WPF ne
-         peut pas être référencée par un projet visant net8.0 générique), mais les tests eux-mêmes
+    <!-- net10.0-windows (sans UseWPF) : la même cible que le projet référencé (une WinExe WPF ne
+         peut pas être référencée par un projet visant net10.0 générique), mais les tests eux-mêmes
          n'utilisent aucun type WPF. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

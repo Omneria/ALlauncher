@@ -52,7 +52,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 ├── MinecraftLauncherPerso.sln
 ├── src/
 │   └── MinecraftLauncherPerso/
-│       ├── MinecraftLauncherPerso.csproj   # net8.0-windows, WPF, CmlLib.Core + Installer.Forge
+│       ├── MinecraftLauncherPerso.csproj   # net10.0-windows, WPF, CmlLib.Core + Installer.Forge
 │       │                                   # AssemblyName "AL Launcher", pas de .pdb, icône embarquée
 │       ├── App.xaml(.cs)                   # bootstrap : ouvre SplashWindow au démarrage
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
@@ -848,7 +848,7 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
 
 ## Build
 
-Le projet cible `net8.0-windows` (WPF) : à builder/exécuter sous Windows avec le SDK .NET 8.
+Le projet cible `net10.0-windows` (WPF) : à builder/exécuter sous Windows avec le SDK .NET 10 (depuis la v1.12.0 ; .NET 8 n'est plus maintenu après le 10 novembre 2026).
 
 ```powershell
 dotnet restore
@@ -858,7 +858,7 @@ dotnet run --project src/MinecraftLauncherPerso
 ```
 
 > Le développement se fait dans un environnement Linux, qui ne peut pas compiler de projet WPF
-> (`net8.0-windows`) : impossible de builder ou tester ici. Un workflow CI GitHub Actions
+> (`net10.0-windows`) : impossible de builder ou tester ici. Un workflow CI GitHub Actions
 > (`.github/workflows/build-windows.yml`) build le projet sur `windows-latest` à chaque push et
 > publie un exécutable en artifact — c'est le moyen de vérifier qu'un changement compile toujours.
 >
