@@ -27,6 +27,11 @@ jobs:
     # WPF (net10.0-windows) ne peut être compilé que sur un hôte Windows :
     # le SDK Microsoft.NET.Sdk.WindowsDesktop (compilateur XAML inclus) n'est distribué que là.
     runs-on: windows-latest
+    env:
+      # Build de test (tout sauf un tag de release) : numéro du run, pour que l'exe affiche
+      # "1.12.0-dev.<run>" au lieu de se faire passer pour la release (voir DevBuildNumber dans le
+      # csproj et AppVersion.cs). Vide sur un tag.
+      DEV_BUILD_NUMBER: ${{ !startsWith(github.ref, 'refs/tags/') && github.run_number || '' }}
 
     steps:
       # fetch-depth 0 (historique + tags complets) : nécessaire à l'étape "Vérifie que
@@ -97,7 +102,7 @@ jobs:
         run: dotnet restore
 
       - name: Build (Release)
-        run: dotnet build -c Release --no-restore
+        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
 
       # Le projet de tests fait partie du .sln (compilé par le Build ci-dessus, et "dotnet test" à la
       # racine fonctionne en local) ; ciblé explicitement ici pour ne lancer que lui. "dotnet test"
@@ -114,6 +119,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
+          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
           -o publish/win-x64-selfcontained
 
       - uses: actions/upload-artifact@v7
@@ -132,6 +138,7 @@ jobs:
           -c Release
           -r win-x64
           --self-contained false
+          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
           -o publish/win-x64-framework-dependent
 
       - uses: actions/upload-artifact@v7
@@ -177,7 +184,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
+          $exe = "publish/win-x64-selfcontained/Omneria Games.exe"
           $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
 

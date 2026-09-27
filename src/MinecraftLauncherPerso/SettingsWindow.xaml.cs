@@ -9,6 +9,7 @@ using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.ModSync;
+using MinecraftLauncherPerso.Services.Update;
 
 namespace MinecraftLauncherPerso;
 
@@ -344,14 +345,12 @@ public partial class SettingsWindow : Window
 
     private async Task<string> BuildProblemReportAsync()
     {
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        var versionText = version is null ? "inconnue" : $"{version.Major}.{version.Minor}.{version.Build}";
         var lastSyncedAt = _modSyncService.GetLastSyncedAt(_settings.GameDirectory);
 
         var lines = new List<string>
         {
-            "=== Rapport AL Launcher ===",
-            $"Version launcher : {versionText}",
+            "=== Rapport Omnéria Games ===",
+            $"Version launcher : {AppVersion.Display}",
             $"OS : {Environment.OSVersion.VersionString}",
             $"RAM configurée : {_settings.MinRamMb}-{_settings.MaxRamMb} Mo",
             $"Serveur : {_settings.ServerHost}:{_settings.ServerPort}",

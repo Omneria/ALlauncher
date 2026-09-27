@@ -32,7 +32,7 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,4,28,20">
             <StackPanel>
-                <TextBlock Text="AL LAUNCHER" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <TextBlock Text="OMNÉRIA GAMES" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
                 <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,20" Foreground="{StaticResource InkBrush}">
                     Outil non officiel développé pour un usage privé entre amis, sans lien avec Mojang,
                     Microsoft ou Minecraft. Fourni "en l'état", sans garantie. Ce launcher ne scanne rien

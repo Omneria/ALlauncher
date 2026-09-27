@@ -20,6 +20,7 @@ using MinecraftLauncherPerso.Services.Changelog;
 using MinecraftLauncherPerso.Services.Configuration;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Forge;
+using MinecraftLauncherPerso.Services.GitHub;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.Http;
 using MinecraftLauncherPerso.Services.Java;
@@ -131,12 +132,14 @@ public partial class MainWindow : Window
         _gameLauncher.GameExited += GameLauncher_GameExited;
         _launchPipeline = new LaunchPipeline(_javaManager, _forgeManager, _modSyncService, _authService, _gameLauncher);
         _serverStatusService = new ServerStatusService();
-        _updateService = new GitHubUpdateService(SharedHttpClient.Instance);
+        // Un seul appel à l'API GitHub pour la mise à jour et le changelog (v1.12.0).
+        var releasesClient = new GitHubReleasesClient(SharedHttpClient.Instance);
+        _updateService = new GitHubUpdateService(SharedHttpClient.Instance, releasesClient);
         _newsService = new NewsService(SharedHttpClient.Instance);
         _newsHistoryStore = new NewsHistoryStore();
         _newsHistory = _newsHistoryStore.Load();
         _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
-        _changelogService = new ReleaseChangelogService(SharedHttpClient.Instance);
+        _changelogService = new ReleaseChangelogService(releasesClient);
 
         // Toutes les cadences de rafraîchissement du contenu affiché sont alignées sur 1 minute
         // (v1.10.0) — auparavant un mélange de 30s/1 min/5 min/30 min sans logique d'ensemble
@@ -235,8 +238,8 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         ServerNameText.Text = _settings.ServerName.ToUpperInvariant();
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = version is null ? "LAUNCHER" : $"LAUNCHER v{version.Major}.{version.Minor}.{version.Build}";
+        // "-dev.<build>" sur un exe de test (v1.12.0), pour ne pas le confondre avec la release.
+        VersionText.Text = $"LAUNCHER v{AppVersion.Display}";
         RefreshLastSyncText();
 
         // Assistant de premier lancement (v1.8.0) : seulement si settings.json n'existait pas

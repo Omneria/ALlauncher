@@ -1,7 +1,7 @@
 <Window x:Class="MinecraftLauncherPerso.SplashWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Omnéria Launcher"
+        Title="Omnéria Games"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
