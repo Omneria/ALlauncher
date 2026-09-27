@@ -25,6 +25,8 @@ public static class Logger
     // qu'on ne surveille jamais activement.
     private const long MaxSizeBytes = 5 * 1024 * 1024;
 
+    public static void Info(string source, string message) => Write("INFO", source, message);
+
     public static void Warn(string source, string message) => Write("WARN", source, message);
 
     public static void Error(string source, string message, Exception? exception = null)

@@ -194,6 +194,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -213,6 +214,43 @@
                                 Click="UpdateBannerButton_Click" />
                     </Grid>
 
+                    <!-- Pas de connexion internet (v1.14.0) : sans elle, chaque carte échouait en
+                         silence de son côté (serveur "hors ligne", actus vides) sans dire au joueur
+                         que le problème vient de sa connexion. Affiché quand Windows ne voit aucun
+                         réseau ou qu'aucune sonde (VPS, GitHub) ne répond, voir
+                         RefreshConnectivityAsync ; masqué tout seul au retour de la connexion.
+                         Simple Border (pas de Polygon en biseau) : voir l'incident v1.9.2 décrit
+                         au-dessus de MaintenanceBanner. -->
+                    <Border x:Name="OfflineBanner" Grid.Row="1" Margin="0,0,0,16" Padding="20,14"
+                            Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AmberBrush}"
+                            BorderThickness="1.5" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Path Grid.Column="0" VerticalAlignment="Top" Margin="0,2,16,0"
+                                  Data="M2 2l20 20 M8.5 16.5a5 5 0 0 1 7 0 M5 12.9a10 10 0 0 1 5.2-2.8 M19 12.9a10 10 0 0 0-2.1-1.6 M12 20h.01"
+                                  Stroke="{StaticResource AmberBrush}" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Width="24" Height="24" Stretch="Uniform" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="PAS DE CONNEXION INTERNET" Style="{StaticResource EyebrowTextStyle}"
+                                           Foreground="{StaticResource AmberBrush}" FontSize="11" />
+                                <TextBlock FontSize="12" Foreground="{StaticResource InkDimBrush}" TextWrapping="Wrap"
+                                           Margin="0,4,0,0"
+                                           Text="Le serveur, les actus et les mises à jour ne peuvent pas être chargés. Vérifie ta connexion : le launcher réessaie tout seul chaque minute." />
+                            </StackPanel>
+                            <Button x:Name="OfflineRetryButton" Grid.Column="2" Content="RÉESSAYER"
+                                    VerticalAlignment="Center" Margin="16,0,0,0"
+                                    Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="10,4"
+                                    FontSize="11" Foreground="{StaticResource AmberBrush}"
+                                    AutomationProperties.Name="Réessayer la connexion"
+                                    Click="OfflineRetryButton_Click" />
+                        </Grid>
+                    </Border>
+
                     <!-- Bannière de maintenance (v1.9.0, optionnelle) : "carte console" magenta
                          (option B retenue) — plus imposante que les bandeaux discrets déjà en place
                          (mise à jour du launcher, etc.) puisqu'elle porte une information dont
@@ -225,7 +263,7 @@
                          Polygon est dans la même cellule Auto que celle qui détermine la hauteur de
                          la bannière, ce qui a cassé l'affichage de tout le dashboard en production.
                          Collapsed tant qu'aucun maintenance.txt n'est détecté. -->
-                    <Grid x:Name="MaintenanceBanner" Grid.Row="1" Margin="0,0,0,16" Visibility="Collapsed">
+                    <Grid x:Name="MaintenanceBanner" Grid.Row="2" Margin="0,0,0,16" Visibility="Collapsed">
                         <Polygon Points="14,0 700,0 700,106 686,120 0,120 0,14" Stretch="Fill"
                                  Fill="{StaticResource SurfaceBrush}"
                                  Stroke="{StaticResource MagentaBrush}" StrokeThickness="1.5" />
@@ -268,7 +306,7 @@
                         </Grid>
                     </Grid>
 
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="3">
                         <Grid.ColumnDefinitions>
                             <!-- x:Name sur les 3 colonnes : le mode compact (CompactModeButton_Click)
                                  réduit NewsColumn/GapColumn à 0 pour ne garder que la colonne serveur,

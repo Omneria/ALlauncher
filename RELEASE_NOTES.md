@@ -7,5 +7,4 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Les mises à jour du modpack se téléchargent beaucoup plus vite : plusieurs mods à la fois, avec la progression en Mo.
-- « Revenir en arrière » (Paramètres) tient enfin : la version précédente du modpack est gardée jusqu'à la prochaine mise à jour publiée, au lieu d'être annulée au lancement suivant. « Réparer le modpack » revient à la version du serveur.
+- Sans connexion internet, le launcher le dit clairement : un bandeau « Pas de connexion internet » remplace les cartes vides, avec un bouton pour réessayer. Tout se recharge tout seul dès que la connexion revient.
