@@ -53,6 +53,36 @@ public sealed class LaunchPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_installe_la_version_de_Forge_publiee_par_le_pack()
+    {
+        var pack = new ModpackPackSettings { ForgeVersion = "47.4.99" };
+        var pipeline = CreatePipeline(sync: new FakeModSyncService(_calls, pack: pack));
+
+        var result = await pipeline.RunAsync(CreateSettings());
+
+        Assert.Equal("1.20.1-forge-47.4.99", result.VersionId);
+    }
+
+    [Theory]
+    [InlineData(null, "47.4.23")]
+    [InlineData("", "47.4.23")]
+    [InlineData("n'importe quoi", "47.4.23")]
+    [InlineData("47.4", "47.4")]
+    [InlineData(" 47.4.30 ", "47.4.30")]
+    public void ResolveForgeVersion_ne_garde_quune_version_plausible(string? published, string expected)
+    {
+        var pack = new ModpackPackSettings { ForgeVersion = published };
+
+        Assert.Equal(expected, LaunchPipeline.ResolveForgeVersion(pack, "47.4.23"));
+    }
+
+    [Fact]
+    public void ResolveForgeVersion_sans_reglages_du_pack_garde_la_valeur_des_parametres()
+    {
+        Assert.Equal("47.4.23", LaunchPipeline.ResolveForgeVersion(null, "47.4.23"));
+    }
+
+    [Fact]
     public async Task RunAsync_necrit_pas_servers_dat_sans_ServerHost()
     {
         var pipeline = CreatePipeline();
@@ -178,8 +208,13 @@ public sealed class LaunchPipelineTests : IDisposable
         }
     }
 
-    private sealed class FakeModSyncService(List<string> calls, CancellationTokenSource? cancelDuringSync = null) : IModSyncService
+    private sealed class FakeModSyncService(List<string> calls, CancellationTokenSource? cancelDuringSync = null, ModpackPackSettings? pack = null) : IModSyncService
     {
+        public Task<ModpackPackSettings?> FetchPackSettingsAsync(string? manifestUrl, CancellationToken cancellationToken = default) => Task.FromResult(pack);
+
+        public Task<IReadOnlyList<ModpackChangelogEntry>> FetchChangelogAsync(string? manifestUrl, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ModpackChangelogEntry>>([]);
+
         public Task SyncAsync(string modpackZipUrl, string? manifestUrl, string gameDirectory, IProgress<string>? progress = null, IProgress<double>? downloadProgress = null, CancellationToken cancellationToken = default)
         {
             calls.Add("sync");

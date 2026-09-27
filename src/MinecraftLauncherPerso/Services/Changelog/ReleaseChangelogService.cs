@@ -1,9 +1,8 @@
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using MinecraftLauncherPerso.Services.Diagnostics;
+using MinecraftLauncherPerso.Services.GitHub;
 
 namespace MinecraftLauncherPerso.Services.Changelog;
 
@@ -16,61 +15,25 @@ namespace MinecraftLauncherPerso.Services.Changelog;
 /// </summary>
 public sealed partial class ReleaseChangelogService : IReleaseChangelogService
 {
-    private const string ReleasesApiUrlTemplate = "https://api.github.com/repos/Omneria/ALlauncher/releases?per_page={0}";
-
     /// <summary>Affiché à la place des notes quand le corps de la release ne contient aucune ligne
     /// "- ..." exploitable (release publiée avant RELEASE_NOTES.md, ou corps jamais rempli).</summary>
     public const string MissingNotesPlaceholder = "Notes non renseignées pour cette version (voir la release sur GitHub).";
 
-    private readonly HttpClient _httpClient;
+    private readonly GitHubReleasesClient _releasesClient;
 
-    // Requête conditionnelle (If-None-Match / 304), même raison que GitHubUpdateService : 60
-    // requêtes/heure/IP sans authentification, interrogé toutes les minutes. Un 304 (le cas
-    // normal, les releases ne bougent que quelques fois par mois) ne consomme pas le quota.
-    private string? _cachedETag;
-    private IReadOnlyList<ReleaseChangelogEntry> _cachedEntries = [];
-
-    public ReleaseChangelogService(HttpClient? httpClient = null)
+    /// <param name="releasesClient">Liste des releases, partagée avec la vérification de mise à
+    /// jour (un seul appel à l'API GitHub pour les deux, voir GitHubReleasesClient).</param>
+    public ReleaseChangelogService(GitHubReleasesClient releasesClient)
     {
-        _httpClient = httpClient ?? new HttpClient();
-
-        // Même raison que GitHubUpdateService : l'API GitHub rejette (403) toute requête sans User-Agent.
-        if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
-        {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("ALLauncher-UpdateChecker");
-        }
+        _releasesClient = releasesClient;
     }
 
     public async Task<IReadOnlyList<ReleaseChangelogEntry>> GetRecentReleasesAsync(int count, CancellationToken cancellationToken = default)
     {
         try
         {
-            var url = string.Format(ReleasesApiUrlTemplate, Math.Max(1, count));
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Accept.ParseAdd("application/vnd.github+json");
-            if (_cachedETag is not null)
-            {
-                request.Headers.IfNoneMatch.ParseAdd(_cachedETag);
-            }
-
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NotModified)
-            {
-                return _cachedEntries;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.Warn("ReleaseChangelogService", $"Récupération du changelog refusée : HTTP {(int)response.StatusCode} {response.StatusCode}.");
-                return [];
-            }
-
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-            var entries = ParseReleases(doc.RootElement, count);
-
-            _cachedETag = response.Headers.ETag?.ToString();
-            _cachedEntries = entries;
-            return entries;
+            var releases = await _releasesClient.GetReleasesAsync(cancellationToken);
+            return releases is { } list ? ParseReleases(list, Math.Max(1, count)) : [];
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -85,7 +48,7 @@ public sealed partial class ReleaseChangelogService : IReleaseChangelogService
         }
     }
 
-    private static List<ReleaseChangelogEntry> ParseReleases(JsonElement root, int count)
+    internal static List<ReleaseChangelogEntry> ParseReleases(JsonElement root, int count)
     {
         var entries = new List<ReleaseChangelogEntry>();
         var isFirst = true;
@@ -163,17 +126,4 @@ public sealed partial class ReleaseChangelogService : IReleaseChangelogService
 
     [GeneratedRegex(@"https?://\S+")]
     private static partial Regex UrlPattern();
-}
-
-file static class JsonElementExtensions
-{
-    public static string? GetStringOrNull(this JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
-
-    public static bool GetBoolOrDefault(this JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value)
-        && (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False)
-        && value.GetBoolean();
 }

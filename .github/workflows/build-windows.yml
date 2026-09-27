@@ -24,9 +24,14 @@ permissions:
 
 jobs:
   build:
-    # WPF (net8.0-windows) ne peut être compilé que sur un hôte Windows :
+    # WPF (net10.0-windows) ne peut être compilé que sur un hôte Windows :
     # le SDK Microsoft.NET.Sdk.WindowsDesktop (compilateur XAML inclus) n'est distribué que là.
     runs-on: windows-latest
+    env:
+      # Build de test (tout sauf un tag de release) : numéro du run, pour que l'exe affiche
+      # "1.12.0-dev.<run>" au lieu de se faire passer pour la release (voir DevBuildNumber dans le
+      # csproj et AppVersion.cs). Vide sur un tag.
+      DEV_BUILD_NUMBER: ${{ !startsWith(github.ref, 'refs/tags/') && github.run_number || '' }}
 
     steps:
       # fetch-depth 0 (historique + tags complets) : nécessaire à l'étape "Vérifie que
@@ -91,13 +96,20 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
 
       - name: Restore
         run: dotnet restore
 
+      # Avertissements bloquants (v1.12.0) : analyseurs .NET (AnalysisLevel latest) et
+      # nullabilité. Uniquement en CI, pour ne pas bloquer un essai en local.
       - name: Build (Release)
-        run: dotnet build -c Release --no-restore
+        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }} -p:TreatWarningsAsErrors=true
+
+      # Mise en forme (espaces, indentation) conforme aux conventions .NET : une différence fait
+      # échouer la CI. Corriger en local avec "dotnet format whitespace".
+      - name: Format (vérification)
+        run: dotnet format whitespace --verify-no-changes --verbosity diagnostic
 
       # Le projet de tests fait partie du .sln (compilé par le Build ci-dessus, et "dotnet test" à la
       # racine fonctionne en local) ; ciblé explicitement ici pour ne lancer que lui. "dotnet test"
@@ -114,6 +126,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
+          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
           -o publish/win-x64-selfcontained
 
       - uses: actions/upload-artifact@v7
@@ -123,15 +136,16 @@ jobs:
           if-no-files-found: error
 
       # Build "framework-dependent" : quelques Mo au lieu des ~100+ Mo du self-contained (runtime
-      # .NET 8 + WPF/WinForms non embarqué), mais nécessite d'avoir le .NET 8 Desktop Runtime
+      # .NET 10 + WPF/WinForms non embarqué), mais nécessite d'avoir le .NET 10 Desktop Runtime
       # installé sur la machine (téléchargeable depuis
-      # https://dotnet.microsoft.com/download/dotnet/8.0 -> "Desktop Runtime" x64).
+      # https://dotnet.microsoft.com/download/dotnet/10.0 -> "Desktop Runtime" x64).
       - name: Publish (framework-dependent win-x64, léger)
         run: >
           dotnet publish src/MinecraftLauncherPerso/MinecraftLauncherPerso.csproj
           -c Release
           -r win-x64
           --self-contained false
+          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
           -o publish/win-x64-framework-dependent
 
       - uses: actions/upload-artifact@v7
@@ -177,7 +191,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $exe = "publish/win-x64-selfcontained/AL Launcher.exe"
+          $exe = "publish/win-x64-selfcontained/Omneria Games.exe"
           $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
 

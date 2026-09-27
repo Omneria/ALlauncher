@@ -1,4 +1,4 @@
-# Launcher Minecraft personnalisé
+# Omnéria Games — launcher Minecraft
 
 Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé sur
 [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core) et
@@ -6,7 +6,7 @@ Launcher WPF (.NET / C#) pour un serveur Minecraft privé (8 joueurs max), basé
 
 ## Contexte serveur
 
-- Minecraft **1.20.1**, Forge **47.4.23** (même version que le serveur) (migré depuis 1.16.5/Forge 36.2.34, voir `MinecraftVersion`/`ForgeVersion` dans `LauncherSettings.cs`)
+- Minecraft **1.20.1**, Forge **47.4.23** (même version que le serveur ; depuis la v1.12.0, la version publiée par le VPS dans `pack.json` prime sur `ForgeVersion` de `LauncherSettings.cs`, voir `scripts/vps/README.md`)
 - Liste de mods gérée côté VPS (voir manifeste ci-dessous) — plus de liste figée dans ce README depuis la migration
 - **Java 17 obligatoire** (Minecraft ne démarre plus sur un JRE antérieur à 17 depuis la 1.18, et Forge 1.20.1 l'exige explicitement)
 - Mods/config hébergés sur un VPS perso, accessibles en HTTP direct (voir manifeste ci-dessous)
@@ -52,8 +52,8 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 ├── MinecraftLauncherPerso.sln
 ├── src/
 │   └── MinecraftLauncherPerso/
-│       ├── MinecraftLauncherPerso.csproj   # net8.0-windows, WPF, CmlLib.Core + Installer.Forge
-│       │                                   # AssemblyName "AL Launcher", pas de .pdb, icône embarquée
+│       ├── MinecraftLauncherPerso.csproj   # net10.0-windows, WPF, CmlLib.Core + Installer.Forge
+│       │                                   # AssemblyName "Omneria Games", pas de .pdb, icône embarquée
 │       ├── App.xaml(.cs)                   # bootstrap : ouvre SplashWindow au démarrage
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
@@ -121,8 +121,6 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 ├── tests/
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager, ModSync (manifest)
 ├── scripts/vps/                            # outils côté VPS : generate-manifest.py, Caddyfile (HTTPS), modèle de maintenance.txt
-├── docs/
-│   └── ROADMAP.md                          # roadmap : v1.12.0 priorisée, v2.0.0, pistes écartées
 ├── .github/
 │   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release sur tag v*
 │   └── dependabot.yml                      # PR hebdomadaires de mise à jour NuGet / actions, vers dev
@@ -609,9 +607,12 @@ ferme immédiatement, plutôt que de risquer deux instances qui écrivent en mê
 Fichiers : `Services/Update/GitHubUpdateService.cs`, workflow `.github/workflows/build-windows.yml`
 
 Au démarrage puis toutes les **60 secondes** (`DispatcherTimer` dans `MainWindow`, même principe que
-le ping du statut serveur), le launcher interroge `GET /repos/Omneria/ALlauncher/releases/latest`
-(API GitHub publique, pas d'authentification nécessaire) et compare le tag de la dernière release
-(`vX.Y.Z`) à `MinecraftLauncherPerso.csproj` → `<Version>` — inutile de fermer/rouvrir le launcher
+le ping du statut serveur), le launcher interroge `GET /repos/Omneria/ALlauncher/releases?per_page=10`
+(API GitHub publique, pas d'authentification nécessaire ; même réponse partagée avec la carte
+Changelog depuis la v1.12.0, voir `Services/GitHub/GitHubReleasesClient.cs`) et compare le tag de la
+dernière release publiée (`vX.Y.Z`) à `MinecraftLauncherPerso.csproj` → `<Version>`. Un exe construit
+hors tag (CI sur `dev`) affiche `X.Y.Z-dev.<build>` et se voit proposer la release `X.Y.Z` finale
+(`Services/Update/AppVersion.cs`) — inutile de fermer/rouvrir le launcher
 pour savoir si une mise à jour est sortie entre-temps. Dès qu'une mise à jour est détectée, les
 vérifications suivantes ne font plus rien (pas de nouvel appel GitHub, pas de son/notification
 répétés) tant qu'elle n'a pas été appliquée. Chaque vérification est une requête conditionnelle
@@ -837,8 +838,10 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
 - **Écran de démarrage** (`SplashWindow`) : affiche le logo Omnéria (`omneria-mark.png`) avec une
   entrée animée (rotation + zoom, easing à rebond) avant de céder la place à la fenêtre principale ;
   ouvert par `App.xaml.cs` au lancement, à la place de `MainWindow` directement.
-- **Icône/exécutable** : l'exécutable publié s'appelle `AL Launcher.exe` (`AssemblyName`, inchangé
-  pour ne pas casser le workflow de release), porte une icône Windows multi-résolutions générée
+- **Icône/exécutable** : l'exécutable publié s'appelle `Omneria Games.exe` depuis la v1.12.0
+  (`AssemblyName`, `AL Launcher.exe` avant ; la mise à jour automatique prend n'importe quel `.exe`
+  de la release et remplace le fichier en place, un joueur qui met à jour garde donc son ancien nom
+  de fichier), porte une icône Windows multi-résolutions générée
   depuis le logo (`Assets/Images/omneria-mark.ico`), et ne génère plus de fichier `.pdb`
   (`DebugType=None`).
 - **Fond animé** : les deux halos radiaux (violet/cyan) de la fenêtre principale dérivent lentement
@@ -850,7 +853,7 @@ Fichiers : `AppTheme.xaml`, `SplashWindow.xaml(.cs)`, `MainWindow.xaml`, `Assets
 
 ## Build
 
-Le projet cible `net8.0-windows` (WPF) : à builder/exécuter sous Windows avec le SDK .NET 8.
+Le projet cible `net10.0-windows` (WPF) : à builder/exécuter sous Windows avec le SDK .NET 10 (depuis la v1.12.0 ; .NET 8 n'est plus maintenu après le 10 novembre 2026).
 
 ```powershell
 dotnet restore
@@ -860,7 +863,7 @@ dotnet run --project src/MinecraftLauncherPerso
 ```
 
 > Le développement se fait dans un environnement Linux, qui ne peut pas compiler de projet WPF
-> (`net8.0-windows`) : impossible de builder ou tester ici. Un workflow CI GitHub Actions
+> (`net10.0-windows`) : impossible de builder ou tester ici. Un workflow CI GitHub Actions
 > (`.github/workflows/build-windows.yml`) build le projet sur `windows-latest` à chaque push et
 > publie un exécutable en artifact — c'est le moyen de vérifier qu'un changement compile toujours.
 >

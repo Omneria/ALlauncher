@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CmlLib.Core;
 using CmlLib.Core.ProcessBuilder;
 using MinecraftLauncherPerso.Models;
@@ -57,7 +58,7 @@ public sealed class LaunchStepException(LaunchStep step, Exception inner)
 /// traverse toutes les étapes, et un <see cref="OperationCanceledException"/> arrête le pipeline
 /// là où il en est, sans démarrer les étapes suivantes.
 /// </summary>
-public sealed class LaunchPipeline
+public sealed partial class LaunchPipeline
 {
     private readonly IJavaManager _javaManager;
     private readonly IForgeManager _forgeManager;
@@ -111,12 +112,15 @@ public sealed class LaunchPipeline
 
         var launcher = _launcherFactory(settings.GameDirectory);
 
-        // 2. Forge : progression en octets exposée par CmlLib.
+        // 2. Forge : progression en octets exposée par CmlLib. Version publiée par le pack
+        //    (manifest, v1.12.0) quand elle existe, pour rester aligné sur le serveur sans release.
+        var pack = await _modSyncService.FetchPackSettingsAsync(settings.ModpackManifestUrl, cancellationToken);
+        var forgeVersion = ResolveForgeVersion(pack, settings.ForgeVersion);
         var forgeProgress = new Relay<string>(message => progress?.Report(new LaunchProgress(LaunchStep.Forge, message)));
         var forgeDownloadProgress = new Relay<double>(fraction => progress?.Report(new LaunchProgress(LaunchStep.Forge, "Téléchargement de Forge...", fraction)));
         AnnounceStep(progress, LaunchStep.Forge);
         var versionId = await RunStepAsync(LaunchStep.Forge, cancellationToken,
-            () => _forgeManager.EnsureForgeInstalledAsync(launcher, settings.MinecraftVersion, settings.ForgeVersion, forgeProgress, forgeDownloadProgress, cancellationToken));
+            () => _forgeManager.EnsureForgeInstalledAsync(launcher, settings.MinecraftVersion, forgeVersion, forgeProgress, forgeDownloadProgress, cancellationToken));
         progress?.Report(new LaunchProgress(LaunchStep.Forge, $"Forge prêt : {versionId}", 1));
 
         // 3. Synchronisation mods/config depuis le VPS.
@@ -153,6 +157,20 @@ public sealed class LaunchPipeline
 
         return new LaunchResult(session, game, javaPath, versionId);
     }
+
+    /// <summary>
+    /// Version de Forge publiée par le pack si elle a une forme plausible ("47.4.23"), sinon celle
+    /// des réglages : une valeur farfelue dans pack.json ne doit pas bloquer tous les lancements.
+    /// internal : testé directement (voir InternalsVisibleTo).
+    /// </summary>
+    internal static string ResolveForgeVersion(ModpackPackSettings? pack, string fallback)
+    {
+        var published = pack?.ForgeVersion?.Trim();
+        return !string.IsNullOrEmpty(published) && ForgeVersionPattern().IsMatch(published) ? published : fallback;
+    }
+
+    [GeneratedRegex(@"^\d+(\.\d+){1,3}$")]
+    private static partial Regex ForgeVersionPattern();
 
     /// <summary>Signale le début d'une étape avant même son premier rapport de progression : une
     /// étape silencieuse au démarrage (synchro déjà à jour, session en cache) reste ainsi visible

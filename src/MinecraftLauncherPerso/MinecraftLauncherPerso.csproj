@@ -2,25 +2,37 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MinecraftLauncherPerso</RootNamespace>
-    <AssemblyName>AL Launcher</AssemblyName>
+    <!-- Nom de l'exe : "Omneria Games.exe" (sans accent : GitHub réécrit les caractères non ASCII
+         des noms de pièces jointes). Jusqu'à la v1.11.2 : "AL Launcher". La mise à jour
+         automatique prend n'importe quel .exe de la release et remplace le fichier en place, donc
+         un joueur qui met à jour garde son ancien nom de fichier : rien ne casse. -->
+    <AssemblyName>Omneria Games</AssemblyName>
     <!-- Comparée par GitHubUpdateService à la dernière release GitHub (tag v*.*.*) pour l'auto-update.
          À incrémenter au même commit que chaque tag/release (règle de versionnage détaillée dans
          le README, section "Mise à jour automatique du launcher") :
            - correctif/bugfix sans nouveau comportement -> patch   (x.y.Z)
            - ajout non structurel, nouvelle fonctionnalité         -> minor (x.Y.0)
            - gros ajout structurel, changement cassant             -> major (X.0.0) -->
-    <Version>1.11.2</Version>
+    <Version>1.12.0</Version>
     <!-- Métadonnées de l'exe (Propriétés → Détails dans l'explorateur Windows). -->
-    <Product>AL Launcher</Product>
+    <Product>Omnéria Games</Product>
     <Company>Omneria</Company>
     <Description>Launcher Minecraft du serveur Astral Nexus</Description>
+    <!-- Build de test (CI hors tag) : "1.12.0-dev.153" au lieu de "1.12.0", affiché dans le
+         launcher et traité comme antérieur à la release du même numéro (voir AppVersion.cs). La
+         CI passe -p:DevBuildNumber=<numéro du run> ; vide sur un tag de release. -->
+    <InformationalVersion Condition="'$(DevBuildNumber)' != ''">$(Version)-dev.$(DevBuildNumber)</InformationalVersion>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
+    <!-- Analyseurs .NET à jour avec le SDK (v1.12.0) ; avertissements bloquants en CI (voir
+         -p:TreatWarningsAsErrors dans build-windows.yml). -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
     <DebugType>None</DebugType>
     <!-- NE PAS activer <InvariantGlobalization> : essayé en v1.9.2 pour réduire la taille du build,

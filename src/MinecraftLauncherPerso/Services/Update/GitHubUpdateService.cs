@@ -1,12 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using MinecraftLauncherPerso.Services.Diagnostics;
+using MinecraftLauncherPerso.Services.GitHub;
 
 namespace MinecraftLauncherPerso.Services.Update;
 
@@ -17,59 +16,41 @@ namespace MinecraftLauncherPerso.Services.Update;
 /// </summary>
 public sealed class GitHubUpdateService : IUpdateService
 {
-    private const string LatestReleaseApiUrl = "https://api.github.com/repos/Omneria/ALlauncher/releases/latest";
-
     private readonly HttpClient _httpClient;
+    private readonly GitHubReleasesClient _releasesClient;
 
-    // Requête conditionnelle (If-None-Match / 304) : l'API GitHub non authentifiée est limitée à
-    // 60 requêtes par heure et par IP, or ce service est interrogé toutes les minutes (voir
-    // "Cadence de rafraîchissement" dans le README) — sans ça, la moitié du quota partait ici,
-    // l'autre moitié dans ReleaseChangelogService, et tout tombait en 403 au bout de 30 minutes
-    // (mise à jour indétectable pour le reste de l'heure). Une réponse 304 ne compte pas dans le
-    // quota : on renvoie alors le dernier résultat calculé, sans re-parser quoi que ce soit.
-    private string? _cachedETag;
-    private UpdateInfo? _cachedResult;
-
-    public GitHubUpdateService(HttpClient? httpClient = null)
+    /// <param name="httpClient">Téléchargement de l'exe et de son empreinte.</param>
+    /// <param name="releasesClient">Liste des releases, partagée avec la carte Changelog (un seul
+    /// appel à l'API GitHub pour les deux, voir GitHubReleasesClient).</param>
+    public GitHubUpdateService(HttpClient httpClient, GitHubReleasesClient releasesClient)
     {
-        _httpClient = httpClient ?? new HttpClient();
-
-        // L'API GitHub rejette (403) toute requête sans User-Agent.
-        if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
-        {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("ALLauncher-UpdateChecker");
-        }
+        _httpClient = httpClient;
+        _releasesClient = releasesClient;
     }
 
     public async Task<UpdateInfo?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUrl);
-            request.Headers.Accept.ParseAdd("application/vnd.github+json");
-            if (_cachedETag is not null)
+            var releases = await _releasesClient.GetReleasesAsync(cancellationToken);
+            if (releases is not { } list)
             {
-                request.Headers.IfNoneMatch.ParseAdd(_cachedETag);
-            }
-
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NotModified)
-            {
-                return _cachedResult;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.Warn("GitHubUpdateService", $"Vérification de mise à jour refusée : HTTP {(int)response.StatusCode} {response.StatusCode}.");
                 return null;
             }
 
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-            var result = ParseLatestRelease(doc.RootElement);
+            // Liste la plus récente d'abord : la première release publiée (ni brouillon ni
+            // préversion) est celle que releases/latest renvoyait.
+            foreach (var release in list.EnumerateArray())
+            {
+                if (release.GetBoolOrDefault("draft") || release.GetBoolOrDefault("prerelease"))
+                {
+                    continue;
+                }
 
-            _cachedETag = response.Headers.ETag?.ToString();
-            _cachedResult = result;
-            return result;
+                return ParseLatestRelease(release);
+            }
+
+            return null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -94,7 +75,7 @@ public sealed class GitHubUpdateService : IUpdateService
             return null;
         }
 
-        if (remoteVersion <= GetCurrentVersion())
+        if (!AppVersion.IsUpdate(remoteVersion, AppVersion.Current, AppVersion.IsDevBuild))
         {
             return null;
         }
@@ -135,7 +116,7 @@ public sealed class GitHubUpdateService : IUpdateService
             ?? throw new InvalidOperationException("Impossible de déterminer le chemin de l'exécutable courant.");
 
         progress?.Report("Téléchargement de la mise à jour...");
-        var newExePath = Path.Combine(Path.GetTempPath(), $"AL Launcher.new.{Guid.NewGuid():N}.exe");
+        var newExePath = Path.Combine(Path.GetTempPath(), $"Omneria Games.new.{Guid.NewGuid():N}.exe");
 
         using (var response = await _httpClient.GetAsync(update.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
         {
@@ -227,9 +208,6 @@ public sealed class GitHubUpdateService : IUpdateService
 
         Environment.Exit(0);
     }
-
-    private static Version GetCurrentVersion() =>
-        Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
 
     // internal (au lieu de private) : testé directement par MinecraftLauncherPerso.Tests (voir
     // InternalsVisibleTo dans le csproj) sans avoir besoin de passer par toute la vérification

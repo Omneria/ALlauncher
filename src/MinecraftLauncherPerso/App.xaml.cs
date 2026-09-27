@@ -9,6 +9,8 @@ public partial class App : Application
 {
     // Nom global (préfixe "Global\") : le mutex est visible pour tous les utilisateurs de la
     // machine, pas seulement la session courante, pour vraiment empêcher un double lancement.
+    // Nom inchangé depuis le renommage en "Omnéria Games" (v1.12.0) : un ancien exe encore ouvert
+    // doit toujours être détecté.
     private const string SingleInstanceMutexName = "Global\\AL_Launcher_SingleInstance";
 
     private Mutex? _singleInstanceMutex;
@@ -35,8 +37,8 @@ public partial class App : Application
         if (!createdNew)
         {
             MessageBox.Show(
-                "AL Launcher est déjà en cours d'exécution.",
-                "AL Launcher",
+                "Omnéria Games est déjà en cours d'exécution.",
+                "Omnéria Games",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             Shutdown();
@@ -62,8 +64,8 @@ public partial class App : Application
         if (!dashboardIsUp)
         {
             MessageBox.Show(
-                $"AL Launcher a rencontré une erreur inattendue et doit se fermer :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (%AppData%\\MinecraftLauncherPerso).",
-                "AL Launcher — Erreur",
+                $"Omnéria Games a rencontré une erreur inattendue et doit se fermer :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (%AppData%\\MinecraftLauncherPerso).",
+                "Omnéria Games — Erreur",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Current?.Shutdown();
@@ -73,8 +75,8 @@ public partial class App : Application
         if (Interlocked.Exchange(ref _errorDialogShown, 1) == 0)
         {
             MessageBox.Show(
-                $"AL Launcher a rencontré une erreur inattendue mais continue de fonctionner :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (Paramètres → VOIR LES LOGS). Si quelque chose ne répond plus, redémarre le launcher.",
-                "AL Launcher — Erreur",
+                $"Omnéria Games a rencontré une erreur inattendue mais continue de fonctionner :\n\n{e.Exception.Message}\n\nDétails dans launcher.log (Paramètres → VOIR LES LOGS). Si quelque chose ne répond plus, redémarre le launcher.",
+                "Omnéria Games — Erreur",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
