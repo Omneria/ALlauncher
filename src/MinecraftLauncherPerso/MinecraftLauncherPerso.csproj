@@ -29,6 +29,10 @@
     <InformationalVersion Condition="'$(DevBuildNumber)' != ''">$(Version)-dev.$(DevBuildNumber)</InformationalVersion>
     <Platforms>x64</Platforms>
     <LangVersion>latest</LangVersion>
+    <!-- Analyseurs .NET à jour avec le SDK (v1.12.0) ; avertissements bloquants en CI (voir
+         -p:TreatWarningsAsErrors dans build-windows.yml). -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
     <!-- Pas de .pdb dans les builds publiées : symboles de debug inutiles pour l'utilisateur final. -->
     <DebugType>None</DebugType>
     <!-- NE PAS activer <InvariantGlobalization> : essayé en v1.9.2 pour réduire la taille du build,

@@ -101,8 +101,15 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      # Avertissements bloquants (v1.12.0) : analyseurs .NET (AnalysisLevel latest) et
+      # nullabilité. Uniquement en CI, pour ne pas bloquer un essai en local.
       - name: Build (Release)
-        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
+        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }} -p:TreatWarningsAsErrors=true
+
+      # Mise en forme (espaces, indentation) conforme aux conventions .NET : une différence fait
+      # échouer la CI. Corriger en local avec "dotnet format whitespace".
+      - name: Format (vérification)
+        run: dotnet format whitespace --verify-no-changes --verbosity diagnostic
 
       # Le projet de tests fait partie du .sln (compilé par le Build ci-dessus, et "dotnet test" à la
       # racine fonctionne en local) ; ciblé explicitement ici pour ne lancer que lui. "dotnet test"
