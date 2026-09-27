@@ -456,6 +456,11 @@
                                         <TextBlock Text="JOUEURS CONNECTÉS" Margin="0,2,0,0" TextWrapping="Wrap"
                                                    FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
                                                    Foreground="{StaticResource InkDimBrush}" />
+                                        <!-- Message du jour du serveur (v1.12.0), masqué s'il est vide. -->
+                                        <TextBlock x:Name="ServerMotdText" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   MaxHeight="36" TextTrimming="CharacterEllipsis"
+                                                   FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
+                                                   Foreground="{StaticResource InkBrush}" Visibility="Collapsed" />
                                     </StackPanel>
                                     <Image Grid.Column="2" Source="/Assets/Images/astral-nexus-crest.png"
                                            Width="116" Height="116" Stretch="UniformToFill" VerticalAlignment="Center" />

@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MinecraftLauncherPerso.Services.Status;
 
@@ -10,12 +12,13 @@ namespace MinecraftLauncherPerso.Services.Status;
 /// utilise pour afficher joueurs connectés/latence à côté de chaque serveur de la liste) : un
 /// handshake suivi d'une requête status sur une connexion TCP brute, sans authentification.
 /// </summary>
-public sealed class ServerStatusService : IServerStatusService
+public sealed partial class ServerStatusService : IServerStatusService
 {
     // 4s était trop court pour une adresse qui route parfois via un VPN (latence de handshake plus
     // élevée que sur une connexion directe) : un ping qui timeout à tort affichait "hors ligne" à
     // un serveur en réalité joignable.
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(3);
 
     public async Task<ServerStatus> PingAsync(string host, int port, CancellationToken cancellationToken = default)
     {
@@ -33,7 +36,8 @@ public sealed class ServerStatusService : IServerStatusService
             await WriteStatusRequestAsync(stream, timeoutCts.Token);
 
             var json = await ReadStatusResponseAsync(stream, timeoutCts.Token);
-            return ParseStatus(json);
+            var latencyMs = await MeasureLatencyAsync(stream, timeoutCts.Token);
+            return ParseStatus(json, latencyMs);
         }
         catch (Exception ex)
         {
@@ -98,14 +102,98 @@ public sealed class ServerStatusService : IServerStatusService
         return Encoding.UTF8.GetString(buffer);
     }
 
-    private static ServerStatus ParseStatus(string json)
+    /// <summary>
+    /// Paquet ping/pong du protocole (celui qu'utilise la liste multijoueur du jeu pour afficher la
+    /// latence) : vrai aller-retour jusqu'au serveur Minecraft. Null si le serveur ne répond pas au
+    /// ping (certains ferment la connexion après le status) : la latence reste alors inconnue,
+    /// le serveur n'en est pas moins en ligne.
+    /// </summary>
+    private static async Task<int?> MeasureLatencyAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        // Délai propre au ping : un serveur qui ne répond pas au pong ne doit pas épuiser le délai
+        // global et passer pour "hors ligne".
+        using var pingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        pingCts.CancelAfter(PingTimeout);
+        try
+        {
+            using var payload = new MemoryStream();
+            WriteVarInt(payload, 0x01); // packet id : ping
+            payload.Write(BitConverter.GetBytes(Environment.TickCount64)); // valeur libre, renvoyée telle quelle
+
+            var stopwatch = Stopwatch.StartNew();
+            await WritePacketAsync(stream, payload.ToArray(), pingCts.Token);
+            await ReadVarIntAsync(stream, pingCts.Token); // longueur
+            var packetId = await ReadVarIntAsync(stream, pingCts.Token);
+            stopwatch.Stop();
+
+            return packetId == 0x01 ? (int)Math.Max(1, stopwatch.ElapsedMilliseconds) : null;
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or InvalidOperationException
+            || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            return null;
+        }
+    }
+
+    // internal : testé directement (voir InternalsVisibleTo), sans vrai serveur.
+    internal static ServerStatus ParseStatus(string json, int? latencyMs = null)
     {
         using var doc = JsonDocument.Parse(json);
-        var players = doc.RootElement.GetProperty("players");
+        var root = doc.RootElement;
+        var players = root.GetProperty("players");
         var online = players.GetProperty("online").GetInt32();
         var max = players.GetProperty("max").GetInt32();
-        return new ServerStatus(true, online, max);
+
+        int? protocol = null;
+        string? versionName = null;
+        if (root.TryGetProperty("version", out var version) && version.ValueKind == JsonValueKind.Object)
+        {
+            if (version.TryGetProperty("protocol", out var protocolElement) && protocolElement.TryGetInt32(out var value))
+            {
+                protocol = value;
+            }
+
+            if (version.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String)
+            {
+                versionName = nameElement.GetString();
+            }
+        }
+
+        var motd = root.TryGetProperty("description", out var description) ? FlattenChat(description) : "";
+        motd = FormattingCodePattern().Replace(motd, "").Trim();
+
+        return new ServerStatus(true, online, max,
+            LatencyMs: latencyMs,
+            ProtocolVersion: protocol,
+            VersionName: versionName,
+            Motd: motd.Length > 0 ? motd : null);
     }
+
+    /// <summary>MOTD : texte simple, ou composant de chat JSON ({"text": ..., "extra": [...]}).</summary>
+    private static string FlattenChat(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => element.GetString() ?? "",
+        JsonValueKind.Array => string.Concat(element.EnumerateArray().Select(FlattenChat)),
+        JsonValueKind.Object =>
+            (element.TryGetProperty("text", out var text) ? FlattenChat(text) : "")
+            + (element.TryGetProperty("extra", out var extra) ? FlattenChat(extra) : ""),
+        _ => "",
+    };
+
+    /// <summary>Codes de mise en forme "§a", "§l"... du MOTD, sans signification hors du jeu.</summary>
+    [GeneratedRegex("§.")]
+    private static partial Regex FormattingCodePattern();
+
+    /// <summary>
+    /// Numéro de protocole réseau d'une version de Minecraft, pour vérifier que le serveur tourne
+    /// bien la version que le launcher installe. Null pour une version inconnue ici (rien n'est
+    /// alors signalé plutôt qu'une fausse alerte).
+    /// </summary>
+    public static int? ExpectedProtocol(string minecraftVersion) => minecraftVersion switch
+    {
+        "1.20" or "1.20.1" => 763,
+        _ => null,
+    };
 
     // internal (au lieu de private) + accepte Stream plutôt que NetworkStream : uniquement pour
     // que MinecraftLauncherPerso.Tests puisse vérifier l'encodage/décodage VarInt (voir

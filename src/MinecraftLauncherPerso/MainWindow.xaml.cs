@@ -883,13 +883,28 @@ public partial class MainWindow : Window
             DesktopNotificationService.Show(_settings.ServerName, "Le serveur est de nouveau en ligne.");
         }
 
-        ServerStatusText.Text = status.IsOnline ? "EN LIGNE" : "HORS LIGNE";
+        // Version du serveur comparée à celle que le launcher installe (v1.12.0) : un serveur passé
+        // à une autre version de Minecraft refuserait la connexion avec un message peu clair.
+        var expectedProtocol = ServerStatusService.ExpectedProtocol(_settings.MinecraftVersion);
+        var versionMismatch = status.IsOnline && expectedProtocol is not null
+            && status.ProtocolVersion is not null && status.ProtocolVersion != expectedProtocol;
+
+        ServerStatusText.Text = !status.IsOnline ? "HORS LIGNE"
+            : versionMismatch ? "EN LIGNE · VERSION DIFFÉRENTE"
+            : status.LatencyMs is { } latency ? $"EN LIGNE · {latency} ms"
+            : "EN LIGNE";
         // Sur toute la ligne (pastille + texte), pas juste le texte : cible de survol trop étroite
         // sinon pour qu'on tombe dessus de façon fiable.
-        ServerStatusRow.ToolTip = status.IsOnline ? null : status.ErrorDetail;
-        ServerStatusRow.Cursor = status.IsOnline ? null : Cursors.Help;
-        var statusBrush = (Brush)FindResource(status.IsOnline ? "CyanBrush" : "MagentaBrush");
+        ServerStatusRow.ToolTip = !status.IsOnline ? status.ErrorDetail
+            : versionMismatch ? $"Le serveur annonce {status.VersionName ?? "une autre version"} (protocole {status.ProtocolVersion}), le launcher installe Minecraft {_settings.MinecraftVersion} : la connexion risque d'être refusée."
+            : null;
+        ServerStatusRow.Cursor = ServerStatusRow.ToolTip is null ? null : Cursors.Help;
+        var statusBrush = (Brush)FindResource(!status.IsOnline ? "MagentaBrush" : versionMismatch ? "AmberBrush" : "CyanBrush");
         ServerStatusDot.Fill = statusBrush;
+
+        ServerMotdText.Text = status.IsOnline ? status.Motd ?? "" : "";
+        ServerMotdText.ToolTip = string.IsNullOrEmpty(ServerMotdText.Text) ? null : ServerMotdText.Text;
+        ServerMotdText.Visibility = string.IsNullOrEmpty(ServerMotdText.Text) ? Visibility.Collapsed : Visibility.Visible;
 
         ServerCountText.Inlines.Clear();
         if (status.IsOnline)
