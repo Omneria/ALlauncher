@@ -24,6 +24,14 @@ public sealed class ModSyncService : IModSyncService
     private const string RollbackModsDirName = ".rollback-mods";
     private const string RollbackConfigDirName = ".rollback-config";
 
+    /// <summary>Historique des changements du pack, écrit à côté du manifest par
+    /// generate-manifest.py (v1.12.0).</summary>
+    private const string ChangelogFileName = "changelog.json";
+
+    // Fichiers secondaires relus au démarrage : un VPS qui ne répond pas doit rendre la main bien
+    // avant le timeout HttpClient par défaut (100 s).
+    private static readonly TimeSpan OptionalFileTimeout = TimeSpan.FromSeconds(15);
+
     private readonly HttpClient _httpClient;
 
     public ModSyncService(HttpClient? httpClient = null)
@@ -378,6 +386,13 @@ public sealed class ModSyncService : IModSyncService
                     $"Manifest du modpack invalide : le chemin \"{relativePath}\" sort du dossier de jeu.");
             expectedLocalPaths.Add(localPath);
 
+            // Réglage "par défaut" déjà présent : c'est désormais celui du joueur, on n'y touche
+            // plus (auparavant réimposé à chaque lancement, chaque réglage perso était perdu).
+            if (entry.IsDefaultOnly && File.Exists(localPath))
+            {
+                continue;
+            }
+
             if (!File.Exists(localPath) || !await MatchesHashAsync(localPath, entry.Sha256, cancellationToken))
             {
                 toDownload.Add((relativePath, localPath, entry));
@@ -533,6 +548,57 @@ public sealed class ModSyncService : IModSyncService
         var tempPath = localPath + ".part";
         await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken);
         File.Move(tempPath, localPath, overwrite: true);
+    }
+
+    public async Task<ModpackPackSettings?> FetchPackSettingsAsync(string? manifestUrl, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(manifestUrl))
+        {
+            return null;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(OptionalFileTimeout);
+        try
+        {
+            return (await FetchManifestAsync(manifestUrl, timeout.Token)).Pack;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Best-effort : sans ces réglages, le launcher garde ses propres valeurs par défaut.
+            Logger.Warn("ModSync", $"Réglages du pack indisponibles : {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<IReadOnlyList<ModpackChangelogEntry>> FetchChangelogAsync(string? manifestUrl, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(manifestUrl) || !Uri.TryCreate(manifestUrl, UriKind.Absolute, out var manifestUri))
+        {
+            return [];
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(OptionalFileTimeout);
+        try
+        {
+            using var response = await _httpClient.GetAsync(new Uri(manifestUri, ChangelogFileName), timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                return [];
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            var entries = await JsonSerializer.DeserializeAsync<List<ModpackChangelogEntry>>(stream, cancellationToken: timeout.Token);
+            return entries?.Where(entry => entry.Lines is { Count: > 0 }).ToList() ?? [];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Pas de changelog (VPS antérieur à la v1.12.0, fichier absent ou illisible) : la carte
+            // ACTUS affiche simplement les actus seules.
+            Logger.Warn("ModSync", $"Changelog du modpack indisponible : {ex.Message}");
+            return [];
+        }
     }
 
     private async Task<ModpackManifest> FetchManifestAsync(string manifestUrl, CancellationToken cancellationToken)

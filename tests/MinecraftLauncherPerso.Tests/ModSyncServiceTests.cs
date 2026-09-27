@@ -160,17 +160,126 @@ public sealed class ModSyncServiceTests : IDisposable
         Assert.Equal(jar, File.ReadAllBytes(Path.Combine(_gameDirectory, "mods", "mod.jar")));
     }
 
+    [Fact]
+    public async Task SyncAsync_ne_reecrit_pas_une_config_par_defaut_deja_modifiee_par_le_joueur()
+    {
+        var serverDefault = Encoding.UTF8.GetBytes("minimap=off");
+        Directory.CreateDirectory(Path.Combine(_gameDirectory, "config"));
+        var localPath = Path.Combine(_gameDirectory, "config", "journeymap.toml");
+        File.WriteAllText(localPath, "minimap=on");
+
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            [ManifestUrl] = ManifestJson(("config/journeymap.toml", "http://stub/files/config/journeymap.toml", Sha256Hex(serverDefault), "default")),
+            ["http://stub/files/config/journeymap.toml"] = serverDefault,
+        });
+
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+
+        Assert.Equal("minimap=on", File.ReadAllText(localPath));
+    }
+
+    [Fact]
+    public async Task SyncAsync_installe_une_config_par_defaut_absente()
+    {
+        var serverDefault = Encoding.UTF8.GetBytes("minimap=off");
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            [ManifestUrl] = ManifestJson(("config/journeymap.toml", "http://stub/files/config/journeymap.toml", Sha256Hex(serverDefault), "default")),
+            ["http://stub/files/config/journeymap.toml"] = serverDefault,
+        });
+
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+
+        Assert.Equal(serverDefault, File.ReadAllBytes(Path.Combine(_gameDirectory, "config", "journeymap.toml")));
+    }
+
+    [Fact]
+    public async Task SyncAsync_reimpose_une_config_imposee_modifiee_localement()
+    {
+        var enforced = Encoding.UTF8.GetBytes("background=astral");
+        Directory.CreateDirectory(Path.Combine(_gameDirectory, "config"));
+        var localPath = Path.Combine(_gameDirectory, "config", "early.json");
+        File.WriteAllText(localPath, "background=forge");
+
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            [ManifestUrl] = ManifestJson(("config/early.json", "http://stub/files/config/early.json", Sha256Hex(enforced), null)),
+            ["http://stub/files/config/early.json"] = enforced,
+        });
+
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+
+        Assert.Equal(enforced, File.ReadAllBytes(localPath));
+    }
+
+    [Fact]
+    public async Task FetchPackSettingsAsync_lit_la_section_pack_du_manifest()
+    {
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            [ManifestUrl] = Encoding.UTF8.GetBytes("""{"files":{},"pack":{"forgeVersion":"47.4.23","recommendedRamMb":6144,"minRamMb":4096}}"""),
+        });
+
+        var pack = await service.FetchPackSettingsAsync(ManifestUrl);
+
+        Assert.NotNull(pack);
+        Assert.Equal("47.4.23", pack!.ForgeVersion);
+        Assert.Equal(6144, pack.RecommendedRamMb);
+        Assert.Equal(4096, pack.MinRamMb);
+    }
+
+    [Fact]
+    public async Task FetchPackSettingsAsync_renvoie_null_si_le_vps_ne_repond_pas()
+    {
+        var service = CreateService([]);
+
+        Assert.Null(await service.FetchPackSettingsAsync(ManifestUrl));
+        Assert.Null(await service.FetchPackSettingsAsync(null));
+    }
+
+    [Fact]
+    public async Task FetchChangelogAsync_lit_changelog_json_a_cote_du_manifest()
+    {
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            ["http://stub/changelog.json"] = Encoding.UTF8.GetBytes(
+                """[{"date":"2026-09-27T15:00:00+00:00","lines":["Ajouté : Quark-4.0-462"]},{"date":"2026-09-20T10:00:00+00:00","lines":[]}]"""),
+        });
+
+        var entries = await service.FetchChangelogAsync(ManifestUrl);
+
+        var entry = Assert.Single(entries); // entrée sans ligne ignorée
+        Assert.Equal(["Ajouté : Quark-4.0-462"], entry.Lines);
+        Assert.Equal(new DateTimeOffset(2026, 9, 27, 15, 0, 0, TimeSpan.Zero), entry.Date);
+    }
+
+    [Fact]
+    public async Task FetchChangelogAsync_renvoie_une_liste_vide_si_absent_ou_illisible()
+    {
+        var service = CreateService(new Dictionary<string, byte[]>
+        {
+            ["http://stub/changelog.json"] = Encoding.UTF8.GetBytes("pas du json"),
+        });
+
+        Assert.Empty(await service.FetchChangelogAsync(ManifestUrl));
+        Assert.Empty(await CreateService([]).FetchChangelogAsync(ManifestUrl));
+    }
+
     private static ModSyncService CreateService(Dictionary<string, byte[]> responses) =>
         new(new HttpClient(new StubHandler(responses)));
 
     private static string Sha256Hex(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-    private static byte[] ManifestJson(params (string RelativePath, string Url, string Sha256)[] files)
+    private static byte[] ManifestJson(params (string RelativePath, string Url, string Sha256)[] files) =>
+        ManifestJson(files.Select(f => (f.RelativePath, f.Url, f.Sha256, (string?)null)).ToArray());
+
+    private static byte[] ManifestJson(params (string RelativePath, string Url, string Sha256, string? Mode)[] files)
     {
         var manifest = new ModpackManifest();
-        foreach (var (relativePath, url, sha256) in files)
+        foreach (var (relativePath, url, sha256, mode) in files)
         {
-            manifest.Files[relativePath] = new ModpackManifestFile { Url = url, Sha256 = sha256 };
+            manifest.Files[relativePath] = new ModpackManifestFile { Url = url, Sha256 = sha256, Mode = mode };
         }
 
         return JsonSerializer.SerializeToUtf8Bytes(manifest);

@@ -1,4 +1,4 @@
-# Surveille mods/ et config/ : tout ajout, suppression ou modification de fichier déclenche
+# Surveille mods/, config/ et pack.json : tout ajout, suppression ou modification de fichier déclenche
 # modpack-manifest.service, qui régénère manifest.json. Installation : scripts/vps/README.md.
 #
 # Limite : PathChanged ne surveille pas les sous-dossiers. Un changement dans un sous-dossier de
@@ -10,6 +10,7 @@ Description=Surveille le modpack pour régénérer manifest.json
 [Path]
 PathChanged=/var/www/html/modpack/mods
 PathChanged=/var/www/html/modpack/config
+PathChanged=/var/www/html/modpack/pack.json
 
 [Install]
 WantedBy=multi-user.target

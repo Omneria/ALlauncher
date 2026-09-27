@@ -1,0 +1,14 @@
+{
+  "forgeVersion": "47.4.23",
+  "recommendedRamMb": 6144,
+  "minRamMb": 4096,
+  "enforcedConfigs": [
+    "config/simple-custom-early-loading.json",
+    "config/simple-custom-early-loading/*"
+  ],
+  "serverOnlyMods": [
+    "Chunky-*.jar",
+    "AI-Improvements-*.jar",
+    "alternate_current-*.jar"
+  ]
+}

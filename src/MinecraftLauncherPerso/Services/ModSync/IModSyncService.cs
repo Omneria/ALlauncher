@@ -62,6 +62,19 @@ public interface IModSyncService
         IProgress<double>? downloadProgress = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Réglages publiés par le pack (section "pack" du manifest : version de Forge, RAM conseillée
+    /// et minimum). Best-effort : null si le mode manifest n'est pas actif, si le VPS ne répond pas
+    /// ou si le manifest ne porte pas cette section — le launcher garde alors ses valeurs.
+    /// </summary>
+    Task<ModpackPackSettings?> FetchPackSettingsAsync(string? manifestUrl, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Historique des mises à jour du pack (changelog.json à côté du manifest), le plus récent en
+    /// premier. Best-effort : liste vide si absent ou injoignable, jamais d'exception.
+    /// </summary>
+    Task<IReadOnlyList<ModpackChangelogEntry>> FetchChangelogAsync(string? manifestUrl, CancellationToken cancellationToken = default);
+
     /// <summary>Vrai si une version précédente du modpack (mods/config) a été sauvegardée par un
     /// SyncAsync/RepairAsync antérieur et peut être restaurée via RollbackAsync.</summary>
     bool HasRollbackAvailable(string gameDirectory);
