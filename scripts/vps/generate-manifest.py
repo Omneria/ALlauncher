@@ -28,6 +28,8 @@ Réglages du pack (optionnel) : <root>/pack.json, recopié dans la section "pack
   réécrits à chaque lancement. Les autres fichiers de config/ sont des réglages "par défaut" :
   installés seulement s'ils manquent, un joueur garde ce qu'il y a changé.
 - serverOnlyMods : motifs des fichiers de mods/ utiles au serveur seul, jamais envoyés aux joueurs.
+- clientOnlyMods : ignoré ici (envoyés aux joueurs comme les autres), lu par sync-server-mods.py
+  qui ne les copie pas sur le serveur.
 """
 
 import argparse

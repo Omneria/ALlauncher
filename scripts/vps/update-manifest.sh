@@ -7,11 +7,14 @@
 #    les joueurs.
 # 2. Rend les fichiers lisibles par Caddy (sinon 403 et synchro en échec pour tout le monde).
 # 3. Régénère le manifest (écriture atomique, voir generate-manifest.py).
+# 4. Si SERVER_MODS_DIR est défini (v1.13.0, voir modpack-manifest.service) : recopie les mods vers
+#    le serveur Minecraft, sans les mods client seul (voir sync-server-mods.py).
 set -euo pipefail
 
 MODPACK_ROOT="${MODPACK_ROOT:-/var/www/html/modpack}"
 BASE_URL="${BASE_URL:-https://astralnexusmc.duckdns.org/modpack}"
 TOOLS_DIR="${TOOLS_DIR:-/opt/modpack-tools}"
+SERVER_MODS_DIR="${SERVER_MODS_DIR:-}"
 QUIET_SECONDS="${QUIET_SECONDS:-15}"
 
 watched=()
@@ -30,3 +33,9 @@ python3 "$TOOLS_DIR/generate-manifest.py" \
     --root "$MODPACK_ROOT" \
     --base-url "$BASE_URL" \
     --output "$MODPACK_ROOT/manifest.json"
+
+if [ -n "$SERVER_MODS_DIR" ]; then
+    python3 "$TOOLS_DIR/sync-server-mods.py" \
+        --modpack-root "$MODPACK_ROOT" \
+        --server-mods "$SERVER_MODS_DIR"
+fi

@@ -313,6 +313,15 @@ public partial class SettingsWindow : Window
     private void UpdateRollbackButtonState()
     {
         RollbackButton.IsEnabled = _modSyncService.HasRollbackAvailable(_settings.GameDirectory);
+
+        // Retour en arrière toujours actif (v1.13.0) : dit pourquoi le modpack ne se met plus à
+        // jour, et comment en sortir, plutôt que de laisser croire à une panne de synchro.
+        if (RepairStatusText.Visibility != Visibility.Visible && _modSyncService.IsRollbackPinned(_settings.GameDirectory))
+        {
+            RepairStatusText.Visibility = Visibility.Visible;
+            RepairStatusText.Foreground = (Brush)FindResource("InkDimBrush");
+            RepairStatusText.Text = "Retour en arrière actif jusqu'à la prochaine mise à jour du modpack. RÉPARER pour revenir à la version du serveur.";
+        }
     }
 
     private void ViewLogsButton_Click(object sender, RoutedEventArgs e)

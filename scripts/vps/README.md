@@ -55,7 +55,8 @@ Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), l
   "recommendedRamMb": 6144,
   "minRamMb": 4096,
   "enforcedConfigs": ["config/simple-custom-early-loading.json", "config/simple-custom-early-loading/*"],
-  "serverOnlyMods": ["Chunky-*.jar", "AI-Improvements-*.jar", "alternate_current-*.jar"]
+  "clientOnlyMods": ["jei-*.jar", "journeymap-*.jar", "appleskin-*.jar", "Controlling-*.jar", "Searchables-*.jar"],
+  "serverOnlyMods": ["Chunky-*.jar", "AI-Improvements-*.jar", "alternate_current-*.jar", "radium-*.jar", "krypton*.jar"]
 }
 ```
 
@@ -70,6 +71,10 @@ Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), l
   par défaut à tout le monde, l'ajouter à `enforcedConfigs`.
 - `serverOnlyMods` : mods utiles au serveur seul, exclus du téléchargement des joueurs (et
   supprimés chez ceux qui les avaient déjà). Ils restent dans le dossier `mods/` du serveur.
+- `clientOnlyMods` (v1.13.0) : mods utiles aux joueurs seuls, jamais recopiés sur le serveur
+  par `sync-server-mods.py` (section "Mods du serveur"). Ignoré par le générateur de manifest.
+
+Tous les motifs sont de style shell et insensibles aux majuscules.
 
 Les launchers antérieurs à la v1.12.0 ignorent ces réglages : ils continuent d'imposer toutes
 les configs, comme avant.
@@ -116,6 +121,39 @@ Adresse, dossier ou délai différents : variables `MODPACK_ROOT`, `BASE_URL`,
 `TOOLS_DIR` et `QUIET_SECONDS` de `update-manifest.sh`, à surcharger avec une ligne
 `Environment=` dans `modpack-manifest.service`.
 
+## Mods du serveur : un seul dossier source (v1.13.0)
+
+`sync-server-mods.py` recopie `modpack/mods/` vers le dossier `mods/` du serveur Minecraft, sans
+les `clientOnlyMods` de `pack.json`. On dépose donc un mod **une seule fois**, dans le modpack :
+les joueurs le reçoivent par le manifest, le serveur par ce script.
+
+- Copie seulement ce qui a changé (empreinte SHA-256), en prenant le propriétaire du dossier
+  `mods/` du serveur (inutile de refaire le `chown`).
+- Retire du serveur les mods qu'il y a lui-même installés puis qui ont quitté le modpack, ainsi
+  que les mods client seul qui s'y trouvent sous le même nom que dans le modpack. **Un mod
+  ajouté à la main sur le serveur, absent du modpack, n'est jamais touché.**
+- Ne fait rien si `modpack/mods/` est vide, pour ne pas vider le serveur par erreur.
+- Ne redémarre pas le serveur : les changements s'appliquent à son prochain redémarrage.
+
+Installation, une seule fois :
+
+```bash
+cp sync-server-mods.py update-manifest.sh /opt/modpack-tools/
+chmod +x /opt/modpack-tools/update-manifest.sh
+
+# Aperçu de ce qui changerait, sans rien modifier
+python3 /opt/modpack-tools/sync-server-mods.py --dry-run \
+    --modpack-root /var/www/html/modpack \
+    --server-mods /var/opt/minecraft/crafty/crafty-4/servers/<id-du-serveur>/mods
+
+# Automatique à chaque changement du modpack : décommenter la ligne
+# Environment=SERVER_MODS_DIR=... de modpack-manifest.service (avec le bon chemin), puis
+cp modpack-manifest.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl start modpack-manifest.service
+journalctl -u modpack-manifest.service -n 30 --no-pager
+```
+
 ## Mise à jour automatique du mod Astral Nexus
 
 Le mod client Astral Nexus (dépôt privé `Astral-Nexus-MC/Astral-launcher`) publie une release
@@ -136,6 +174,8 @@ Le mod ne s'exécute que côté client (écrans de titre et de déconnexion) et 
 réseau : le serveur Minecraft n'a pas besoin de l'avoir. S'il doit quand même l'avoir, ajouter
 son dossier `mods/` à `TARGET_DIRS` dans `astralnexus-mod-sync.service`, séparé par `:`. Le
 serveur ne charge le nouveau jar qu'au redémarrage suivant, et le script ne redémarre rien.
+Avec `sync-server-mods.py` (section précédente), `TARGET_DIRS` n'a besoin que du dossier du
+modpack : c'est lui qui décide ensuite si le serveur l'a (`clientOnlyMods`).
 
 Installation, une seule fois :
 
@@ -210,6 +250,11 @@ autre port (ex. 8080) et remplacer `root`/`file_server` dans le Caddyfile par
 
 Une fois en place, `--base-url` du générateur de manifest doit lui aussi être
 en `https://astralnexusmc.duckdns.org/modpack` : régénérer le manifest.
+
+Depuis la v1.13.0, le Caddyfile ne sert sous `/modpack/` que ce que lit le launcher (`mods/`,
+`config/`, `manifest.json`, `changelog.json`, `changelog.txt`, `news.txt`, `maintenance.txt`) :
+tout autre fichier déposé là (script, `pack.json`, ancienne archive, sauvegarde) répond 404. Les
+fichiers cachés (`.part`, temporaires) ne sont jamais servis.
 
 ## Bannière de maintenance
 

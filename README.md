@@ -302,6 +302,10 @@ dans le dossier de jeu de chaque joueur à partir d'un fichier reçu en HTTP sim
   manifest *avant* que le fichier ne soit écrit (puis écrit via un `.part` renommé d'un coup) — un
   téléchargement tronqué/corrompu était jusqu'ici installé tel quel et ne se révélait qu'au crash du
   jeu. Un désaccord persistant signifie en pratique un manifest périmé côté VPS (à régénérer).
+- **Téléchargements en parallèle (v1.13.0)** : jusqu'à 4 fichiers à la fois
+  (`ModSyncService.MaxParallelDownloads`), écrits en flux dans leur `.part` avec l'empreinte
+  calculée au fil de l'eau ; progression globale en Mo et en nombre de fichiers. Un fichier en
+  échec annule les autres et fait échouer la synchro, comme avant.
 - **Mods retirés du pack supprimés localement** : tout fichier sous `mods/` absent du manifest est
   effacé à la synchro (jamais `config/`, où un joueur peut avoir des fichiers à lui). Sans ça, un mod
   retiré côté serveur restait chez chaque joueur pour toujours (refus de connexion pour "mods
@@ -316,14 +320,15 @@ courant est copié dans `.rollback-mods`/`.rollback-config` à la racine du doss
 la sauvegarde précédente — **un seul cran de recul**, pas un historique complet. "REVENIR EN
 ARRIÈRE" (désactivé tant qu'aucune sauvegarde n'existe) restaure ce contenu.
 
-**Effet volontairement temporaire, pas un vrai pin de version** : le cache de synchro n'est pas
-touché par ce rollback. En mode zip, si le contenu distant n'a pas changé depuis, une synchro
-normale ultérieure considère toujours "à jour" via le cache ETag et laisse le rollback en place ;
-en mode manifest en revanche, une synchro normale revérifie systématiquement chaque fichier par
-hash et retélécharge/annule le rollback tant que le VPS sert toujours la version problématique —
-une vraie protection durable demanderait que le VPS lui-même serve une version antérieure. Une
-sauvegarde d'`options.txt` (réglages perso du joueur) encadre aussi "RÉPARER LE MODPACK", en filet
-de sécurité même si ni le mode zip ni le mode manifest ne sont censés y toucher.
+**Gardé jusqu'à la prochaine mise à jour du pack (v1.13.0).** En mode zip, le cache ETag s'en
+chargeait déjà. En mode manifest, chaque synchro revérifiait tous les hash et annulait le retour
+en arrière dès le lancement suivant : la version refusée est désormais "épinglée"
+(`launcher-modpack-rollback-pin.json`, empreinte des chemins/hash/modes du manifest, voir
+`ComputeFilesFingerprint`) et ignorée tant que le VPS sert exactement ces fichiers. Dès qu'il
+publie autre chose (un correctif), la synchro normale reprend et l'épingle est levée. "RÉPARER LE
+MODPACK" l'annule aussi, et les Paramètres signalent quand elle est active. Une sauvegarde
+d'`options.txt` (réglages perso du joueur) encadre aussi "RÉPARER LE MODPACK", en filet de sécurité
+même si ni le mode zip ni le mode manifest ne sont censés y toucher.
 
 ### Vérification d'espace disque
 
