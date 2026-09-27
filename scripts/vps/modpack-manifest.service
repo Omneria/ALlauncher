@@ -5,4 +5,7 @@ Description=Régénère manifest.json du modpack
 
 [Service]
 Type=oneshot
+# Décommenter (v1.13.0) pour recopier aussi les mods vers le serveur Minecraft à chaque
+# changement, sans les mods client seul (clientOnlyMods de pack.json, voir sync-server-mods.py).
+#Environment=SERVER_MODS_DIR=/var/opt/minecraft/crafty/crafty-4/servers/<id-du-serveur>/mods
 ExecStart=/opt/modpack-tools/update-manifest.sh

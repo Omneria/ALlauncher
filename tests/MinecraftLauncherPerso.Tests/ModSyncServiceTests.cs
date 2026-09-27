@@ -266,6 +266,113 @@ public sealed class ModSyncServiceTests : IDisposable
         Assert.Empty(await CreateService([]).FetchChangelogAsync(ManifestUrl));
     }
 
+    [Fact]
+    public async Task SyncAsync_telecharge_plusieurs_fichiers_en_parallele_avec_une_progression_en_Mo()
+    {
+        var responses = new Dictionary<string, byte[]>();
+        var manifest = new ModpackManifest();
+        for (var i = 0; i < 10; i++)
+        {
+            var content = Encoding.UTF8.GetBytes($"mod numéro {i}");
+            var url = $"http://stub/files/mods/mod{i}.jar";
+            responses[url] = content;
+            manifest.Files[$"mods/mod{i}.jar"] = new ModpackManifestFile { Url = url, Sha256 = Sha256Hex(content), Size = content.Length };
+        }
+
+        responses[ManifestUrl] = JsonSerializer.SerializeToUtf8Bytes(manifest);
+        var handler = new SlowStubHandler(responses, TimeSpan.FromMilliseconds(40));
+        var service = new ModSyncService(new HttpClient(handler));
+        var messages = new List<string>();
+
+        await service.SyncAsync("", ManifestUrl, _gameDirectory, new SynchronousProgress<string>(messages.Add));
+
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.Equal($"mod numéro {i}", File.ReadAllText(Path.Combine(_gameDirectory, "mods", $"mod{i}.jar")));
+        }
+
+        Assert.InRange(handler.MaxConcurrentRequests, 2, ModSyncService.MaxParallelDownloads);
+        Assert.Contains(messages, m => m.Contains(" Mo (10/10 fichiers)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_est_garde_jusqua_la_prochaine_mise_a_jour_du_pack()
+    {
+        var v1 = Encoding.UTF8.GetBytes("version 1");
+        var v2 = Encoding.UTF8.GetBytes("version 2 cassée");
+        var v3 = Encoding.UTF8.GetBytes("version 3 corrigée");
+        var responses = new Dictionary<string, byte[]>
+        {
+            ["http://stub/files/v1.jar"] = v1,
+            ["http://stub/files/v2.jar"] = v2,
+            ["http://stub/files/v3.jar"] = v3,
+        };
+        var service = CreateService(responses);
+        var modPath = Path.Combine(_gameDirectory, "mods", "mod.jar");
+
+        responses[ManifestUrl] = ManifestJson(("mods/mod.jar", "http://stub/files/v1.jar", Sha256Hex(v1)));
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        responses[ManifestUrl] = ManifestJson(("mods/mod.jar", "http://stub/files/v2.jar", Sha256Hex(v2)));
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        Assert.Equal(v2, File.ReadAllBytes(modPath));
+
+        await service.RollbackAsync(_gameDirectory);
+        Assert.Equal(v1, File.ReadAllBytes(modPath));
+        Assert.True(service.IsRollbackPinned(_gameDirectory));
+
+        // Le VPS sert toujours la version 2 : le retour en arrière n'est plus annulé au lancement suivant.
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        Assert.Equal(v1, File.ReadAllBytes(modPath));
+
+        // Correctif publié : la synchro normale reprend et le retour en arrière est levé.
+        responses[ManifestUrl] = ManifestJson(("mods/mod.jar", "http://stub/files/v3.jar", Sha256Hex(v3)));
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        Assert.Equal(v3, File.ReadAllBytes(modPath));
+        Assert.False(service.IsRollbackPinned(_gameDirectory));
+    }
+
+    [Fact]
+    public async Task RepairAsync_annule_un_retour_en_arriere_epingle()
+    {
+        var v1 = Encoding.UTF8.GetBytes("version 1");
+        var v2 = Encoding.UTF8.GetBytes("version 2");
+        var responses = new Dictionary<string, byte[]>
+        {
+            ["http://stub/files/v1.jar"] = v1,
+            ["http://stub/files/v2.jar"] = v2,
+            [ManifestUrl] = ManifestJson(("mods/mod.jar", "http://stub/files/v1.jar", Sha256Hex(v1))),
+        };
+        var service = CreateService(responses);
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        responses[ManifestUrl] = ManifestJson(("mods/mod.jar", "http://stub/files/v2.jar", Sha256Hex(v2)));
+        await service.SyncAsync("", ManifestUrl, _gameDirectory);
+        await service.RollbackAsync(_gameDirectory);
+
+        await service.RepairAsync("", ManifestUrl, _gameDirectory);
+
+        Assert.Equal(v2, File.ReadAllBytes(Path.Combine(_gameDirectory, "mods", "mod.jar")));
+        Assert.False(service.IsRollbackPinned(_gameDirectory));
+    }
+
+    [Fact]
+    public void ComputeFilesFingerprint_ignore_la_section_pack_et_lordre_des_fichiers()
+    {
+        var a = new ModpackManifest { Pack = new ModpackPackSettings { ForgeVersion = "47.4.23" } };
+        a.Files["mods/a.jar"] = new ModpackManifestFile { Url = "http://x/a", Sha256 = "AA" };
+        a.Files["mods/b.jar"] = new ModpackManifestFile { Url = "http://x/b", Sha256 = "bb" };
+
+        var b = new ModpackManifest();
+        b.Files["mods/b.jar"] = new ModpackManifestFile { Url = "http://ailleurs/b", Sha256 = "BB" };
+        b.Files["mods/a.jar"] = new ModpackManifestFile { Url = "http://ailleurs/a", Sha256 = "aa" };
+
+        var c = new ModpackManifest();
+        c.Files["mods/a.jar"] = new ModpackManifestFile { Sha256 = "aa" };
+        c.Files["mods/b.jar"] = new ModpackManifestFile { Sha256 = "cc" };
+
+        Assert.Equal(ModSyncService.ComputeFilesFingerprint(a), ModSyncService.ComputeFilesFingerprint(b));
+        Assert.NotEqual(ModSyncService.ComputeFilesFingerprint(a), ModSyncService.ComputeFilesFingerprint(c));
+    }
+
     private static ModSyncService CreateService(Dictionary<string, byte[]> responses) =>
         new(new HttpClient(new StubHandler(responses)));
 
@@ -296,6 +403,57 @@ public sealed class ModSyncServiceTests : IDisposable
                 : new HttpResponseMessage(HttpStatusCode.NotFound);
 
             return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Comme StubHandler, avec un délai par fichier téléchargé : mesure combien de
+    /// téléchargements sont en cours en même temps.</summary>
+    private sealed class SlowStubHandler(Dictionary<string, byte[]> responses, TimeSpan delay) : HttpMessageHandler
+    {
+        private int _current;
+        private int _max;
+
+        public int MaxConcurrentRequests => Volatile.Read(ref _max);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri?.ToString() ?? "";
+            if (url.Contains("/files/", StringComparison.Ordinal))
+            {
+                var current = Interlocked.Increment(ref _current);
+                int observed;
+                while (current > (observed = Volatile.Read(ref _max)) && Interlocked.CompareExchange(ref _max, current, observed) != observed)
+                {
+                }
+
+                try
+                {
+                    await Task.Delay(delay, cancellationToken);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _current);
+                }
+            }
+
+            return responses.TryGetValue(url, out var bytes)
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }
+                : new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+    }
+
+    /// <summary>Progress&lt;T&gt; passe par le contexte de synchronisation (messages reçus en
+    /// retard, voire après la fin du test) : celui-ci appelle l'action tout de suite.</summary>
+    private sealed class SynchronousProgress<T>(Action<T> action) : IProgress<T>
+    {
+        private readonly Lock _lock = new();
+
+        public void Report(T value)
+        {
+            lock (_lock)
+            {
+                action(value);
+            }
         }
     }
 }

@@ -18,12 +18,24 @@ astralnexusmc.duckdns.org {
     # news.txt, maintenance.txt). Adapter si le dossier réel est ailleurs.
     root * /var/www/html
 
+    # Sous /modpack/, seuls les fichiers lus par le launcher sont publics (v1.13.0) : tout le
+    # reste (scripts, pack.json, ancien zip 1.16.5, sauvegardes...) répond 404 au lieu d'être
+    # téléchargeable par n'importe qui.
+    @private {
+        path /modpack/*
+        not path /modpack/mods/* /modpack/config/* /modpack/manifest.json /modpack/changelog.json /modpack/changelog.txt /modpack/news.txt /modpack/maintenance.txt
+    }
+    respond @private 404
+
     # Sert les fichiers tels quels, sans listing des dossiers. Caddy gère nativement les
-    # requêtes Range (reprise de téléchargement).
-    file_server
+    # requêtes Range (reprise de téléchargement). Fichiers cachés (temporaires d'upload ou
+    # d'écriture atomique) jamais servis.
+    file_server {
+        hide .*
+    }
 
     # Pas de mise en cache intermédiaire des petits fichiers qui changent souvent.
-    @dynamic path /modpack/manifest.json /modpack/maintenance.txt /modpack/news.txt
+    @dynamic path /modpack/manifest.json /modpack/changelog.json /modpack/maintenance.txt /modpack/news.txt
     header @dynamic Cache-Control "no-cache"
 
     encode gzip

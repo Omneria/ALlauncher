@@ -6,9 +6,19 @@
     "config/simple-custom-early-loading.json",
     "config/simple-custom-early-loading/*"
   ],
+  "clientOnlyMods": [
+    "jei-*.jar",
+    "journeymap-*.jar",
+    "appleskin-*.jar",
+    "Controlling-*.jar",
+    "Searchables-*.jar",
+    "SimpleCustomEarlyLoading-*.jar"
+  ],
   "serverOnlyMods": [
     "Chunky-*.jar",
     "AI-Improvements-*.jar",
-    "alternate_current-*.jar"
+    "alternate_current-*.jar",
+    "radium-*.jar",
+    "krypton*.jar"
   ]
 }

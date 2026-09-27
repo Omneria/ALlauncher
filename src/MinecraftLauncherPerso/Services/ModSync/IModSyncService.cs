@@ -82,12 +82,15 @@ public interface IModSyncService
     /// <summary>
     /// Restaure la version de mods/config sauvegardée juste avant la dernière mise à jour
     /// appliquée (un seul cran de recul, pas un historique complet) — utile si une mise à jour du
-    /// modpack casse quelque chose en attendant un correctif côté VPS. Effet temporaire : tant que
-    /// le VPS sert toujours le contenu problématique, une synchronisation normale ultérieure peut
-    /// le retélécharger et annuler ce retour en arrière (voir le commentaire dans l'implémentation).
+    /// modpack casse quelque chose en attendant un correctif côté VPS. Gardée jusqu'à la prochaine
+    /// mise à jour du pack (v1.13.0, voir IsRollbackPinned) ; "Réparer" l'annule.
     /// </summary>
     Task RollbackAsync(
         string gameDirectory,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Vrai si un retour en arrière est actif (mode manifest) : la version du pack
+    /// actuellement publiée par le VPS est ignorée jusqu'à ce qu'il en publie une autre.</summary>
+    bool IsRollbackPinned(string gameDirectory);
 }

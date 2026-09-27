@@ -24,6 +24,13 @@ public sealed class ModSyncService : IModSyncService
     private const string RollbackModsDirName = ".rollback-mods";
     private const string RollbackConfigDirName = ".rollback-config";
 
+    /// <summary>Retour en arrière "épinglé" (v1.13.0, mode manifest) : empreinte de la version du
+    /// pack refusée par le joueur, ignorée jusqu'à ce que le VPS publie autre chose.</summary>
+    private const string RollbackPinFileName = "launcher-modpack-rollback-pin.json";
+
+    /// <summary>Fichiers du manifest téléchargés en même temps (v1.13.0).</summary>
+    internal const int MaxParallelDownloads = 4;
+
     /// <summary>Historique des changements du pack, écrit à côté du manifest par
     /// generate-manifest.py (v1.12.0).</summary>
     private const string ChangelogFileName = "changelog.json";
@@ -182,6 +189,8 @@ public sealed class ModSyncService : IModSyncService
     {
         if (!string.IsNullOrWhiteSpace(manifestUrl))
         {
+            // Réparer = revenir exactement à ce que sert le VPS : annule un retour en arrière épinglé.
+            ClearRollbackPin(gameDirectory);
             progress?.Report("Réparation : revérification du hash de chaque fichier du modpack...");
             return SyncFromManifestAsync(manifestUrl, gameDirectory, progress, downloadProgress, cancellationToken);
         }
@@ -256,13 +265,12 @@ public sealed class ModSyncService : IModSyncService
     /// Restaure mods/config tels que sauvegardés juste avant la dernière mise à jour appliquée
     /// (voir BackupCurrentModpackAsync) : un seul cran de recul est conservé, pas un historique.
     ///
-    /// Effet volontairement temporaire, pas un vrai pin de version : le cache de synchro (ETag ou
-    /// horodatage manifest) n'est pas touché ici. En mode zip, si le contenu distant n'a pas changé
-    /// depuis, SyncAsync le considérera "à jour" via ce cache et laissera le rollback en place ; en
-    /// mode manifest, en revanche, SyncFromManifestAsync revérifie systématiquement chaque fichier
-    /// par hash contre le manifest courant, donc une synchronisation normale ultérieure retélécharge
-    /// et annule ce rollback tant que le VPS sert toujours la version problématique — une vraie
-    /// protection durable demanderait que le VPS lui-même serve une version antérieure.
+    /// Durable jusqu'à la prochaine mise à jour du pack. En mode zip, le cache ETag s'en charge
+    /// déjà : tant que le zip distant n'a pas changé, SyncAsync le considère "à jour". En mode
+    /// manifest (v1.13.0), chaque synchro revérifie tous les hash et annulait donc le retour en
+    /// arrière dès le lancement suivant : la version refusée est désormais "épinglée" (empreinte
+    /// des fichiers du manifest, voir ComputeFilesFingerprint) et ignorée tant que le VPS sert
+    /// exactement ces fichiers. Dès qu'il publie autre chose (un correctif), la synchro reprend.
     /// </summary>
     public async Task RollbackAsync(
         string gameDirectory,
@@ -282,7 +290,64 @@ public sealed class ModSyncService : IModSyncService
             RestoreDirectory(Path.Combine(gameDirectory, RollbackConfigDirName), Path.Combine(gameDirectory, "config"));
         }, cancellationToken);
 
-        progress?.Report("Version précédente restaurée (effet temporaire, voir Paramètres).");
+        var appliedFingerprint = LoadManifestSyncCache(Path.Combine(gameDirectory, ManifestCacheFileName))?.FilesFingerprint;
+        if (!string.IsNullOrEmpty(appliedFingerprint))
+        {
+            File.WriteAllText(
+                Path.Combine(gameDirectory, RollbackPinFileName),
+                JsonSerializer.Serialize(new RollbackPin { FilesFingerprint = appliedFingerprint, PinnedAt = DateTimeOffset.Now }));
+        }
+
+        progress?.Report("Version précédente restaurée : elle est gardée jusqu'à la prochaine mise à jour du modpack.");
+    }
+
+    public bool IsRollbackPinned(string gameDirectory) =>
+        File.Exists(Path.Combine(gameDirectory, RollbackPinFileName));
+
+    private static string? LoadRollbackPinFingerprint(string gameDirectory)
+    {
+        var path = Path.Combine(gameDirectory, RollbackPinFileName);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<RollbackPin>(File.ReadAllText(path))?.FilesFingerprint;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static void ClearRollbackPin(string gameDirectory)
+    {
+        var path = Path.Combine(gameDirectory, RollbackPinFileName);
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// Empreinte de la version du pack : chemins, hash et modes de tous les fichiers du manifest,
+    /// triés. Insensible au reste du manifest (section "pack", ordre des clés, indentation) : seul
+    /// un vrai changement de fichiers compte comme "nouvelle version".
+    /// internal : testé directement par MinecraftLauncherPerso.Tests (voir InternalsVisibleTo).
+    /// </summary>
+    internal static string ComputeFilesFingerprint(ModpackManifest manifest)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var (path, entry) in manifest.Files.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            builder.Append(path).Append('\n')
+                .Append(entry.Sha256.ToLowerInvariant()).Append('\n')
+                .Append(entry.Mode?.ToLowerInvariant()).Append('\n');
+        }
+
+        return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
     /// <summary>
@@ -371,6 +436,22 @@ public sealed class ModSyncService : IModSyncService
     {
         progress?.Report("Vérification du manifest du modpack...");
         var manifest = await FetchManifestAsync(manifestUrl, cancellationToken);
+        var fingerprint = ComputeFilesFingerprint(manifest);
+        var manifestCachePath = Path.Combine(gameDirectory, ManifestCacheFileName);
+
+        var pinnedFingerprint = LoadRollbackPinFingerprint(gameDirectory);
+        if (pinnedFingerprint is not null)
+        {
+            if (string.Equals(pinnedFingerprint, fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                // Le VPS sert toujours la version refusée par le joueur (voir RollbackAsync).
+                progress?.Report("Modpack : version précédente conservée jusqu'à la prochaine mise à jour du pack.");
+                return;
+            }
+
+            // Nouvelle version publiée depuis le retour en arrière : la synchro normale reprend.
+            ClearRollbackPin(gameDirectory);
+        }
 
         Directory.CreateDirectory(gameDirectory);
 
@@ -404,12 +485,10 @@ public sealed class ModSyncService : IModSyncService
         // (rejet à la connexion pour "mods manquants côté serveur", ou pire, crash au chargement).
         var staleModFiles = FindStaleModFiles(gameDirectory, manifest, expectedLocalPaths);
 
-        var manifestCachePath = Path.Combine(gameDirectory, ManifestCacheFileName);
-
         if (toDownload.Count == 0 && staleModFiles.Count == 0)
         {
             progress?.Report("Modpack déjà à jour.");
-            SaveManifestSyncTimestamp(manifestCachePath);
+            SaveManifestSyncCache(manifestCachePath, fingerprint);
             return;
         }
 
@@ -436,40 +515,16 @@ public sealed class ModSyncService : IModSyncService
         if (toDownload.Count > 0)
         {
             progress?.Report($"{toDownload.Count} fichier(s) à mettre à jour...");
-        }
 
-        long doneBytes = 0;
-        var lastReportedPercent = -1;
-
-        foreach (var (relativePath, localPath, entry) in toDownload)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report($"Téléchargement : {relativePath}");
-
-            var directory = Path.GetDirectoryName(localPath);
-            if (!string.IsNullOrEmpty(directory))
+            // Plusieurs fichiers à la fois (v1.13.0) : un par un, la première installation d'un
+            // pack d'une soixantaine de mods laissait la connexion inoccupée entre chaque fichier.
+            var tracker = new DownloadProgressTracker(toDownload.Count, totalBytes, progress, downloadProgress);
+            var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelDownloads, CancellationToken = cancellationToken };
+            await Parallel.ForEachAsync(toDownload, options, async (file, token) =>
             {
-                Directory.CreateDirectory(directory);
-            }
-
-            var bytes = await _httpClient.GetByteArrayAsync(entry.Url, cancellationToken);
-
-            // Vérifié AVANT d'écrire : un téléchargement tronqué/corrompu était jusqu'ici écrit tel
-            // quel, et ne se révélait qu'au crash du jeu (ou à la synchro suivante, qui le
-            // retéléchargeait sans jamais dire pourquoi le jeu avait planté entre-temps).
-            EnsureDownloadedHashMatches(relativePath, bytes, entry.Sha256);
-            await WriteFileAtomicallyAsync(localPath, bytes, cancellationToken);
-
-            doneBytes += bytes.LongLength;
-            if (totalBytes > 0)
-            {
-                var percent = (int)(doneBytes * 100 / totalBytes);
-                if (percent != lastReportedPercent)
-                {
-                    lastReportedPercent = percent;
-                    downloadProgress?.Report(doneBytes / (double)totalBytes);
-                }
-            }
+                await DownloadManifestFileAsync(file.RelativePath, file.LocalPath, file.Entry, tracker, token);
+                tracker.FileCompleted();
+            });
         }
 
         foreach (var staleFile in staleModFiles)
@@ -479,7 +534,7 @@ public sealed class ModSyncService : IModSyncService
             File.Delete(staleFile);
         }
 
-        SaveManifestSyncTimestamp(manifestCachePath);
+        SaveManifestSyncCache(manifestCachePath, fingerprint);
         progress?.Report("Modpack mis à jour.");
     }
 
@@ -525,14 +580,63 @@ public sealed class ModSyncService : IModSyncService
             .ToList();
     }
 
-    private static void EnsureDownloadedHashMatches(string relativePath, byte[] bytes, string expectedSha256)
+    /// <summary>
+    /// Télécharge un fichier du manifest dans un ".part" à côté, en calculant son empreinte au fil
+    /// de l'eau, puis le met en place d'un coup : une coupure en pleine écriture ne laisse jamais
+    /// un mod à moitié écrit sous son nom définitif. L'empreinte est vérifiée AVANT ce remplacement :
+    /// un téléchargement tronqué/corrompu ne se révélait sinon qu'au crash du jeu.
+    /// </summary>
+    private async Task DownloadManifestFileAsync(
+        string relativePath,
+        string localPath,
+        ModpackManifestFile entry,
+        DownloadProgressTracker tracker,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(localPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = localPath + ".part";
+        try
+        {
+            using var response = await _httpClient.GetAsync(entry.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var target = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    hash.AppendData(buffer, 0, read);
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    tracker.AddBytes(read);
+                }
+            }
+
+            EnsureDownloadedHashMatches(relativePath, hash.GetHashAndReset(), entry.Sha256);
+            File.Move(tempPath, localPath, overwrite: true);
+        }
+        catch
+        {
+            TryDeleteFile(tempPath);
+            throw;
+        }
+    }
+
+    private static void EnsureDownloadedHashMatches(string relativePath, byte[] actualHash, string expectedSha256)
     {
         if (string.IsNullOrEmpty(expectedSha256))
         {
             return;
         }
 
-        var actualSha256 = Convert.ToHexString(SHA256.HashData(bytes));
+        var actualSha256 = Convert.ToHexString(actualHash);
         if (!string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -541,13 +645,16 @@ public sealed class ModSyncService : IModSyncService
         }
     }
 
-    /// <summary>Écrit dans un ".part" à côté puis remplace d'un coup : une coupure en pleine
-    /// écriture ne laisse jamais un mod à moitié écrit sous son nom définitif.</summary>
-    private static async Task WriteFileAtomicallyAsync(string localPath, byte[] bytes, CancellationToken cancellationToken)
+    private static void TryDeleteFile(string path)
     {
-        var tempPath = localPath + ".part";
-        await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken);
-        File.Move(tempPath, localPath, overwrite: true);
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Un .part resté en place est simplement écrasé au prochain essai.
+        }
     }
 
     public async Task<ModpackPackSettings?> FetchPackSettingsAsync(string? manifestUrl, CancellationToken cancellationToken = default)
@@ -625,12 +732,20 @@ public sealed class ModSyncService : IModSyncService
         return string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void SaveManifestSyncTimestamp(string cachePath)
+    /// <summary>Horodatage de la synchro et empreinte de la version du pack désormais en place
+    /// (celle qu'un retour en arrière épinglerait, voir RollbackAsync).</summary>
+    private static void SaveManifestSyncCache(string cachePath, string filesFingerprint)
     {
-        File.WriteAllText(cachePath, JsonSerializer.Serialize(new ManifestSyncCache { SyncedAt = DateTimeOffset.Now }));
+        File.WriteAllText(cachePath, JsonSerializer.Serialize(new ManifestSyncCache
+        {
+            SyncedAt = DateTimeOffset.Now,
+            FilesFingerprint = filesFingerprint,
+        }));
     }
 
-    private static DateTimeOffset? LoadManifestSyncTimestamp(string cachePath)
+    private static DateTimeOffset? LoadManifestSyncTimestamp(string cachePath) => LoadManifestSyncCache(cachePath)?.SyncedAt;
+
+    private static ManifestSyncCache? LoadManifestSyncCache(string cachePath)
     {
         if (!File.Exists(cachePath))
         {
@@ -639,7 +754,7 @@ public sealed class ModSyncService : IModSyncService
 
         try
         {
-            return JsonSerializer.Deserialize<ManifestSyncCache>(File.ReadAllText(cachePath))?.SyncedAt;
+            return JsonSerializer.Deserialize<ManifestSyncCache>(File.ReadAllText(cachePath));
         }
         catch (JsonException)
         {
@@ -971,5 +1086,79 @@ public sealed class ModSyncService : IModSyncService
     {
         [JsonPropertyName("syncedAt")]
         public DateTimeOffset SyncedAt { get; set; }
+
+        /// <summary>Absent d'un cache écrit avant la v1.13.0.</summary>
+        [JsonPropertyName("filesFingerprint")]
+        public string? FilesFingerprint { get; set; }
+    }
+
+    private sealed class RollbackPin
+    {
+        [JsonPropertyName("filesFingerprint")]
+        public string FilesFingerprint { get; set; } = "";
+
+        [JsonPropertyName("pinnedAt")]
+        public DateTimeOffset PinnedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Progression globale des téléchargements parallèles (v1.13.0) : octets reçus tous fichiers
+    /// confondus, affichés en Mo avec le nombre de fichiers terminés. Appelé depuis plusieurs
+    /// tâches à la fois ; un message n'est émis qu'au changement de pourcentage.
+    /// </summary>
+    private sealed class DownloadProgressTracker(
+        int fileCount,
+        long totalBytes,
+        IProgress<string>? progress,
+        IProgress<double>? downloadProgress)
+    {
+        private readonly Lock _lock = new();
+        private long _receivedBytes;
+        private int _completedFiles;
+        private int _lastReportedPercent = -1;
+
+        public void AddBytes(long bytes)
+        {
+            lock (_lock)
+            {
+                _receivedBytes += bytes;
+                if (totalBytes <= 0)
+                {
+                    return;
+                }
+
+                var percent = (int)Math.Min(100, _receivedBytes * 100 / totalBytes);
+                if (percent != _lastReportedPercent)
+                {
+                    _lastReportedPercent = percent;
+                    Report();
+                }
+            }
+        }
+
+        public void FileCompleted()
+        {
+            lock (_lock)
+            {
+                _completedFiles++;
+                Report();
+            }
+        }
+
+        private void Report()
+        {
+            if (totalBytes > 0)
+            {
+                downloadProgress?.Report(Math.Min(1.0, _receivedBytes / (double)totalBytes));
+                progress?.Report(
+                    $"Téléchargement du modpack : {ToMegabytes(_receivedBytes):0.0} / {ToMegabytes(totalBytes):0.0} Mo ({_completedFiles}/{fileCount} fichiers)");
+            }
+            else
+            {
+                progress?.Report($"Téléchargement du modpack : {_completedFiles}/{fileCount} fichiers");
+            }
+        }
+
+        private static double ToMegabytes(long bytes) => bytes / (1024.0 * 1024.0);
     }
 }

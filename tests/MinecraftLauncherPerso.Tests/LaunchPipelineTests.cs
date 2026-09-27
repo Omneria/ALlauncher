@@ -236,6 +236,8 @@ public sealed class LaunchPipelineTests : IDisposable
         public bool HasRollbackAvailable(string gameDirectory) => false;
 
         public Task RollbackAsync(string gameDirectory, IProgress<string>? progress = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public bool IsRollbackPinned(string gameDirectory) => false;
     }
 
     private sealed class FakeAuthService(List<string> calls) : IAuthService
