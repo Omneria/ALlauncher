@@ -55,7 +55,7 @@ Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), l
   "recommendedRamMb": 6144,
   "minRamMb": 4096,
   "enforcedConfigs": ["config/simple-custom-early-loading.json", "config/simple-custom-early-loading/*"],
-  "clientOnlyMods": ["journeymap-*.jar", "appleskin-*.jar", "Controlling-*.jar", "Searchables-*.jar"],
+  "clientOnlyMods": ["appleskin-*.jar", "Controlling-*.jar", "Searchables-*.jar"],
   "serverOnlyMods": ["Chunky-*.jar", "AI-Improvements-*.jar", "alternate_current-*.jar", "radium-*.jar", "krypton*.jar"]
 }
 ```
@@ -76,6 +76,9 @@ Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), l
   Attention aux mods qui ouvrent un canal réseau, même embarqué dans leur jar : Forge refuse la
   connexion si le serveur ne l'a pas ("mismatched mod channel list"). Exemple : JEI 15.60+
   embarque MezzConfig, il doit donc être des deux côtés.
+  JourneyMap fonctionne sans le serveur, mais y gagne à être installé : un identifiant par
+  monde (cartes séparées quand le monde change à la même adresse) et le contrôle du radar, de la
+  carte des grottes et de la téléportation par les administrateurs.
 
 Tous les motifs sont de style shell et insensibles aux majuscules.
 
