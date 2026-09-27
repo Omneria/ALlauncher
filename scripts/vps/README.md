@@ -44,10 +44,48 @@ ou, pire, laisserait un fichier obsolète non détecté.
 
 Aucune dépendance externe, Python 3 standard suffit.
 
+## Réglages du pack : `pack.json` (v1.12.0)
+
+Fichier optionnel à la racine du modpack (`/var/www/html/modpack/pack.json`), lu par
+`generate-manifest.py`. Modèle prêt à copier : `pack.json.example`.
+
+```json
+{
+  "forgeVersion": "47.4.23",
+  "recommendedRamMb": 6144,
+  "minRamMb": 4096,
+  "enforcedConfigs": ["config/simple-custom-early-loading.json", "config/simple-custom-early-loading/*"],
+  "serverOnlyMods": ["Chunky-*.jar", "AI-Improvements-*.jar", "alternate_current-*.jar"]
+}
+```
+
+- `forgeVersion` : version de Forge installée par le launcher (v1.12.0 et plus). À changer en
+  même temps que celle du serveur : plus besoin d'une nouvelle version du launcher.
+- `recommendedRamMb`, `minRamMb` : affichés dans les Paramètres du launcher ; sous le minimum,
+  le launcher avertit le joueur avant de lancer (une fois par session).
+- `enforcedConfigs` : fichiers de `config/` **imposés** à tous les joueurs, réécrits à chaque
+  lancement s'ils diffèrent (motifs style shell, chemin complet ou nom de fichier). Tous les
+  autres fichiers de `config/` sont des **réglages par défaut** : installés s'ils manquent, puis
+  laissés au joueur (JourneyMap, Quark, JEI...). Pour pousser une nouvelle valeur d'une config
+  par défaut à tout le monde, l'ajouter à `enforcedConfigs`.
+- `serverOnlyMods` : mods utiles au serveur seul, exclus du téléchargement des joueurs (et
+  supprimés chez ceux qui les avaient déjà). Ils restent dans le dossier `mods/` du serveur.
+
+Les launchers antérieurs à la v1.12.0 ignorent ces réglages : ils continuent d'imposer toutes
+les configs, comme avant.
+
+## Changelog du modpack : `changelog.json` (v1.12.0)
+
+À chaque régénération, `generate-manifest.py` compare l'ancien et le nouveau manifest et ajoute
+une entrée à `changelog.json` (à côté du manifest, 30 entrées max) : mods ajoutés, mis à jour
+(reconnus même si le nom du fichier change avec la version), retirés, nombre de configs
+modifiées, changement de Forge. Le launcher l'affiche dans la carte ACTUS avec un badge
+MODPACK : rien à annoncer à la main dans `news.txt` pour une simple mise à jour du pack.
+
 ## Régénération automatique du manifest
 
 Plutôt que de relancer `generate-manifest.py` à chaque changement, une unité systemd
-surveille `mods/` et `config/` et régénère le manifest toute seule, environ 15 secondes
+surveille `mods/`, `config/` et `pack.json` et régénère le manifest toute seule, environ 15 secondes
 après la dernière modification (le temps qu'un upload se termine : un `.jar` indexé à
 moitié copié serait distribué tronqué à tous les joueurs). Elle rend aussi les fichiers
 lisibles par Caddy, ce qui évite l'oubli du `chmod 644`.
