@@ -7,4 +7,4 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Sans connexion internet, le launcher le dit clairement : un bandeau « Pas de connexion internet » remplace les cartes vides, avec un bouton pour réessayer. Tout se recharge tout seul dès que la connexion revient.
+- « Signaler un problème » (Paramètres) donne un rapport plus complet : la fin du journal du jeu, la liste de tes mods et la mémoire de ton PC. Plus besoin de chercher ces infos à la main quand tu demandes de l'aide. Le nom de ta session Windows est masqué dans le rapport.
