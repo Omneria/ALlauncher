@@ -795,7 +795,10 @@ section "Statut du serveur") a le droit de s'afficher au retour en ligne du serv
   arrière d'un cran" ci-dessus. Désactivé tant qu'aucune sauvegarde n'existe.
 - "SIGNALER UN PROBLÈME" (v1.9.0) copie dans le presse-papier un rapport prêt à coller sur Discord :
   version du launcher, RAM configurée, serveur, dernière synchro et les 30 dernières lignes de
-  `launcher.log` (`SettingsWindow.BuildProblemReportAsync`) — évite de devoir demander à chaque
+  `launcher.log` (`Services/Diagnostics/ProblemReportBuilder.cs`). Depuis la v1.15.0 : RAM physique
+  du PC, liste des `.jar` de `mods/` et 50 dernières lignes de `logs/latest.log` (lues en partage,
+  le jeu peut être en train d'y écrire) ; le chemin du profil Windows est remplacé par
+  `%USERPROFILE%` — évite de devoir demander à chaque
   joueur de recopier ces infos à la main quand il demande de l'aide.
 
 **Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`

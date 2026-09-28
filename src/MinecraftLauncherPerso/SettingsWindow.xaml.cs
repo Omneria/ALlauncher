@@ -352,41 +352,18 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async Task<string> BuildProblemReportAsync()
-    {
-        var lastSyncedAt = _modSyncService.GetLastSyncedAt(_settings.GameDirectory);
-
-        var lines = new List<string>
-        {
-            "=== Rapport Omnéria Games ===",
-            $"Version launcher : {AppVersion.Display}",
-            $"OS : {Environment.OSVersion.VersionString}",
-            $"RAM configurée : {_settings.MinRamMb}-{_settings.MaxRamMb} Mo",
-            $"Serveur : {_settings.ServerHost}:{_settings.ServerPort}",
-            $"Dernière synchro modpack : {(lastSyncedAt is null ? "jamais" : lastSyncedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))}",
-            "",
-            "--- Dernières lignes de launcher.log ---",
-        };
-
-        try
-        {
-            if (File.Exists(Logger.LogFilePath))
-            {
-                var logLines = await File.ReadAllLinesAsync(Logger.LogFilePath);
-                lines.AddRange(logLines.TakeLast(30));
-            }
-            else
-            {
-                lines.Add("(aucun launcher.log pour l'instant)");
-            }
-        }
-        catch (IOException)
-        {
-            lines.Add("(launcher.log illisible)");
-        }
-
-        return string.Join(Environment.NewLine, lines);
-    }
+    /// <summary>Contenu du rapport : voir ProblemReportBuilder (v1.15.0 : RAM du PC, liste des
+    /// mods, fin de logs/latest.log).</summary>
+    private Task<string> BuildProblemReportAsync() =>
+        ProblemReportBuilder.BuildAsync(new ProblemReportInfo(
+            AppVersion.Display,
+            SystemInfo.GetTotalPhysicalMemoryMb(),
+            _settings.MinRamMb,
+            _settings.MaxRamMb,
+            $"{_settings.ServerHost}:{_settings.ServerPort}",
+            _modSyncService.GetLastSyncedAt(_settings.GameDirectory),
+            _settings.GameDirectory,
+            Logger.LogFilePath));
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
