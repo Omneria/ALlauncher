@@ -7,4 +7,4 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- « Signaler un problème » (Paramètres) donne un rapport plus complet : la fin du journal du jeu, la liste de tes mods et la mémoire de ton PC. Plus besoin de chercher ces infos à la main quand tu demandes de l'aide. Le nom de ta session Windows est masqué dans le rapport.
+- Le tchat du serveur fonctionne. Le jeu se lançait sans déclarer ton compte Microsoft, et le serveur affichait « Tchat désactivé à cause de l'absence de la clé publique du profil ».
