@@ -122,7 +122,7 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │   └── MinecraftLauncherPerso.Tests/       # xUnit : VarInt, NBT servers.dat, parsing versions, SettingsManager, ModSync (manifest)
 ├── scripts/vps/                            # outils côté VPS : generate-manifest.py, Caddyfile (HTTPS), modèle de maintenance.txt
 ├── .github/
-│   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release sur tag v*
+│   ├── workflows/build-windows.yml         # CI : build/tests sur windows-latest, release auto sur main (ou tag v*)
 │   └── dependabot.yml                      # PR hebdomadaires de mise à jour NuGet / actions, vers dev
 ├── RELEASE_NOTES.md                        # notes de la prochaine release, en langage clair pour les joueurs
 ├── README.md
@@ -640,11 +640,16 @@ pourcentage dans le panneau de chargement, espace disque vérifié avant), puis 
 2. Lance ce script en détaché et appelle `Environment.Exit(0)` : le launcher se ferme, le script
    termine le remplacement, le nouveau launcher redémarre automatiquement.
 
-**Côté publication :** le workflow CI construit toujours l'exe sur chaque push (comme avant), mais
-publie en plus une **GitHub Release** (avec l'exe self-contained en pièce jointe) uniquement quand
-un tag `v*.*.*` est poussé sur le dépôt (`git tag v1.2.0 && git push origin v1.2.0`, ou via "Draft a
-new release" sur github.com — le job `release` complète l'exe automatiquement dans les deux cas).
-Penser à incrémenter `<Version>` dans le `.csproj` **au même commit** que le tag, sinon l'auto-update
+**Côté publication :** le workflow CI construit toujours l'exe sur chaque push, et publie en plus
+une **GitHub Release** (avec l'exe self-contained en pièce jointe) :
+- **automatiquement** quand un push sur `main` (merge de `dev`) porte une `<Version>` qui n'a pas
+  encore de release : le job `release` crée lui-même le tag `vX.Y.Z` sur ce commit (même méthode que
+  Fordix). Un merge sans changement de `<Version>` reste un simple build ;
+- ou quand un tag `v*.*.*` est poussé à la main (`git tag v1.2.0 && git push origin v1.2.0`, ou via
+  "Draft a new release" sur github.com — le job `release` complète l'exe dans tous les cas).
+
+Publier une version = monter `<Version>` dans le `.csproj` et `RELEASE_NOTES.md` sur `dev`, puis
+merger sur `main`. Un tag poussé à la main doit correspondre à `<Version>`, sinon l'auto-update
 ne détectera rien de nouveau (voir l'incident documenté dans l'historique git autour de `v1.2.5` :
 `<Version>` était monté à `1.3.2` sans qu'aucune release `v1.3.x` n'ait jamais été taguée, ce qui
 rendait toute mise à jour indétectable).

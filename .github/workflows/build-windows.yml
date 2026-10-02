@@ -27,11 +27,9 @@ jobs:
     # WPF (net10.0-windows) ne peut être compilé que sur un hôte Windows :
     # le SDK Microsoft.NET.Sdk.WindowsDesktop (compilateur XAML inclus) n'est distribué que là.
     runs-on: windows-latest
-    env:
-      # Build de test (tout sauf un tag de release) : numéro du run, pour que l'exe affiche
-      # "1.12.0-dev.<run>" au lieu de se faire passer pour la release (voir DevBuildNumber dans le
-      # csproj et AppVersion.cs). Vide sur un tag.
-      DEV_BUILD_NUMBER: ${{ !startsWith(github.ref, 'refs/tags/') && github.run_number || '' }}
+    outputs:
+      # Tag vX.Y.Z à publier par le job "release", vide si ce run ne publie rien.
+      release_tag: ${{ steps.release.outputs.tag }}
 
     steps:
       # fetch-depth 0 (historique + tags complets) : nécessaire à l'étape "Vérifie que
@@ -40,15 +38,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Incident passé (v1.2.5) : <Version> dans le csproj avait dérivé en avance sur les tags
-      # réellement publiés, cassant silencieusement l'auto-update pendant un moment (voir README).
-      # Ce check échoue le build plutôt que de laisser ça se reproduire sans que personne ne le
-      # remarque avant qu'un joueur ne signale que l'auto-update ne détecte rien.
-      - name: Vérifie que <Version> correspond au tag poussé
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Publication automatique (comme Fordix) : un push sur main dont <Version> n'a pas encore de
+      # release publie vX.Y.Z tout seul, le job "release" créant le tag sur le commit poussé. Plus
+      # besoin de poser le tag à la main, mais un tag vX.Y.Z poussé à la main marche toujours.
+      # Un tag créé avec le jeton Actions ne redéclenche pas de workflow : tout se fait dans ce run.
+      #
+      # Sur un tag poussé, <Version> doit lui correspondre. Incident passé (v1.2.5) : <Version>
+      # avait dérivé en avance sur les tags réellement publiés, cassant silencieusement
+      # l'auto-update pendant un moment (voir README).
+      #
+      # Build de test (tout ce qui ne publie pas) : numéro du run, pour que l'exe affiche
+      # "1.12.0-dev.<run>" au lieu de se faire passer pour la release (voir DevBuildNumber dans le
+      # csproj et AppVersion.cs). Vide quand ce run publie.
+      - name: Détermine la release à publier
+        id: release
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
           $csprojContent = Get-Content 'src/MinecraftLauncherPerso/MinecraftLauncherPerso.csproj' -Raw
           $match = [regex]::Match($csprojContent, '<Version>(.*?)</Version>')
           if (-not $match.Success) {
@@ -56,11 +63,33 @@ jobs:
             exit 1
           }
           $csprojVersion = $match.Groups[1].Value
-          if ($tagVersion -ne $csprojVersion) {
-            Write-Error "Le tag '${{ github.ref_name }}' ne correspond pas à <Version>$csprojVersion</Version> dans le csproj. Corrige l'un des deux avant de retagger (voir README, section versionnage)."
-            exit 1
+          $tag = ""
+
+          if ("${{ github.ref }}".StartsWith("refs/tags/v")) {
+            $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+            if ($tagVersion -ne $csprojVersion) {
+              Write-Error "Le tag '${{ github.ref_name }}' ne correspond pas à <Version>$csprojVersion</Version> dans le csproj. Corrige l'un des deux avant de retagger (voir README, section versionnage)."
+              exit 1
+            }
+            $tag = "${{ github.ref_name }}"
+            Write-Host "OK : tag $tag == <Version>$csprojVersion</Version>"
+          } elseif ("${{ github.ref }}" -eq "refs/heads/main" -and "${{ github.event_name }}" -ne "pull_request") {
+            $candidate = "v$csprojVersion"
+            # Une version déjà publiée (release avec ses fichiers) n'est pas refaite : un merge
+            # sur main sans changement de <Version> reste un simple build.
+            $assets = gh release view $candidate --repo "${{ github.repository }}" --json assets --jq '.assets | length' 2>$null
+            if ($LASTEXITCODE -eq 0 -and [int]$assets -gt 0) {
+              Write-Host "La release $candidate existe déjà : rien à publier."
+            } else {
+              $tag = $candidate
+              Write-Host "<Version>$csprojVersion</Version> n'a pas de release : ce run publie $tag."
+            }
           }
-          Write-Host "OK : tag ${{ github.ref_name }} == <Version>$csprojVersion</Version>"
+          $global:LASTEXITCODE = 0
+
+          $devBuildNumber = if ($tag) { "" } else { "${{ github.run_number }}" }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "dev_build_number=$devBuildNumber" >> $env:GITHUB_OUTPUT
 
       # Les notes générées automatiquement par GitHub à partir des titres de PR/commits sont
       # illisibles pour un joueur ("Merge dev dans main : correctif urgent..."). RELEASE_NOTES.md
@@ -69,10 +98,10 @@ jobs:
       # Ce check échoue le build si ce fichier n'a pas changé depuis le tag précédent : sans lui,
       # rien n'empêcherait de tagger une version avec des notes qui décrivent encore la précédente.
       - name: Vérifie que RELEASE_NOTES.md a été mis à jour
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.release.outputs.tag != ''
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ steps.release.outputs.tag }}"
           $previousTag = git tag --sort=-v:refname --merged HEAD | Where-Object { $_ -ne $currentTag } | Select-Object -First 1
           if (-not $previousTag) {
             Write-Host "Pas de tag précédent trouvé, rien à comparer (probablement la toute première release)."
@@ -104,7 +133,7 @@ jobs:
       # Avertissements bloquants (v1.12.0) : analyseurs .NET (AnalysisLevel latest) et
       # nullabilité. Uniquement en CI, pour ne pas bloquer un essai en local.
       - name: Build (Release)
-        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }} -p:TreatWarningsAsErrors=true
+        run: dotnet build -c Release --no-restore -p:DevBuildNumber=${{ steps.release.outputs.dev_build_number }} -p:TreatWarningsAsErrors=true
 
       # Mise en forme (espaces, indentation) conforme aux conventions .NET : une différence fait
       # échouer la CI. Corriger en local avec "dotnet format whitespace".
@@ -126,7 +155,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
-          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
+          -p:DevBuildNumber=${{ steps.release.outputs.dev_build_number }}
           -o publish/win-x64-selfcontained
 
       - uses: actions/upload-artifact@v7
@@ -145,7 +174,7 @@ jobs:
           -c Release
           -r win-x64
           --self-contained false
-          -p:DevBuildNumber=${{ env.DEV_BUILD_NUMBER }}
+          -p:DevBuildNumber=${{ steps.release.outputs.dev_build_number }}
           -o publish/win-x64-framework-dependent
 
       - uses: actions/upload-artifact@v7
@@ -154,15 +183,20 @@ jobs:
           path: publish/win-x64-framework-dependent/**
           if-no-files-found: error
 
-  # Publie une GitHub Release (exe self-contained en pièce jointe) quand un tag v*.*.* est
-  # poussé : c'est ce que GitHubUpdateService (Services/Update/) interroge pour l'auto-update du
+  # Publie une GitHub Release (exe self-contained en pièce jointe) quand le job "build" a trouvé
+  # une version à publier (tag v*.*.* poussé, ou <Version> sans release poussée sur main) : c'est ce que GitHubUpdateService (Services/Update/) interroge pour l'auto-update du
   # launcher - il compare LauncherSettings.csproj <Version> au tag_name de la dernière release.
   # Pense à incrémenter <Version> ET à mettre à jour RELEASE_NOTES.md (à la racine du dépôt, notes
-  # en langage clair pour les joueurs) dans le même commit, avant de tagger.
+  # en langage clair pour les joueurs) dans le même commit.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.release_tag != ''
     runs-on: windows-latest
+    # Un tag poussé à la main et le push sur main du même commit peuvent publier la même version :
+    # l'un après l'autre, le second ne fait que remettre l'exe et les notes (voir plus bas).
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write
 
@@ -192,7 +226,7 @@ jobs:
         shell: pwsh
         run: |
           $exe = "publish/win-x64-selfcontained/Omneria Games.exe"
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ needs.build.outputs.release_tag }}"
           $repo = "${{ github.repository }}"
 
           # Empreinte SHA-256 publiée en pièce jointe séparée à côté de l'exe : vérifiée par
@@ -216,7 +250,9 @@ jobs:
             # RELEASE_NOTES.md (rédigé à la main, langage clair pour un joueur) plutôt que
             # --generate-notes (titres de PR/commits, illisibles pour un joueur) — voir le check
             # "Vérifie que RELEASE_NOTES.md a été mis à jour" dans le job "build" ci-dessus.
-            gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file $notesFile
+            # --target : commit sur lequel créer le tag quand il n'existe pas encore (publication
+            # depuis main) ; sans effet sur un tag déjà poussé.
+            gh release create $tag $exe $hashFile --repo $repo --title $tag --notes-file $notesFile --target ${{ github.sha }}
           }
 
           gh release edit $tag --repo $repo --notes-file $notesFile
