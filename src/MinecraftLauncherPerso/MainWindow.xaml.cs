@@ -145,7 +145,7 @@ public partial class MainWindow : Window
         _newsHistoryStore = new NewsHistoryStore();
         _newsHistory = _newsHistoryStore.Load();
         _maintenanceService = new MaintenanceService(SharedHttpClient.Instance);
-        _changelogService = new ReleaseChangelogService(releasesClient);
+        _changelogService = new ReleaseChangelogService(releasesClient, SharedHttpClient.Instance);
         _connectivityService = new ConnectivityService(SharedHttpClient.Instance);
 
         // Toutes les cadences de rafraîchissement du contenu affiché sont alignées sur 1 minute

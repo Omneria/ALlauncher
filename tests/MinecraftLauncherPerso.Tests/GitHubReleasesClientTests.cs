@@ -80,6 +80,78 @@ public sealed class GitHubReleasesClientTests
         Assert.True(entries[0].IsLatest);
     }
 
+    private const string ReleasesFeed = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
+          <title>Release notes from ALlauncher</title>
+          <entry>
+            <id>tag:github.com,2008:Repository/1/v1.15.1</id>
+            <updated>2026-10-02T13:31:23Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/Omneria/ALlauncher/releases/tag/v1.15.1"/>
+            <title>v1.15.1</title>
+            <content type="html">&lt;ul&gt;
+        &lt;li&gt;Le tchat du serveur fonctionne. Le jeu se lan&#231;ait sans d&#233;clarer ton compte, &lt;strong&gt;&#171; Tchat d&#233;sactiv&#233; &#187;&lt;/strong&gt; &amp;amp; l&#39;absence de cl&#233;.&lt;/li&gt;
+        &lt;li&gt;Seconde
+        ligne avec &lt;a href=&quot;https://x&quot;&gt;un lien&lt;/a&gt;.&lt;/li&gt;
+        &lt;/ul&gt;</content>
+          </entry>
+          <entry>
+            <id>tag:github.com,2008:Repository/1/v1.15.0</id>
+            <updated>2026-09-28T19:07:55Z</updated>
+            <link rel="alternate" type="text/html" href="https://github.com/Omneria/ALlauncher/releases/tag/v1.15.0"/>
+            <title>v1.15.0</title>
+            <content type="html">&lt;p&gt;Sans liste&lt;/p&gt;</content>
+          </entry>
+        </feed>
+        """;
+
+    [Fact]
+    public async Task Le_changelog_se_rabat_sur_le_flux_quand_lAPI_refuse()
+    {
+        var handler = new CountingHandler(request => request.RequestUri!.Host == "api.github.com"
+            ? new HttpResponseMessage(HttpStatusCode.Forbidden)
+            : Ok(ReleasesFeed));
+        var http = new HttpClient(handler);
+        var service = new ReleaseChangelogService(new GitHubReleasesClient(http), http);
+
+        var entries = await service.GetRecentReleasesAsync(4);
+
+        Assert.Equal(["v1.15.1", "v1.15.0"], entries.Select(e => e.Tag));
+        Assert.True(entries[0].IsLatest);
+        Assert.Equal("https://github.com/Omneria/ALlauncher/releases/tag/v1.15.1", entries[0].Url);
+        Assert.Equal<string>(
+            [
+                "Le tchat du serveur fonctionne. Le jeu se lançait sans déclarer ton compte, « Tchat désactivé » & l'absence de clé.",
+                "Seconde ligne avec un lien.",
+            ],
+            entries[0].Notes);
+        Assert.Equal<string>([ReleaseChangelogService.MissingNotesPlaceholder], entries[1].Notes);
+    }
+
+    [Fact]
+    public async Task Le_changelog_ne_touche_pas_au_flux_quand_lAPI_repond()
+    {
+        var handler = new CountingHandler(request => request.RequestUri!.Host == "api.github.com"
+            ? Ok(ReleasesJson)
+            : throw new InvalidOperationException("Le flux ne devrait pas être appelé."));
+        var http = new HttpClient(handler);
+        var service = new ReleaseChangelogService(new GitHubReleasesClient(http), http);
+
+        var entries = await service.GetRecentReleasesAsync(4);
+
+        Assert.Equal(1, handler.Calls);
+        Assert.Equal(["v1.12.0", "v1.11.2"], entries.Select(e => e.Tag));
+    }
+
+    [Fact]
+    public async Task Le_changelog_reste_vide_sans_flux_de_secours_et_sans_API()
+    {
+        var http = new HttpClient(new CountingHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)));
+        var service = new ReleaseChangelogService(new GitHubReleasesClient(http));
+
+        Assert.Empty(await service.GetRecentReleasesAsync(4));
+    }
+
     [Theory]
     [InlineData("1.12.0+abc123", false, "1.12.0")]
     [InlineData("1.12.0-dev.153+abc123", true, "1.12.0-dev.153")]
