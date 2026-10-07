@@ -7,4 +7,4 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Le tchat du serveur fonctionne. Le jeu se lançait sans déclarer ton compte Microsoft, et le serveur affichait « Tchat désactivé à cause de l'absence de la clé publique du profil ».
+- La carte CHANGELOG s'affiche de nouveau même quand GitHub limite les requêtes du launcher : les notes de version sont alors lues sur le flux public des releases.
