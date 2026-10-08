@@ -53,7 +53,7 @@
     <!-- Gère la version vanilla, le classpath et le lancement du jeu (arguments JVM/jeu). -->
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->
-    <PackageReference Include="CmlLib.Core.Installer.Forge" Version="1.1.1" />
+    <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
     <!-- Authentification Microsoft (navigateur système, flux OAuth interactif) pour obtenir la session Minecraft. -->
     <PackageReference Include="Microsoft.Identity.Client" Version="4.90.0" />
     <!-- Persistance officielle du cache de token MSAL (chiffré via DPAPI sur Windows) : plus
