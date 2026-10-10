@@ -344,17 +344,8 @@
                                              au-dessus concerne tout le dashboard. -->
                                         <TextBlock x:Name="ServerNameText" Style="{StaticResource EyebrowTextStyle}"
                                                    Margin="0,0,0,8" Text="ASTRAL NEXUS" />
-                                        <!-- Background="Transparent" (plutôt que laissé à null) : sans ça, le
-                                             survol entre la pastille et le texte ne déclenche pas le tooltip
-                                             (zone non hit-testable en WPF quand Background est absent). -->
-                                        <StackPanel x:Name="ServerStatusRow" Orientation="Horizontal" Margin="0,0,0,8"
-                                                    Background="Transparent" ToolTipService.InitialShowDelay="300">
-                                            <Ellipse x:Name="ServerStatusDot" Width="8" Height="8" VerticalAlignment="Center"
-                                                     Fill="{StaticResource CyanBrush}" Margin="0,0,8,0" />
-                                            <TextBlock x:Name="ServerStatusText" VerticalAlignment="Center"
-                                                       Text="Vérification..." FontFamily="{StaticResource MonoFontFamily}"
-                                                       FontSize="11" Foreground="{StaticResource InkDimBrush}" />
-                                        </StackPanel>
+                                        <controls:StatusPill x:Name="ServerStatusPill" Margin="0,0,0,8"
+                                                             ToolTipService.InitialShowDelay="300" />
                                         <TextBlock x:Name="ServerCountText" FontFamily="{StaticResource DisplayFontFamily}"
                                                    FontSize="28" FontWeight="Bold" Foreground="{StaticResource CyanBrush}" />
                                         <TextBlock Text="JOUEURS CONNECTÉS" Margin="0,2,0,0" TextWrapping="Wrap"

@@ -46,16 +46,14 @@ public partial class ServerPage : UserControl
 
         if (status is null)
         {
-            StatusDot.Fill = Res("InkDimBrush");
-            StatusText.Text = "Vérification...";
+            StatusPill.Set(StatusKind.Neutral, "Vérification...");
             MotdText.Visibility = Visibility.Collapsed;
             PlayersCountText.Text = "—";
             DetailsText.Text = string.Join("  ·  ", details);
             return;
         }
 
-        StatusDot.Fill = Res(status.IsOnline ? "CyanBrush" : "MagentaBrush");
-        StatusText.Text = !status.IsOnline ? "HORS LIGNE" : status.LatencyMs is { } latency ? $"EN LIGNE · {latency} ms" : "EN LIGNE";
+        StatusPill.Set(ServerStatusPresentation.From(status, settings.MinecraftVersion));
         MotdText.Text = status.IsOnline ? status.Motd ?? "" : "";
         MotdText.Visibility = string.IsNullOrEmpty(MotdText.Text) ? Visibility.Collapsed : Visibility.Visible;
         PlayersCountText.Text = status.IsOnline ? $"{status.OnlinePlayers}/{status.MaxPlayers}" : "—";

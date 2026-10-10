@@ -975,8 +975,7 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(_settings.ServerHost))
         {
-            ServerStatusText.Text = "Non configuré";
-            ServerStatusDot.Fill = (Brush)FindResource("InkDimBrush");
+            ServerStatusPill.Set(StatusKind.Neutral, "Non configuré");
             ServerCountText.Inlines.Clear();
             ServerCountText.Inlines.Add(new Run("—"));
             return;
@@ -999,24 +998,9 @@ public partial class MainWindow : Window
             }
         }
 
-        // Version du serveur comparée à celle que le launcher installe (v1.12.0) : un serveur passé
-        // à une autre version de Minecraft refuserait la connexion avec un message peu clair.
-        var expectedProtocol = ServerStatusService.ExpectedProtocol(_settings.MinecraftVersion);
-        var versionMismatch = status.IsOnline && expectedProtocol is not null
-            && status.ProtocolVersion is not null && status.ProtocolVersion != expectedProtocol;
-
-        ServerStatusText.Text = !status.IsOnline ? "HORS LIGNE"
-            : versionMismatch ? "EN LIGNE · VERSION DIFFÉRENTE"
-            : status.LatencyMs is { } latency ? $"EN LIGNE · {latency} ms"
-            : "EN LIGNE";
-        // Sur toute la ligne (pastille + texte), pas juste le texte : cible de survol trop étroite
-        // sinon pour qu'on tombe dessus de façon fiable.
-        ServerStatusRow.ToolTip = !status.IsOnline ? status.ErrorDetail
-            : versionMismatch ? $"Le serveur annonce {status.VersionName ?? "une autre version"} (protocole {status.ProtocolVersion}), le launcher installe Minecraft {_settings.MinecraftVersion} : la connexion risque d'être refusée."
-            : null;
-        ServerStatusRow.Cursor = ServerStatusRow.ToolTip is null ? null : Cursors.Help;
-        var statusBrush = (Brush)FindResource(!status.IsOnline ? "MagentaBrush" : versionMismatch ? "AmberBrush" : "CyanBrush");
-        ServerStatusDot.Fill = statusBrush;
+        var presentation = ServerStatusPresentation.From(status, _settings.MinecraftVersion);
+        ServerStatusPill.Set(presentation);
+        var statusBrush = ServerStatusPill.Accent;
 
         ServerMotdText.Text = status.IsOnline ? status.Motd ?? "" : "";
         ServerMotdText.ToolTip = string.IsNullOrEmpty(ServerMotdText.Text) ? null : ServerMotdText.Text;
