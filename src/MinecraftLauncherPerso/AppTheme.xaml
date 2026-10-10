@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls">
 
     <!-- Charte graphique Omnéria : fond bleu-nuit, néon cyan, géométrie angulaire. -->
 
@@ -15,8 +16,12 @@
     <Color x:Key="ColorViolet">#FF7B5CFF</Color>
     <Color x:Key="ColorAmber">#FFFFB020</Color>
     <Color x:Key="ColorInk">#FFE8ECF5</Color>
-    <Color x:Key="ColorInkDim">#FF8494B0</Color>
+    <!-- v2.0.0 : texte atténué éclairci (#8494B0 -> #9AA8C2, contraste 6,1:1 sur le fond) et un
+         texte secondaire intermédiaire pour les paragraphes (actus, notes, dialogues). -->
+    <Color x:Key="ColorInkDim">#FF9AA8C2</Color>
+    <Color x:Key="ColorInk2">#FFC5CEE0</Color>
     <Color x:Key="ColorInput">#FF080C16</Color>
+    <Color x:Key="ColorCyanHover">#FF5FF2DD</Color>
 
     <SolidColorBrush x:Key="VoidBrush" Color="{StaticResource ColorVoid}" />
     <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource ColorSidebar}" />
@@ -29,32 +34,44 @@
     <SolidColorBrush x:Key="AmberBrush" Color="{StaticResource ColorAmber}" />
     <SolidColorBrush x:Key="InkBrush" Color="{StaticResource ColorInk}" />
     <SolidColorBrush x:Key="InkDimBrush" Color="{StaticResource ColorInkDim}" />
+    <SolidColorBrush x:Key="Ink2Brush" Color="{StaticResource ColorInk2}" />
     <SolidColorBrush x:Key="InputBrush" Color="{StaticResource ColorInput}" />
+    <SolidColorBrush x:Key="CyanHoverBrush" Color="{StaticResource ColorCyanHover}" />
+    <!-- Teintes translucides de la maquette (rgba) : survols, filets de pastille, fonds actifs. -->
+    <SolidColorBrush x:Key="CyanWash04Brush" Color="#0A00E5C7" />
+    <SolidColorBrush x:Key="CyanWash06Brush" Color="#0F00E5C7" />
+    <SolidColorBrush x:Key="CyanWash08Brush" Color="#1400E5C7" />
+    <SolidColorBrush x:Key="MagentaWash08Brush" Color="#14FF3D8B" />
+    <SolidColorBrush x:Key="CyanEdgeBrush" Color="#4000E5C7" />
 
     <!-- Polices embarquées (Assets/Fonts, licence OFL) : ./ = racine de l'assembly courant. -->
     <FontFamily x:Key="DisplayFontFamily">./Assets/Fonts/#Chakra Petch</FontFamily>
     <FontFamily x:Key="BodyFontFamily">./Assets/Fonts/#Inter</FontFamily>
     <FontFamily x:Key="MonoFontFamily">./Assets/Fonts/#JetBrains Mono</FontFamily>
 
-    <!-- Bouton primaire (CTA) : biseau à deux coins opposés, seul élément cyan plein de l'écran.
-         Taille fixe (200x48, coupe 9px) : le polygone est calculé pour cette taille exacte. -->
+    <!-- Anneau de focus clavier de la maquette : contour cyan de 2 px décalé de 3 px. -->
+    <Style x:Key="AppFocusVisualStyle">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Rectangle Margin="-5" Stroke="{StaticResource CyanBrush}" StrokeThickness="2" SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Bouton primaire (CTA) : biseau à deux coins opposés (10 px, quelle que soit la taille),
+         seul élément cyan plein de l'écran. Taille libre : BevelBorder suit le bouton. -->
     <ControlTemplate x:Key="PrimaryButtonTemplate" TargetType="Button">
-        <Grid x:Name="Root">
-            <Polygon x:Name="ButtonShape"
-                     Points="9,0 200,0 200,39 191,48 0,48 0,9"
-                     Fill="{StaticResource CyanBrush}" />
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-        </Grid>
+        <controls:BevelBorder x:Name="Shape" Bevel="10" BorderThickness="0" Background="{StaticResource CyanBrush}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+        </controls:BevelBorder>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="ButtonShape" Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect Color="{StaticResource ColorCyan}" BlurRadius="24" ShadowDepth="0" Opacity="0.6" />
-                    </Setter.Value>
-                </Setter>
+                <Setter TargetName="Shape" Property="Background" Value="{StaticResource CyanHoverBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="Root" Property="Opacity" Value="0.35" />
+                <Setter TargetName="Shape" Property="Opacity" Value="0.35" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
@@ -69,31 +86,92 @@
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource VoidBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
         <Setter Property="Template" Value="{StaticResource PrimaryButtonTemplate}" />
     </Style>
 
-    <!-- Bouton fantôme : chrome de fenêtre (réduire/fermer), petit bouton carré cyan filaire. -->
+    <!-- CTA du hub (maquette : 280x64, texte 16). -->
+    <Style x:Key="HeroPlayButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+        <Setter Property="Width" Value="280" />
+        <Setter Property="Height" Value="64" />
+        <Setter Property="FontSize" Value="16" />
+    </Style>
+
+    <!-- Bouton de chrome de fenêtre (mode compact, réduire, fermer) : sans filet, 36x32. -->
     <ControlTemplate x:Key="GhostButtonTemplate" TargetType="Button">
         <Border x:Name="GhostBackground" Background="Transparent">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="GhostBackground" Property="Background" Value="#1900E5C7" />
+                <Setter TargetName="GhostBackground" Property="Background" Value="{StaticResource CyanWash06Brush}" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
     <Style x:Key="GhostButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="36" />
-        <Setter Property="Height" Value="36" />
+        <Setter Property="Height" Value="32" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
         <Setter Property="Template" Value="{StaticResource GhostButtonTemplate}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Bouton fantôme de la maquette (btn-ghost) : filet Line, texte atténué ; au survol filet cyan,
+         texte plein et teinte cyan. Taille libre (Padding). DangerButtonStyle = même gabarit en
+         magenta (action destructive, annulation). -->
+    <ControlTemplate x:Key="OutlineButtonTemplate" TargetType="Button">
+        <Border x:Name="OutlineBackground" Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+    </ControlTemplate>
+
+    <Style x:Key="OutlineButtonStyle" TargetType="Button">
+        <Setter Property="Padding" Value="14,9" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
+        <Setter Property="Template" Value="{StaticResource OutlineButtonTemplate}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                <Setter Property="Background" Value="{StaticResource CyanWash06Brush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource OutlineButtonStyle}">
+        <Setter Property="BorderBrush" Value="{StaticResource MagentaBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource MagentaBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource MagentaBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource MagentaBrush}" />
+                <Setter Property="Background" Value="{StaticResource MagentaWash08Brush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- Carte / panneau : coins vifs (jamais de CornerRadius), fond Surface, filet Line. -->
@@ -110,9 +188,9 @@
         <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Padding" Value="12,9" />
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="CaretBrush" Value="{StaticResource CyanBrush}" />
         <Setter Property="SelectionBrush" Value="{StaticResource CyanBrush}" />
         <Style.Triggers>
@@ -132,47 +210,188 @@
         <Setter Property="FontSize" Value="12" />
     </Style>
 
-    <!-- Eyebrow / label mono : sur-titre discret, espacement approché via espaces manuels
-         (WPF n'a pas de propriété letter-spacing native). -->
+    <!-- Tuile du hub (maquette : fond Surface, filet Line, marges 18/20). -->
+    <Style x:Key="TileBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
+        <Setter Property="Padding" Value="20,18" />
+    </Style>
+
+    <!-- Barre de progression du lancement : piste Surface2 de 4 px, remplissage dégradé cyan -> violet. -->
+    <Style x:Key="AppProgressBarStyle" TargetType="ProgressBar">
+        <Setter Property="Height" Value="4" />
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="100" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Rectangle x:Name="PART_Track" Fill="{StaticResource Surface2Brush}" />
+                        <Rectangle x:Name="PART_Indicator" HorizontalAlignment="Left">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="{StaticResource ColorCyan}" Offset="0" />
+                                    <GradientStop Color="{StaticResource ColorViolet}" Offset="1" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Textes de la maquette. Le crénage (letter-spacing) des libellés n'a pas d'équivalent WPF. -->
     <Style x:Key="EyebrowTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="Foreground" Value="{StaticResource CyanBrush}" />
     </Style>
 
-    <!-- Item de nav de la barre latérale (MainWindow) : filet gauche transparent au repos, texte
-         atténué. Un seul actif à la fois (JOUER) via NavItemActiveTextStyle ci-dessous. -->
-    <Style x:Key="NavItemTextStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="12" />
+    <Style x:Key="EyebrowDimTextStyle" TargetType="TextBlock" BasedOn="{StaticResource EyebrowTextStyle}">
         <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
     </Style>
 
-    <Style x:Key="NavItemActiveTextStyle" TargetType="TextBlock" BasedOn="{StaticResource NavItemTextStyle}">
-        <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
-    </Style>
-
-    <!-- Case à cocher (Paramètres) : carré filaire + coche cyan, à la place du chrome Windows par
-         défaut qui jurerait avec le reste de la charte (même logique que AppTextBoxStyle/PrimaryButtonStyle). -->
-    <Style x:Key="AppCheckBoxStyle" TargetType="CheckBox">
+    <Style x:Key="MetaTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+    </Style>
+
+    <Style x:Key="BodyTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="19" />
+        <Setter Property="Foreground" Value="{StaticResource Ink2Brush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="DisplayHeadingStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+    </Style>
+
+    <!-- Lien d'action des tuiles : mono 11, cyan. -->
+    <Style x:Key="TileLinkButtonStyle" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <TextBlock x:Name="LinkText" Text="{TemplateBinding Content}" FontFamily="{StaticResource MonoFontFamily}"
+                                   FontSize="11" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center" />
+                        <Path x:Name="LinkIcon" Data="{Binding Path=(controls:NavButton.IconData), RelativeSource={RelativeSource TemplatedParent}}"
+                              Stroke="{StaticResource CyanBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="16" Height="16" Stretch="Uniform"
+                              Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="LinkText" Property="Foreground" Value="{StaticResource CyanHoverBrush}" />
+                            <Setter TargetName="LinkIcon" Property="Stroke" Value="{StaticResource CyanHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Case à cocher de la maquette : carré filaire, rempli de cyan (coche sombre) une fois cochée,
+         libellé Inter 13. -->
+    <Style x:Key="AppCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="{StaticResource BodyFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="16" Height="16" BorderThickness="1" BorderBrush="{StaticResource LineBrush}"
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Box" Width="16" Height="16" BorderThickness="1" BorderBrush="{StaticResource LineBrush}"
                                 Background="{StaticResource InputBrush}" VerticalAlignment="Center">
-                            <Path x:Name="CheckMark" Data="M2,7 L6,11 L14,2" Stroke="{StaticResource CyanBrush}"
+                            <Path x:Name="CheckMark" Data="M2,7 L6,11 L14,2" Stroke="{StaticResource VoidBrush}"
                                   StrokeThickness="2" Margin="1" Visibility="Collapsed" />
                         </Border>
-                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource CyanBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Sous-navigation des Paramètres (maquette) : mêmes états que NavButtonStyle, sans icône. -->
+    <Style x:Key="SubNavButtonStyle" TargetType="controls:NavButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:NavButton">
+                    <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="2,0,0,0"
+                            Padding="14,11,16,11">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#0D00E5C7" />
+                            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource CyanWash08Brush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Item de navigation de la barre latérale : icône 16 px + libellé mono 12 ; actif = filet cyan
+         à gauche, teinte cyan et texte plein. -->
+    <Style x:Key="NavButtonStyle" TargetType="controls:NavButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource AppFocusVisualStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:NavButton">
+                    <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="2,0,0,0"
+                            Padding="14,11,16,11">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{TemplateBinding IconData}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" />
+                            <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#0D00E5C7" />
+                            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource CyanWash08Brush}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

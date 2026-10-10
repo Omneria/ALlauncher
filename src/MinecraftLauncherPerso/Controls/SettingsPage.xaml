@@ -1,0 +1,194 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:MinecraftLauncherPerso.Controls"
+             Focusable="False">
+    <!-- Page PARAMÈTRES (maquette « PARAMÈTRES — page intégrée ») : sous-navigation à gauche
+         (JEU / LAUNCHER / MAINTENANCE / À PROPOS, ancres vers les quatre cartes empilées), actions
+         ANNULER / ENREGISTRER en bas. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                <local:NavButton x:Name="SubNavGame" Content="JEU" IsActive="True" Style="{StaticResource SubNavButtonStyle}" Click="SubNav_Click" />
+                <local:NavButton x:Name="SubNavLauncher" Content="LAUNCHER" Style="{StaticResource SubNavButtonStyle}" Click="SubNav_Click" />
+                <local:NavButton x:Name="SubNavMaintenance" Content="MAINTENANCE" Style="{StaticResource SubNavButtonStyle}" Click="SubNav_Click" />
+                <local:NavButton x:Name="SubNavAbout" Content="À PROPOS" Style="{StaticResource SubNavButtonStyle}" Click="SubNav_Click" />
+            </StackPanel>
+
+            <ScrollViewer x:Name="Scroller" Grid.Column="2" VerticalScrollBarVisibility="Auto" Focusable="False">
+                <StackPanel>
+                    <!-- JEU -->
+                    <Border x:Name="GameSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Jeu" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                            <!-- Un seul slider à deux poignées : la poignée gauche ne peut pas dépasser
+                                 la droite et inversement (contrainte appliquée en direct dans les
+                                 Drag*), plage bornée par la RAM physique réelle de la machine — par
+                                 construction, impossible de configurer une plage invalide. -->
+                            <Grid>
+                                <TextBlock Text="MÉMOIRE (RAM)" Style="{StaticResource EyebrowTextStyle}" />
+                                <TextBlock x:Name="RamRangeValueText" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
+                            </Grid>
+                            <Canvas x:Name="RamRangeCanvas" Height="20" Margin="0,14,0,14"
+                                    SizeChanged="RamRangeCanvas_SizeChanged">
+                                <Border x:Name="RamRangeTrack" Height="4" Canvas.Top="8" Background="{StaticResource Surface2Brush}" />
+                                <Border x:Name="RamRangeFill" Height="4" Canvas.Top="8" Background="{StaticResource CyanBrush}" />
+                                <Thumb x:Name="RamMinThumb" Width="14" Height="14" Canvas.Top="3" Cursor="Hand"
+                                       AutomationProperties.Name="RAM minimum" DragDelta="RamMinThumb_DragDelta">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{StaticResource CyanBrush}" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                                <Thumb x:Name="RamMaxThumb" Width="14" Height="14" Canvas.Top="3" Cursor="Hand"
+                                       AutomationProperties.Name="RAM maximum" DragDelta="RamMaxThumb_DragDelta">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{StaticResource CyanBrush}" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Canvas>
+                            <TextBlock x:Name="RamRecommendationText" Style="{StaticResource MetaTextStyle}" TextWrapping="Wrap" />
+                            <!-- Besoin en RAM publié par le pack, masqué s'il est inconnu. -->
+                            <TextBlock x:Name="RamPackHintText" Style="{StaticResource MetaTextStyle}" TextWrapping="Wrap"
+                                       Margin="0,6,0,0" Visibility="Collapsed" />
+
+                            <Rectangle Height="1" Fill="{StaticResource LineBrush}" Margin="0,14,0,14" />
+
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="LARGEUR (0 = AUTO)" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                                    <TextBox x:Name="ScreenWidthTextBox" Style="{StaticResource AppTextBoxStyle}"
+                                             AutomationProperties.Name="Largeur de la fenêtre du jeu" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="HAUTEUR (0 = AUTO)" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                                    <TextBox x:Name="ScreenHeightTextBox" Style="{StaticResource AppTextBoxStyle}"
+                                             AutomationProperties.Name="Hauteur de la fenêtre du jeu" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="DOSSIER DE JEU" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="GameDirectoryTextBox" Grid.Column="0" Style="{StaticResource AppTextBoxStyle}"
+                                         IsReadOnly="True" AutomationProperties.Name="Dossier de jeu" />
+                                <Button Grid.Column="2" Content="PARCOURIR" Style="{StaticResource OutlineButtonStyle}"
+                                        Padding="14,0" FontSize="11" Click="BrowseButton_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- LAUNCHER -->
+                    <Border x:Name="LauncherSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Launcher" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                            <CheckBox x:Name="DesktopNotificationsCheckBox" Content="Notifications Windows (serveur de retour en ligne)"
+                                      Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,14" />
+                            <CheckBox x:Name="MinimizeWhileGameCheckBox" Content="Réduire le launcher pendant que le jeu tourne"
+                                      Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,14" />
+                            <CheckBox x:Name="SoundsCheckBox" Content="Sons (mise à jour, fin de synchro)"
+                                      Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,14" />
+                            <TextBlock Text="AMIS À SURVEILLER (PSEUDOS SÉPARÉS PAR DES VIRGULES)" Style="{StaticResource EyebrowTextStyle}" Margin="0,2,0,6" />
+                            <TextBox x:Name="FriendsTextBox" Style="{StaticResource AppTextBoxStyle}"
+                                     AutomationProperties.Name="Pseudos des amis à surveiller" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- MAINTENANCE : réparation du modpack, journaux, retour à la version précédente
+                         et rapport de problème. -->
+                    <Border x:Name="MaintenanceSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Maintenance" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                            <TextBlock x:Name="MaintenanceSummaryText" TextWrapping="Wrap" FontSize="13"
+                                       Foreground="{StaticResource InkDimBrush}" Margin="0,0,0,14" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Button x:Name="RepairButton" Grid.Row="0" Grid.Column="0" Content="RÉPARER LE MODPACK"
+                                        Style="{StaticResource OutlineButtonStyle}" Padding="11" FontSize="11"
+                                        Click="RepairButton_Click" />
+                                <Button x:Name="RollbackButton" Grid.Row="0" Grid.Column="2" Content="REVENIR EN ARRIÈRE"
+                                        Style="{StaticResource OutlineButtonStyle}" Padding="11" FontSize="11"
+                                        IsEnabled="False" Click="RollbackButton_Click" />
+                                <Button x:Name="ViewLogsButton" Grid.Row="2" Grid.Column="0" Content="VOIR LES JOURNAUX"
+                                        Style="{StaticResource OutlineButtonStyle}" Padding="11" FontSize="11"
+                                        Click="ViewLogsButton_Click" />
+                                <Button x:Name="ReportProblemButton" Grid.Row="2" Grid.Column="2" Content="SIGNALER UN PROBLÈME"
+                                        Style="{StaticResource OutlineButtonStyle}" Padding="11" FontSize="11"
+                                        Click="ReportProblemButton_Click" />
+                            </Grid>
+                            <TextBlock x:Name="RepairStatusText" FontSize="12" Foreground="{StaticResource InkDimBrush}"
+                                       TextWrapping="Wrap" Margin="0,12,0,0" Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- À PROPOS -->
+                    <Border x:Name="AboutSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="À propos" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock x:Name="AboutVersionText" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" />
+                                    <TextBlock x:Name="AboutBuildText" Style="{StaticResource MetaTextStyle}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="MENTIONS LÉGALES" Style="{StaticResource OutlineButtonStyle}"
+                                        Padding="14,9" FontSize="11" Margin="16,0,0,0" Click="LegalButton_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Une saisie invalide (texte non numérique...) affiche pourquoi rien n'est enregistré. -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ValidationErrorText" Grid.Column="0" Foreground="{StaticResource MagentaBrush}" FontSize="12"
+                       TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" Visibility="Collapsed" />
+            <Button Grid.Column="1" Content="ANNULER" Style="{StaticResource OutlineButtonStyle}" Padding="18,11"
+                    Margin="0,0,10,0" VerticalAlignment="Center" Click="BackButton_Click" />
+            <Button Grid.Column="2" Content="ENREGISTRER" Style="{StaticResource PrimaryButtonStyle}" Width="180" Height="44"
+                    FontSize="12" Click="SaveButton_Click" />
+        </Grid>
+    </Grid>
+</UserControl>

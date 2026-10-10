@@ -1,10 +1,10 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Input;
+using System.Windows.Controls;
 using System.Windows.Media;
 using MinecraftLauncherPerso.Services.Diagnostics;
 
-namespace MinecraftLauncherPerso;
+namespace MinecraftLauncherPerso.Controls;
 
 /// <summary>
 /// Visualiseur de logs intégré (v1.8.0, onglet Paramètres) : jusqu'ici il fallait aller fouiller
@@ -13,15 +13,24 @@ namespace MinecraftLauncherPerso;
 /// (filtre par ligne) et un bouton "copier" pour préparer un extrait à coller sur Discord quand un
 /// joueur demande de l'aide.
 /// </summary>
-public partial class LogViewerWindow : Window
+public partial class LogsPage : UserControl
 {
-    private readonly string _gameLogPath;
+    private string _gameLogPath = "";
     private string[] _currentLines = [];
 
-    public LogViewerWindow(string gameDirectory)
+    public LogsPage()
     {
         InitializeComponent();
+    }
+
+    /// <summary>Demande de retour à la page précédente.</summary>
+    public event EventHandler? BackRequested;
+
+    /// <summary>Recharge les journaux (appelé à chaque ouverture de la page).</summary>
+    public void Initialize(string gameDirectory)
+    {
         _gameLogPath = Path.Combine(gameDirectory, "logs", "latest.log");
+        SearchTextBox.Clear();
         ShowLauncherLog();
     }
 
@@ -41,7 +50,7 @@ public partial class LogViewerWindow : Window
         LoadLog(_gameLogPath, "Aucun journal de jeu pour l'instant (pas encore lancé, ou dossier de jeu introuvable).");
     }
 
-    private void SetActiveTab(System.Windows.Controls.Button active, System.Windows.Controls.Button inactive)
+    private void SetActiveTab(Button active, Button inactive)
     {
         active.Foreground = (Brush)FindResource("CyanBrush");
         inactive.Foreground = (Brush)FindResource("InkDimBrush");
@@ -69,7 +78,7 @@ public partial class LogViewerWindow : Window
         ApplyFilter();
     }
 
-    private void SearchTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => ApplyFilter();
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
 
     private void ApplyFilter()
     {
@@ -97,13 +106,5 @@ public partial class LogViewerWindow : Window
         }
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.LeftButton == MouseButtonState.Pressed)
-        {
-            DragMove();
-        }
-    }
+    private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 }

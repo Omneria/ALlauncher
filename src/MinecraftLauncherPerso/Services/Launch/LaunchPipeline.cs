@@ -219,6 +219,18 @@ public sealed partial class LaunchPipeline
         public void Report(T value) => handler(value);
     }
 
+    /// <summary>Libellé court d'une ligne de la liste d'étapes (maquette v2.0.0).</summary>
+    public static string StepLabel(LaunchStep step) => step switch
+    {
+        LaunchStep.Java => "Java 17",
+        LaunchStep.Forge => "Forge",
+        LaunchStep.ModSync => "Synchronisation des mods",
+        LaunchStep.Auth => "Connexion Microsoft",
+        LaunchStep.ServerList => "Liste des serveurs",
+        LaunchStep.Launch => "Lancement du jeu",
+        _ => step.ToString(),
+    };
+
     public static string DescribeStep(LaunchStep step) => step switch
     {
         LaunchStep.Java => "Préparation de Java 17",

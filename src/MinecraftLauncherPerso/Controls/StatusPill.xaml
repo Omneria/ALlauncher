@@ -1,0 +1,14 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.StatusPill"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <!-- Pastille de statut de la maquette : filet translucide de la couleur de l'état, point coloré
+         et libellé mono 11. Variante Compact : 9 px, sans point (CONNECTÉ, DERNIÈRE). Fond
+         transparent : sans lui, le survol entre le point et le texte ne déclenche pas l'infobulle. -->
+    <Border x:Name="Frame" BorderThickness="1" Padding="10,5" Background="Transparent" HorizontalAlignment="Left">
+        <StackPanel Orientation="Horizontal">
+            <Ellipse x:Name="Dot" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock x:Name="Label" VerticalAlignment="Center" FontFamily="{StaticResource MonoFontFamily}" FontSize="11" />
+        </StackPanel>
+    </Border>
+</UserControl>

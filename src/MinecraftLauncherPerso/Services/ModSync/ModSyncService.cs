@@ -261,6 +261,12 @@ public sealed class ModSyncService : IModSyncService
         Directory.Exists(Path.Combine(gameDirectory, RollbackModsDirName)) ||
         Directory.Exists(Path.Combine(gameDirectory, RollbackConfigDirName));
 
+    public DateTimeOffset? GetRollbackDate(string gameDirectory)
+    {
+        var modsBackup = Path.Combine(gameDirectory, RollbackModsDirName);
+        return Directory.Exists(modsBackup) ? new DateTimeOffset(Directory.GetCreationTimeUtc(modsBackup), TimeSpan.Zero) : null;
+    }
+
     /// <summary>
     /// Restaure mods/config tels que sauvegardés juste avant la dernière mise à jour appliquée
     /// (voir BackupCurrentModpackAsync) : un seul cran de recul est conservé, pas un historique.
@@ -707,6 +713,33 @@ public sealed class ModSyncService : IModSyncService
             return [];
         }
     }
+
+    public async Task<int?> FetchModCountAsync(string? manifestUrl, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(manifestUrl))
+        {
+            return null;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(OptionalFileTimeout);
+        try
+        {
+            var manifest = await FetchManifestAsync(manifestUrl, timeout.Token);
+            return CountMods(manifest);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            Logger.Warn("ModSync", $"Nombre de mods indisponible : {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Nombre de jars sous mods/ dans le manifest (les fichiers de config ne comptent pas).</summary>
+    internal static int CountMods(ModpackManifest manifest) =>
+        manifest.Files.Keys.Count(path =>
+            path.Replace('\\', '/').StartsWith("mods/", StringComparison.OrdinalIgnoreCase)
+            && path.EndsWith(".jar", StringComparison.OrdinalIgnoreCase));
 
     private async Task<ModpackManifest> FetchManifestAsync(string manifestUrl, CancellationToken cancellationToken)
     {

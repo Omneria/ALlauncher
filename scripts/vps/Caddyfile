@@ -23,7 +23,7 @@ astralnexusmc.duckdns.org {
     # téléchargeable par n'importe qui.
     @private {
         path /modpack/*
-        not path /modpack/mods/* /modpack/config/* /modpack/manifest.json /modpack/changelog.json /modpack/changelog.txt /modpack/news.txt /modpack/maintenance.txt
+        not path /modpack/mods/* /modpack/config/* /modpack/manifest.json /modpack/changelog.json /modpack/server-history.json /modpack/changelog.txt /modpack/news.txt /modpack/maintenance.txt
     }
     respond @private 404
 
@@ -35,7 +35,7 @@ astralnexusmc.duckdns.org {
     }
 
     # Pas de mise en cache intermédiaire des petits fichiers qui changent souvent.
-    @dynamic path /modpack/manifest.json /modpack/changelog.json /modpack/maintenance.txt /modpack/news.txt
+    @dynamic path /modpack/manifest.json /modpack/changelog.json /modpack/server-history.json /modpack/maintenance.txt /modpack/news.txt
     header @dynamic Cache-Control "no-cache"
 
     encode gzip

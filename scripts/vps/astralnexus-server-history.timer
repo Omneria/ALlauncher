@@ -1,0 +1,11 @@
+# Un échantillon d'état du serveur par minute.
+[Unit]
+Description=Historique d'état du serveur Minecraft (une fois par minute)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

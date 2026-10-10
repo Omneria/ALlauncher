@@ -12,7 +12,8 @@ public sealed record ServerStatus(
     int? LatencyMs = null,
     int? ProtocolVersion = null,
     string? VersionName = null,
-    string? Motd = null);
+    string? Motd = null,
+    IReadOnlyList<string>? PlayerNames = null);
 
 public interface IServerStatusService
 {

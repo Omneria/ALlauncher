@@ -23,6 +23,23 @@ public sealed class ServerStatusParsingTests
     }
 
     [Fact]
+    public void ParseStatus_lit_les_pseudos_de_lechantillon_de_joueurs()
+    {
+        var status = ServerStatusService.ParseStatus(
+            """{"version":{"name":"1.20.1","protocol":763},"players":{"online":2,"max":12,"sample":[{"name":"Alex","id":"a"},{"name":"Sam","id":"b"},{"id":"c"}]}}""");
+
+        Assert.Equal(["Alex", "Sam"], status.PlayerNames);
+    }
+
+    [Fact]
+    public void ParseStatus_sans_echantillon_ne_donne_pas_de_pseudos()
+    {
+        var status = ServerStatusService.ParseStatus("""{"players":{"online":2,"max":12}}""");
+
+        Assert.Null(status.PlayerNames);
+    }
+
+    [Fact]
     public void ParseStatus_aplatit_un_motd_en_composant_json_et_retire_les_codes_de_couleur()
     {
         var status = ServerStatusService.ParseStatus(

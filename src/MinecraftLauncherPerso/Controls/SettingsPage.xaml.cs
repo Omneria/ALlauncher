@@ -1,39 +1,66 @@
+using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.ModSync;
+using MinecraftLauncherPerso.Services.Status;
 using MinecraftLauncherPerso.Services.Update;
 
-namespace MinecraftLauncherPerso;
+namespace MinecraftLauncherPerso.Controls;
 
-public partial class SettingsWindow : Window
+public enum SettingsSection
+{
+    Game,
+    Launcher,
+    Maintenance,
+    About,
+}
+
+/// <summary>
+/// Page Paramètres (v2.0.0), hébergée dans la fenêtre principale à la place de l'ancienne fenêtre
+/// modale SettingsWindow. Elle est ré-initialisée par <see cref="Initialize"/> à chaque ouverture.
+/// </summary>
+public partial class SettingsPage : UserControl
 {
     // Palier d'incrément (et de "snap") du slider RAM fusionné, en Mo.
     private const double RamStepMb = 256;
     private const double ThumbSize = 14;
 
-    private readonly LauncherSettings _settings;
-    private readonly IModSyncService _modSyncService;
+    private LauncherSettings _settings = new();
+    private IModSyncService? _modSyncService;
     private double _ramFloorMb = 512;
     private double _ramCeilingMb = 16384;
     private double _minRamMb;
     private double _maxRamMb;
+    private int? _modCount;
 
-    /// <summary>True si l'utilisateur a cliqué "Enregistrer" (par opposition à fermer sans sauver).</summary>
-    public bool SettingsSaved { get; private set; }
+    public SettingsPage()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>Fermeture de la page ; le paramètre vaut true si l'utilisateur a enregistré.</summary>
+    public event EventHandler<bool>? Closed;
+
+    /// <summary>Demande d'ouverture de la page des journaux.</summary>
+    public event EventHandler? ViewLogsRequested;
+
+    /// <summary>Demande d'ouverture des mentions légales.</summary>
+    public event EventHandler? LegalRequested;
+
+    private IModSyncService ModSync => _modSyncService ?? throw new InvalidOperationException("SettingsPage non initialisée.");
 
     /// <param name="packSettings">Réglages publiés par le pack (RAM conseillée et minimum), pour
     /// l'indication sous le réglage RAM. Null si inconnus (VPS injoignable, mode zip).</param>
-    public SettingsWindow(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings = null)
+    public void Initialize(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings, int? modCount = null, SettingsSection section = SettingsSection.Game)
     {
-        InitializeComponent();
         _settings = settings;
         _modSyncService = modSyncService;
 
@@ -50,11 +77,107 @@ public partial class SettingsWindow : Window
 
         ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
         ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
+        SetFieldValid(ScreenWidthTextBox, true);
+        SetFieldValid(ScreenHeightTextBox, true);
         GameDirectoryTextBox.Text = _settings.GameDirectory;
         DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
+        MinimizeWhileGameCheckBox.IsChecked = _settings.MinimizeWhileGameRuns;
+        SoundsCheckBox.IsChecked = _settings.SoundsEnabled;
+        FriendsTextBox.Text = string.Join(", ", _settings.FriendNames);
+        AboutVersionText.Text = $"AL Launcher v{AppVersion.Display}";
+        AboutBuildText.Text = $"signé Omnéria · build {BuildDate():yyyy-MM-dd} · mises à jour automatiques activées";
+        RamRecommendationText.Text = $"Recommandé pour cette machine : {LauncherSettings.RecommendMaxRamMb(SystemInfo.GetTotalPhysicalMemoryMb())} Mo maximum. Au-delà de 75 % de la RAM totale, le launcher préviendra.";
+        _modCount = modCount;
+        ValidationErrorText.Visibility = Visibility.Collapsed;
+        RepairStatusText.Visibility = Visibility.Collapsed;
+        RepairButton.IsEnabled = true;
         UpdateRollbackButtonState();
+        RefreshMaintenanceSummary();
         ShowRamPackHint(packSettings);
+        UpdateRamRangeVisual();
+        ShowSection(section);
     }
+
+    /// <summary>Date de build : écriture de l'exécutable (la CI le produit à chaque build).</summary>
+    private static DateTime BuildDate()
+    {
+        try
+        {
+            var path = Environment.ProcessPath;
+            return path is not null ? File.GetLastWriteTime(path) : DateTime.Now;
+        }
+        catch (IOException)
+        {
+            return DateTime.Now;
+        }
+    }
+
+    /// <summary>« Dernière synchro il y a 2 h · 48 mods · sauvegarde de la version précédente disponible (il y a 3 j). »</summary>
+    private void RefreshMaintenanceSummary()
+    {
+        var parts = new List<string>();
+        var lastSynced = ModSync.GetLastSyncedAt(_settings.GameDirectory);
+        parts.Add(lastSynced is null ? "Jamais synchronisé" : $"Dernière synchro {RelativeTime(lastSynced.Value)}");
+        if (_modCount is { } count)
+        {
+            parts.Add($"{count} mods");
+        }
+
+        if (ModSync.HasRollbackAvailable(_settings.GameDirectory))
+        {
+            var backupDate = ModSync.GetRollbackDate(_settings.GameDirectory);
+            parts.Add(backupDate is { } date
+                ? $"sauvegarde de la version précédente disponible ({RelativeTime(date)})"
+                : "sauvegarde de la version précédente disponible");
+        }
+
+        MaintenanceSummaryText.Text = string.Join(" · ", parts) + ".";
+    }
+
+    private static string RelativeTime(DateTimeOffset instant)
+    {
+        var elapsed = DateTimeOffset.Now - instant;
+        return elapsed < TimeSpan.FromMinutes(1) ? "à l'instant"
+            : elapsed < TimeSpan.FromHours(1) ? $"il y a {(int)elapsed.TotalMinutes} min"
+            : elapsed < TimeSpan.FromDays(1) ? $"il y a {(int)elapsed.TotalHours} h"
+            : $"il y a {(int)elapsed.TotalDays} j";
+    }
+
+    /// <summary>Met en avant la rubrique et fait défiler jusqu'à sa carte.</summary>
+    private void ShowSection(SettingsSection section)
+    {
+        SubNavGame.IsActive = section == SettingsSection.Game;
+        SubNavLauncher.IsActive = section == SettingsSection.Launcher;
+        SubNavMaintenance.IsActive = section == SettingsSection.Maintenance;
+        SubNavAbout.IsActive = section == SettingsSection.About;
+
+        FrameworkElement target = section switch
+        {
+            SettingsSection.Launcher => LauncherSection,
+            SettingsSection.Maintenance => MaintenanceSection,
+            SettingsSection.About => AboutSection,
+            _ => GameSection,
+        };
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (section == SettingsSection.Game)
+            {
+                Scroller.ScrollToTop();
+            }
+            else
+            {
+                target.BringIntoView();
+            }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private SettingsSection SectionOf(object sender) =>
+        ReferenceEquals(sender, SubNavLauncher) ? SettingsSection.Launcher
+        : ReferenceEquals(sender, SubNavMaintenance) ? SettingsSection.Maintenance
+        : ReferenceEquals(sender, SubNavAbout) ? SettingsSection.About
+        : SettingsSection.Game;
+
+    private void SubNav_Click(object sender, RoutedEventArgs e) => ShowSection(SectionOf(sender));
 
     private void ShowRamPackHint(ModpackPackSettings? packSettings)
     {
@@ -76,7 +199,7 @@ public partial class SettingsWindow : Window
             parts.Add($"minimum {minMb / 1024.0:0.#} Go");
         }
 
-        RamPackHintText.Text = $"Modpack : {string.Join(", ", parts)} (RAM max, poignée de droite). Ton PC : {_ramCeilingMb / 1024.0:0.#} Go.";
+        RamPackHintText.Text = $"Modpack : {string.Join(", ", parts)} (RAM max, poignée de droite).";
         RamPackHintText.Visibility = Visibility.Visible;
     }
 
@@ -122,7 +245,7 @@ public partial class SettingsWindow : Window
         Canvas.SetLeft(RamRangeFill, minX + thumbCenter);
         RamRangeFill.Width = Math.Max(0, maxX - minX);
 
-        RamRangeValueText.Text = $"{(int)_minRamMb} – {(int)_maxRamMb} Mo";
+        RamRangeValueText.Text = $"{(int)_minRamMb} – {(int)_maxRamMb} Mo · {_ramCeilingMb / 1024.0:0.#} Go détectés";
     }
 
     // Empêche par construction RAM min > RAM max : une poignée ne peut pas dépasser l'autre,
@@ -142,14 +265,6 @@ public partial class SettingsWindow : Window
         UpdateRamRangeVisual();
     }
 
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.LeftButton == MouseButtonState.Pressed)
-        {
-            DragMove();
-        }
-    }
-
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
@@ -157,7 +272,7 @@ public partial class SettingsWindow : Window
             InitialDirectory = GameDirectoryTextBox.Text,
         };
 
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
         {
             GameDirectoryTextBox.Text = dialog.FolderName;
         }
@@ -165,9 +280,8 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        // RAM min/max n'a plus besoin d'être validée ici : le slider double poignée l'empêche déjà
-        // par construction (RamMinThumb_DragDelta/RamMaxThumb_DragDelta ci-dessus), contrairement
-        // aux champs texte libres restants ci-dessous.
+        // RAM min/max n'a pas besoin d'être validée ici : le slider double poignée l'empêche déjà
+        // par construction, contrairement aux champs texte libres ci-dessous.
         ValidationErrorText.Visibility = Visibility.Collapsed;
         var errors = new List<string>();
 
@@ -187,6 +301,7 @@ public partial class SettingsWindow : Window
 
         if (errors.Count > 0)
         {
+            ShowSection(SettingsSection.Game);
             ValidationErrorText.Text = string.Join(" ", errors);
             ValidationErrorText.Visibility = Visibility.Visible;
             return;
@@ -203,9 +318,11 @@ public partial class SettingsWindow : Window
         }
 
         _settings.DesktopNotificationsEnabled = DesktopNotificationsCheckBox.IsChecked == true;
+        _settings.MinimizeWhileGameRuns = MinimizeWhileGameCheckBox.IsChecked == true;
+        _settings.SoundsEnabled = SoundsCheckBox.IsChecked == true;
+        _settings.FriendNames = FriendWatcher.ParseNames(FriendsTextBox.Text);
 
-        SettingsSaved = true;
-        Close();
+        Closed?.Invoke(this, true);
     }
 
     private void SetFieldValid(TextBox box, bool valid)
@@ -256,7 +373,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            await _modSyncService.RepairAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, progress);
+            await ModSync.RepairAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, progress);
 
             if (optionsBackup is not null)
             {
@@ -296,7 +413,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            await _modSyncService.RollbackAsync(_settings.GameDirectory, progress);
+            await ModSync.RollbackAsync(_settings.GameDirectory, progress);
         }
         catch (Exception ex)
         {
@@ -312,11 +429,12 @@ public partial class SettingsWindow : Window
 
     private void UpdateRollbackButtonState()
     {
-        RollbackButton.IsEnabled = _modSyncService.HasRollbackAvailable(_settings.GameDirectory);
+        RefreshMaintenanceSummary();
+        RollbackButton.IsEnabled = ModSync.HasRollbackAvailable(_settings.GameDirectory);
 
         // Retour en arrière toujours actif (v1.13.0) : dit pourquoi le modpack ne se met plus à
         // jour, et comment en sortir, plutôt que de laisser croire à une panne de synchro.
-        if (RepairStatusText.Visibility != Visibility.Visible && _modSyncService.IsRollbackPinned(_settings.GameDirectory))
+        if (RepairStatusText.Visibility != Visibility.Visible && ModSync.IsRollbackPinned(_settings.GameDirectory))
         {
             RepairStatusText.Visibility = Visibility.Visible;
             RepairStatusText.Foreground = (Brush)FindResource("InkDimBrush");
@@ -324,10 +442,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void ViewLogsButton_Click(object sender, RoutedEventArgs e)
-    {
-        new LogViewerWindow(_settings.GameDirectory) { Owner = this }.ShowDialog();
-    }
+    private void ViewLogsButton_Click(object sender, RoutedEventArgs e) => ViewLogsRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// "Signaler un problème" (v1.9.0) : prépare un rapport prêt à coller sur Discord (version du
@@ -361,14 +476,17 @@ public partial class SettingsWindow : Window
             _settings.MinRamMb,
             _settings.MaxRamMb,
             $"{_settings.ServerHost}:{_settings.ServerPort}",
-            _modSyncService.GetLastSyncedAt(_settings.GameDirectory),
+            ModSync.GetLastSyncedAt(_settings.GameDirectory),
             _settings.GameDirectory,
             Logger.LogFilePath));
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void BackButton_Click(object sender, RoutedEventArgs e) => Closed?.Invoke(this, false);
 
-    private void LegalButton_Click(object sender, RoutedEventArgs e)
+    private void LegalButton_Click(object sender, RoutedEventArgs e) => LegalRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
-        new LegalWindow { Owner = this }.ShowDialog();
+        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
     }
 }
