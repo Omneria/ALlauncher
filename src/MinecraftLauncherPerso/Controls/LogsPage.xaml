@@ -1,6 +1,7 @@
 <UserControl x:Class="MinecraftLauncherPerso.Controls.LogsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
     <!-- Page Journaux (v2.0.0) : launcher.log / latest.log du jeu, recherche, copie. -->
     <Grid>
@@ -15,7 +16,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="JOURNAUX" Style="{StaticResource EyebrowTextStyle}" VerticalAlignment="Center" />
+            <controls:TrackedText Grid.Column="0" Text="JOURNAUX" Style="{StaticResource EyebrowTrackedStyle}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Content="RETOUR" Style="{StaticResource OutlineButtonStyle}" Click="BackButton_Click" />
         </Grid>
 

@@ -7,5 +7,6 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Le titre du launcher devient « Omnéria Games Launcher » partout.
-- Accueil : la latence du serveur n'est plus affichée en double, et la liste d'étapes du lancement est plus sobre (quatre étapes, sans noms de fichiers).
+- Les libellés (titres, boutons, pastilles) ont maintenant l'espacement de lettres de la maquette.
+- Page SERVEUR : la tête de chaque joueur connecté s'affiche à côté de son pseudo.
+- Interface plus fiable : l'accueil, le lancement, la page SERVEUR et les Paramètres sont désormais vérifiés par des tests automatiques.

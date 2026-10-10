@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
+        xmlns:converters="clr-namespace:MinecraftLauncherPerso.Converters"
         Title="Omnéria Games"
         Width="1280" Height="720"
         MinWidth="620" MinHeight="480"
@@ -21,6 +22,10 @@
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" />
     </shell:WindowChrome.WindowChrome>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+    </Window.Resources>
     <Window.Triggers>
         <!-- Halos en respiration lente et continue (dérive + pulsation d'opacité) : signature
              discrète, jamais assez rapide pour distraire de l'UI. -->
@@ -85,11 +90,12 @@
                  gauche, pastille de mise à jour et boutons de fenêtre à droite. -->
             <Grid x:Name="TitleBar" Grid.Row="0" Grid.ColumnSpan="2" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock x:Name="TitleLabel" Text="OMNÉRIA GAMES LAUNCHER · HUB" VerticalAlignment="Center" Margin="24,0,0,0"
+                <controls:TrackedText Text="{Binding TitleLabel}" VerticalAlignment="Center" Margin="24,0,0,0"
                            FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
-                           Foreground="{StaticResource InkDimBrush}" />
+                           Foreground="{StaticResource InkDimBrush}"  Tracking="0.22" />
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,8,0">
-                    <Button x:Name="UpdateBannerButton" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,8,0"
+                    <Button x:Name="UpdateBannerButton" Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}"
+                            IsEnabled="{Binding UpdateEnabled}" VerticalAlignment="Center" Margin="0,0,8,0"
                             AutomationProperties.Name="Installer la mise à jour du launcher"
                             Style="{StaticResource OutlineButtonStyle}" Padding="10,5"
                             BorderBrush="#80FFB020" Foreground="{StaticResource AmberBrush}"
@@ -97,8 +103,8 @@
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M13 2 4 14h7l-1 8 9-12h-7z" Stroke="{StaticResource AmberBrush}" StrokeThickness="1.8"
                                   StrokeLineJoin="Round" Width="16" Height="16" Stretch="Uniform" Margin="0,0,8,0" />
-                            <TextBlock x:Name="UpdateBannerText" Text="MISE À JOUR" FontFamily="{StaticResource MonoFontFamily}"
-                                       FontSize="11" FontWeight="Medium" VerticalAlignment="Center" />
+                            <controls:TrackedText Text="{Binding UpdateText}" FontFamily="{StaticResource MonoFontFamily}"
+                                       FontSize="11" FontWeight="Medium" VerticalAlignment="Center"  Tracking="0.1" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="CompactModeButton" Content="⤢" Style="{StaticResource GhostButtonStyle}"
@@ -125,19 +131,19 @@
                        HorizontalAlignment="Center" Margin="0,10,0,16" />
 
                 <StackPanel Grid.Row="1">
-                    <controls:NavButton x:Name="NavJouer" Content="HUB" IsActive="True"
+                    <controls:NavButton x:Name="NavJouer" Content="HUB" IsActive="{Binding IsHubPage}"
                                         IconData="M3 12 12 3l9 9M5 10v10h14V10"
                                         Style="{StaticResource NavButtonStyle}" AutomationProperties.Name="Hub"
                                         Click="HubNavItem_Click" />
-                    <controls:NavButton x:Name="NavActus" Content="ACTUS"
+                    <controls:NavButton x:Name="NavActus" Content="ACTUS" IsActive="{Binding IsActusPage}"
                                         IconData="M4 5h16v14H4zM8 9h8M8 13h5"
                                         Style="{StaticResource NavButtonStyle}" AutomationProperties.Name="Actus"
                                         Click="ActusNavItem_Click" />
-                    <controls:NavButton x:Name="NavServeur" Content="SERVEUR"
+                    <controls:NavButton x:Name="NavServeur" Content="SERVEUR" IsActive="{Binding IsServerPage}"
                                         IconData="M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01"
                                         Style="{StaticResource NavButtonStyle}" AutomationProperties.Name="Statut du serveur"
                                         Click="ServeurNavItem_Click" />
-                    <controls:NavButton x:Name="NavParametres" Content="PARAMÈTRES"
+                    <controls:NavButton x:Name="NavParametres" Content="PARAMÈTRES" IsActive="{Binding IsSettingsNavActive}"
                                         IconData="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM3 12h2m14 0h2M12 3v2m0 14v2"
                                         Style="{StaticResource NavButtonStyle}" AutomationProperties.Name="Paramètres"
                                         Click="ParametresNavItem_Click" />
@@ -149,11 +155,12 @@
                         Background="{StaticResource CyanWash04Brush}">
                     <StackPanel>
                         <Button x:Name="LoginButton" Content="SE CONNECTER" HorizontalAlignment="Stretch"
+                                Visibility="{Binding Profile.IsDisconnected, Converter={StaticResource BoolToVisibility}}"
                                 Style="{StaticResource OutlineButtonStyle}" Padding="0,10" FontSize="11"
                                 Foreground="{StaticResource CyanBrush}" BorderBrush="{StaticResource CyanBrush}"
                                 Click="LoginButton_Click" />
 
-                        <StackPanel x:Name="SidebarAccountPanel" Visibility="Collapsed">
+                        <StackPanel x:Name="SidebarAccountPanel" Visibility="{Binding Profile.IsConnected, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
                                 <Border x:Name="PlayerAvatarBorder" Width="40" Height="40" Margin="0,0,12,0"
                                         BorderBrush="{StaticResource CyanBrush}" BorderThickness="1"
@@ -166,25 +173,27 @@
                                               Stroke="{StaticResource CyanBrush}" StrokeThickness="1.8"
                                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                               Width="16" Height="16" Stretch="Uniform" />
-                                        <Image x:Name="PlayerAvatarImage" Visibility="Collapsed" />
+                                        <Image x:Name="PlayerAvatarImage" Source="{Binding Profile.Avatar}" />
                                     </Grid>
                                 </Border>
                                 <StackPanel VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="PlayerNameText" FontSize="14" FontWeight="SemiBold"
+                                        <TextBlock Text="{Binding Profile.PlayerName}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{StaticResource InkBrush}" />
                                         <TextBlock x:Name="AvatarErrorHint" Text="⚠" Margin="6,0,0,0"
+                                                   ToolTip="{Binding Profile.AvatarError}"
+                                                   Visibility="{Binding Profile.HasAvatarError, Converter={StaticResource BoolToVisibility}}"
                                                    VerticalAlignment="Center" FontSize="12"
                                                    Foreground="{StaticResource MagentaBrush}"
-                                                   Visibility="Collapsed" Cursor="Help" />
+                                                   Cursor="Help" />
                                     </StackPanel>
-                                    <controls:StatusPill x:Name="ConnectedPill" Compact="True" Margin="0,4,0,0"
+                                    <controls:StatusPill Kind="Online" LabelText="CONNECTÉ" Compact="True" Margin="0,4,0,0"
                                                          HorizontalAlignment="Left" />
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
 
-                        <TextBlock x:Name="VersionText" Margin="0,10,0,0" Style="{StaticResource MetaTextStyle}"
+                        <TextBlock Text="{Binding Profile.VersionLine}" Margin="0,10,0,0" Style="{StaticResource MetaTextStyle}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
@@ -192,7 +201,7 @@
 
             <!-- Zone principale : le hub, ou l'une des pages (voir ShowPage). -->
             <Grid Grid.Row="1" Grid.Column="1">
-                <Grid x:Name="HubPage" Margin="26,12,26,24">
+                <Grid x:Name="HubPage" Margin="26,12,26,24" Visibility="{Binding IsHubPage, Converter={StaticResource BoolToVisibility}}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -204,7 +213,8 @@
                          collapsed tant qu'aucun maintenance.txt n'est détecté. -->
                     <controls:BevelBorder x:Name="MaintenanceBanner" Grid.Row="0" Bevel="14" BorderThickness="1.5"
                                           BorderBrush="{StaticResource MagentaBrush}" Background="{StaticResource SurfaceBrush}"
-                                          Padding="22,16" Margin="0,0,0,16" Visibility="Collapsed">
+                                          Padding="22,16" Margin="0,0,0,16"
+                                          Visibility="{Binding Maintenance.IsVisible, Converter={StaticResource BoolToVisibility}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -216,20 +226,21 @@
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                   Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,18,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="SERVEUR EN MAINTENANCE" Style="{StaticResource EyebrowTextStyle}"
+                                <controls:TrackedText Text="SERVEUR EN MAINTENANCE" Style="{StaticResource EyebrowTrackedStyle}"
                                            Foreground="{StaticResource MagentaBrush}" />
-                                <TextBlock x:Name="MaintenanceBannerTitle" FontFamily="{StaticResource DisplayFontFamily}"
+                                <TextBlock Text="{Binding Maintenance.Title}" FontFamily="{StaticResource DisplayFontFamily}"
                                            FontWeight="Bold" FontSize="17" Foreground="{StaticResource InkBrush}"
                                            TextWrapping="Wrap" Margin="0,3,0,0" />
-                                <TextBlock x:Name="MaintenanceBannerSubtitle" FontSize="12"
+                                <TextBlock Text="{Binding Maintenance.Subtitle}" FontSize="12"
                                            Foreground="{StaticResource InkDimBrush}" TextWrapping="Wrap"
-                                           Margin="0,3,0,0" Visibility="Collapsed" />
+                                           Margin="0,3,0,0"
+                                           Visibility="{Binding Maintenance.HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
-                            <StackPanel x:Name="MaintenanceBannerEndTimeBlock" Grid.Column="2" VerticalAlignment="Center"
-                                        Margin="18,0,0,0" Visibility="Collapsed">
-                                <TextBlock Text="FIN ESTIMÉE" Style="{StaticResource EyebrowDimTextStyle}" FontSize="10"
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="18,0,0,0"
+                                        Visibility="{Binding Maintenance.HasEndTime, Converter={StaticResource BoolToVisibility}}">
+                                <controls:TrackedText Text="FIN ESTIMÉE" Style="{StaticResource EyebrowDimTrackedStyle}" FontSize="10"
                                            HorizontalAlignment="Right" />
-                                <TextBlock x:Name="MaintenanceBannerEndTimeValue" FontFamily="{StaticResource MonoFontFamily}"
+                                <TextBlock Text="{Binding Maintenance.EndTime}" FontFamily="{StaticResource MonoFontFamily}"
                                            FontSize="24" FontWeight="Medium" Foreground="{StaticResource MagentaBrush}"
                                            HorizontalAlignment="Right" Margin="0,2,0,0" />
                             </StackPanel>
@@ -256,58 +267,76 @@
                                    Margin="0,0,28,0" />
 
                             <StackPanel x:Name="HeroInfo" Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="SERVEUR" Style="{StaticResource EyebrowTextStyle}" />
-                                <TextBlock x:Name="ServerNameText" Margin="0,10,0,0" Text="ASTRAL NEXUS"
+                                <controls:TrackedText Text="SERVEUR" Style="{StaticResource EyebrowTrackedStyle}" />
+                                <TextBlock Text="{Binding Hero.ServerName}" Margin="0,10,0,0"
                                            FontFamily="{StaticResource DisplayFontFamily}" FontWeight="Bold" FontSize="34"
                                            Foreground="{StaticResource InkBrush}" />
                                 <WrapPanel Margin="0,10,0,0" VerticalAlignment="Center">
-                                    <controls:StatusPill x:Name="ServerStatusPill" Margin="0,0,16,4"
+                                    <controls:StatusPill Kind="{Binding Hero.StatusKind}" LabelText="{Binding Hero.StatusText}"
+                                                         Hint="{Binding Hero.StatusTooltip}" Margin="0,0,16,4"
                                                          ToolTipService.InitialShowDelay="300" />
-                                    <TextBlock x:Name="ServerCountText" Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock x:Name="ServerLatencyText" Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4"
-                                               VerticalAlignment="Center" Visibility="Collapsed" />
-                                    <TextBlock x:Name="ServerCompatText" Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4"
-                                               VerticalAlignment="Center" Visibility="Collapsed" />
+                                    <TextBlock Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4" VerticalAlignment="Center"
+                                               Visibility="{Binding Hero.ShowPlayers, Converter={StaticResource BoolToVisibility}}">
+                                        <Run Text="{Binding Hero.PlayersOnline, Mode=OneWay}" FontSize="13" FontWeight="Bold"
+                                             Foreground="{StaticResource InkBrush}" /><Run Text="{Binding Hero.PlayersMax, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Hero.ContactText}" Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Hero.ShowContact, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Hero.FailureText}" Style="{StaticResource MetaTextStyle}" Margin="0,0,16,4"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding Hero.ShowFailure, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Hero.CompatText}" Margin="0,0,16,4" VerticalAlignment="Center"
+                                               Visibility="{Binding Hero.ShowCompat, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource MetaTextStyle}">
+                                                <Setter Property="Foreground" Value="{StaticResource CyanBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Hero.CompatIsWarning}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource AmberBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </WrapPanel>
-                                <TextBlock x:Name="ServerMotdText" Margin="0,6,0,0" Style="{StaticResource BodyTextStyle}"
-                                           MaxWidth="420" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"
-                                           MaxHeight="40" Visibility="Collapsed" />
+                                <TextBlock Text="{Binding Hero.Motd}" ToolTip="{Binding Hero.Motd}" Margin="0,6,0,0"
+                                           Style="{StaticResource BodyTextStyle}" MaxWidth="420" HorizontalAlignment="Left"
+                                           TextTrimming="CharacterEllipsis" MaxHeight="40"
+                                           Visibility="{Binding Hero.HasMotd, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
 
                             <!-- Bloc de droite : JOUER au repos, liste d'étapes pendant un lancement. -->
                             <Grid x:Name="HeroAction" Grid.Column="2" VerticalAlignment="Center" Margin="28,0,0,0">
-                                <StackPanel x:Name="HeroReadyBlock" HorizontalAlignment="Right">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Visibility, ElementName=LoadingPanel}" Value="Visible">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
+                                <StackPanel x:Name="HeroReadyBlock" HorizontalAlignment="Right"
+                                            Visibility="{Binding Launch.IsPanelVisible, Converter={StaticResource InverseBoolToVisibility}}">
                                     <Button x:Name="PlayButton" Content="JOUER" HorizontalAlignment="Right"
+                                            IsEnabled="{Binding Launch.PlayEnabled}"
                                             Style="{StaticResource HeroPlayButtonStyle}" Click="PlayButton_Click" />
-                                    <TextBlock x:Name="HeroReadyMeta" Style="{StaticResource MetaTextStyle}" Margin="0,10,0,0"
-                                               HorizontalAlignment="Right" />
+                                    <TextBlock Text="{Binding Launch.ReadyMeta}" Style="{StaticResource MetaTextStyle}" Margin="0,10,0,0"
+                                               HorizontalAlignment="Right"
+                                               Visibility="{Binding Launch.ReadyMetaVisible, Converter={StaticResource BoolToVisibility}}" />
                                     <Button x:Name="LaunchAnywayButton" Content="LANCER QUAND MÊME" HorizontalAlignment="Right"
-                                            Margin="0,10,0,0" Padding="14,8" FontSize="11" Visibility="Collapsed"
+                                            Margin="0,10,0,0" Padding="14,8" FontSize="11"
+                                            Visibility="{Binding Launch.LaunchAnywayVisible, Converter={StaticResource BoolToVisibility}}"
+                                            IsEnabled="{Binding Launch.LaunchAnywayEnabled}"
                                             Style="{StaticResource OutlineButtonStyle}" Click="PlayButton_Click" />
                                     <Button x:Name="ViewLogsButton" Content="VOIR LES LOGS" HorizontalAlignment="Right"
-                                            Margin="0,10,0,0" Padding="14,8" FontSize="11" Visibility="Collapsed"
+                                            Margin="0,10,0,0" Padding="14,8" FontSize="11"
+                                            Visibility="{Binding Launch.CrashLogsVisible, Converter={StaticResource BoolToVisibility}}"
                                             Style="{StaticResource DangerButtonStyle}" Click="ViewLogsButton_Click" />
                                 </StackPanel>
 
-                                <StackPanel x:Name="LoadingPanel" Width="380" Visibility="Collapsed">
+                                <StackPanel x:Name="LoadingPanel" Width="380" Visibility="{Binding Launch.IsPanelVisible, Converter={StaticResource BoolToVisibility}}">
                                     <Grid>
-                                        <TextBlock x:Name="LaunchTitleText" Text="LANCEMENT" Style="{StaticResource EyebrowTextStyle}" />
-                                        <TextBlock x:Name="LaunchCountText" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
+                                        <controls:TrackedText Text="{Binding Launch.Title}" Style="{StaticResource EyebrowTrackedStyle}" />
+                                        <TextBlock Text="{Binding Launch.CountText}" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                     </Grid>
-                                    <ProgressBar x:Name="ProgressBar" Style="{StaticResource AppProgressBarStyle}" Margin="0,12,0,12" />
-                                    <Ellipse x:Name="LoadingSpinner" Width="30" Height="30" StrokeThickness="3"
+                                    <ProgressBar Value="{Binding Launch.Progress, Mode=OneWay}" Style="{StaticResource AppProgressBarStyle}" Margin="0,12,0,12" />
+                                    <Ellipse Width="30" Height="30" StrokeThickness="3"
                                              Stroke="{StaticResource CyanBrush}" StrokeDashArray="4,3"
-                                             RenderTransformOrigin="0.5,0.5" Margin="0,0,0,12" Visibility="Collapsed">
+                                             RenderTransformOrigin="0.5,0.5" Margin="0,0,0,12"
+                                             Visibility="{Binding Launch.ShowSpinner, Converter={StaticResource BoolToVisibility}}">
                                         <Ellipse.RenderTransform>
                                             <RotateTransform x:Name="LoadingSpinnerRotation" />
                                         </Ellipse.RenderTransform>
@@ -323,13 +352,27 @@
                                             </EventTrigger>
                                         </Ellipse.Triggers>
                                     </Ellipse>
-                                    <controls:StepList x:Name="LaunchSteps" Visibility="Collapsed" RetryRequested="LaunchSteps_RetryRequested" />
-                                    <TextBlock x:Name="LoadingStatusText" Margin="0,8,0,0" TextWrapping="Wrap"
+                                    <controls:StepList ItemsSource="{Binding Launch.Steps}" RetryRequested="LaunchSteps_RetryRequested"
+                                                       Visibility="{Binding Launch.ShowSteps, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Launch.StatusMessage}" Margin="0,8,0,0" TextWrapping="Wrap"
                                                FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
-                                               Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
+                                               Visibility="{Binding Launch.HasStatusMessage, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Launch.StatusIsError}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource MagentaBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <!-- Visible seulement pendant le pipeline de lancement (pas pendant une mise à
                                          jour du launcher) : interrompt l'étape en cours. -->
-                                    <Button x:Name="CancelLaunchButton" Content="ANNULER" Visibility="Collapsed"
+                                    <Button x:Name="CancelLaunchButton" Content="{Binding Launch.CancelLabel}"
+                                            Visibility="{Binding Launch.CancelVisible, Converter={StaticResource BoolToVisibility}}"
+                                            IsEnabled="{Binding Launch.CancelEnabled}"
                                             HorizontalAlignment="Right" Margin="0,12,0,0" Padding="14,8" FontSize="11"
                                             AutomationProperties.Name="Annuler le lancement"
                                             Style="{StaticResource DangerButtonStyle}" Click="CancelLaunchButton_Click" />
@@ -357,13 +400,14 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="DERNIÈRE ACTU" Style="{StaticResource EyebrowTextStyle}" />
-                                    <TextBlock x:Name="NewsTileDate" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
+                                    <controls:TrackedText Text="DERNIÈRE ACTU" Style="{StaticResource EyebrowTrackedStyle}" />
+                                    <TextBlock Text="{Binding Tiles.NewsDate}" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                 </Grid>
-                                <TextBlock x:Name="NewsTileTitle" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
-                                           Style="{StaticResource DisplayHeadingStyle}" FontSize="16" />
-                                <TextBlock x:Name="NewsTileBody" Grid.Row="2" Margin="0,10,0,10" Style="{StaticResource BodyTextStyle}"
-                                           TextTrimming="CharacterEllipsis" Text="Aucune actualité pour le moment." />
+                                <TextBlock Text="{Binding Tiles.NewsTitle}" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           Style="{StaticResource DisplayHeadingStyle}" FontSize="16"
+                                           Visibility="{Binding Tiles.HasNewsTitle, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding Tiles.NewsBody}" Grid.Row="2" Margin="0,10,0,10" Style="{StaticResource BodyTextStyle}"
+                                           TextTrimming="CharacterEllipsis" />
                                 <Button Grid.Row="3" Content="TOUTES LES ACTUS" Style="{StaticResource TileLinkButtonStyle}"
                                         controls:NavButton.IconData="m9 6 6 6-6 6" Click="TileActusLink_Click" />
                             </Grid>
@@ -378,13 +422,47 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="MODPACK" Style="{StaticResource EyebrowTextStyle}" />
-                                    <TextBlock x:Name="ModpackTileAge" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
+                                    <controls:TrackedText Text="MODPACK" Style="{StaticResource EyebrowTrackedStyle}" />
+                                    <TextBlock Text="{Binding Tiles.ModpackAge}" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                 </Grid>
-                                <TextBlock x:Name="ModpackTileTitle" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
-                                           Style="{StaticResource DisplayHeadingStyle}" FontSize="16" Text="Modpack" />
-                                <TextBlock x:Name="ModpackTileBody" Grid.Row="2" Margin="0,10,0,10" Style="{StaticResource BodyTextStyle}"
-                                           TextTrimming="CharacterEllipsis" Text="Aucune mise à jour du modpack pour le moment." />
+                                <TextBlock Text="{Binding Tiles.ModpackTitle}" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           Style="{StaticResource DisplayHeadingStyle}" FontSize="16" />
+                                <Grid Grid.Row="2" Margin="0,10,0,10">
+                                    <TextBlock Text="Aucune mise à jour du modpack pour le moment." Style="{StaticResource BodyTextStyle}"
+                                               Visibility="{Binding Tiles.HasModpackLines, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    <ItemsControl ItemsSource="{Binding Tiles.ModpackLines}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Prefix}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource BodyTextStyle}">
+                                                                <Setter Property="TextWrapping" Value="NoWrap" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Kind}" Value="Added">
+                                                                        <Setter Property="Foreground" Value="{StaticResource CyanBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                                                        <Setter Property="Foreground" Value="{StaticResource MagentaBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Kind}" Value="Updated">
+                                                                        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Names, StringFormat=' · {0}'}"
+                                                               Style="{StaticResource BodyTextStyle}" TextTrimming="CharacterEllipsis" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
                                 <Button Grid.Row="3" Content="NOUVEAUTÉS DU PACK" Style="{StaticResource TileLinkButtonStyle}"
                                         controls:NavButton.IconData="m9 6 6 6-6 6" Click="TileModpackLink_Click" />
                             </Grid>
@@ -399,13 +477,14 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="LAUNCHER" Style="{StaticResource EyebrowTextStyle}" VerticalAlignment="Center" />
-                                    <controls:StatusPill x:Name="LauncherTilePill" Compact="True" HorizontalAlignment="Right" />
+                                    <controls:TrackedText Text="LAUNCHER" Style="{StaticResource EyebrowTrackedStyle}" VerticalAlignment="Center" />
+                                    <controls:StatusPill Kind="{Binding Tiles.LauncherPillKind}" LabelText="{Binding Tiles.LauncherPillText}"
+                                                         Compact="True" HorizontalAlignment="Right" />
                                 </Grid>
                                 <TextBlock Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap" Text="Nouveautés de cette version"
                                            Style="{StaticResource DisplayHeadingStyle}" FontSize="16" />
-                                <TextBlock x:Name="LauncherTileBody" Grid.Row="2" Margin="0,10,0,10" Style="{StaticResource BodyTextStyle}"
-                                           TextTrimming="CharacterEllipsis" Text="Notes de version indisponibles pour le moment." />
+                                <TextBlock Text="{Binding Tiles.LauncherBody}" Grid.Row="2" Margin="0,10,0,10" Style="{StaticResource BodyTextStyle}"
+                                           TextTrimming="CharacterEllipsis" />
                                 <Button Grid.Row="3" Content="VOIR SUR GITHUB" Style="{StaticResource TileLinkButtonStyle}"
                                         controls:NavButton.IconData="M14 4h6v6M20 4 10 14M18 14v6H4V6h6" Click="TileLauncherLink_Click" />
                             </Grid>
@@ -414,12 +493,12 @@
                 </Grid>
 
                 <!-- Pages (v2.0.0) : elles remplacent le hub dans la même fenêtre (voir ShowPage). -->
-                <Grid x:Name="PageHost" Margin="26,12,26,24" Visibility="Collapsed">
-                    <controls:ActusPage x:Name="ActusPageView" Visibility="Collapsed" />
-                    <controls:ServerPage x:Name="ServerPageView" Visibility="Collapsed" />
-                    <controls:SettingsPage x:Name="SettingsPageView" Visibility="Collapsed" />
-                    <controls:LogsPage x:Name="LogsPageView" Visibility="Collapsed" />
-                    <controls:LegalPage x:Name="LegalPageView" Visibility="Collapsed" />
+                <Grid x:Name="PageHost" Margin="26,12,26,24" Visibility="{Binding IsNotHubPage, Converter={StaticResource BoolToVisibility}}">
+                    <controls:ActusPage x:Name="ActusPageView" Visibility="{Binding IsActusPage, Converter={StaticResource BoolToVisibility}}" />
+                    <controls:ServerPage x:Name="ServerPageView" Visibility="{Binding IsServerPage, Converter={StaticResource BoolToVisibility}}" />
+                    <controls:SettingsPage x:Name="SettingsPageView" Visibility="{Binding IsSettingsPage, Converter={StaticResource BoolToVisibility}}" />
+                    <controls:LogsPage x:Name="LogsPageView" Visibility="{Binding IsLogsPage, Converter={StaticResource BoolToVisibility}}" />
+                    <controls:LegalPage x:Name="LegalPageView" Visibility="{Binding IsLegalPage, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
             </Grid>
         </Grid>

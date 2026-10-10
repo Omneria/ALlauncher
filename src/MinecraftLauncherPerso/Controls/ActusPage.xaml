@@ -1,13 +1,14 @@
 <UserControl x:Class="MinecraftLauncherPerso.Controls.ActusPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
     <!-- Page ACTUS (v2.0.0) : historique complet derrière les trois tuiles du hub. Les actus
          (news.txt) et les mises à jour du modpack (changelog.json) sont conservées localement ;
          les notes du launcher viennent des releases GitHub. -->
     <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False">
         <StackPanel>
-            <TextBlock Text="ACTUS" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,14" />
+            <controls:TrackedText Text="ACTUS" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,14" />
 
             <Border x:Name="NewsSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
                 <StackPanel>

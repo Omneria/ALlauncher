@@ -1,25 +1,22 @@
 using System.Windows;
 using MinecraftLauncherPerso.Controls;
 using MinecraftLauncherPerso.Services.Status;
+using MinecraftLauncherPerso.ViewModels;
 
 namespace MinecraftLauncherPerso;
 
 // Navigation entre le hub et les pages (v2.0.0) : toutes vivent dans la même fenêtre.
 public partial class MainWindow
 {
-    private enum AppPage
-    {
-        Hub,
-        Actus,
-        Server,
-        Settings,
-        Logs,
-        Legal,
-    }
-
     private bool _pagesWired;
     private bool _serverPageWired;
     private ServerHistory? _serverHistory;
+    private readonly Services.Skins.PlayerAvatarService _playerAvatars = new(
+        Services.Http.SharedHttpClient.Instance,
+        System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MinecraftLauncherPerso", "avatar-cache", "players"));
+
     private readonly ServerHistoryService _serverHistoryService = new(Services.Http.SharedHttpClient.Instance);
 
     private void HubNavItem_Click(object sender, RoutedEventArgs e) => ShowPage(AppPage.Hub);
@@ -36,7 +33,7 @@ public partial class MainWindow
 
     private void TileLauncherLink_Click(object sender, RoutedEventArgs e)
     {
-        if (_tileReleaseUrl is { Length: > 0 } url)
+        if (_vm.Tiles.LauncherUrl is { Length: > 0 } url)
         {
             OpenExternalUrl(url);
         }
@@ -47,36 +44,10 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Pages : elles remplacent le tableau de bord dans la même fenêtre (Paramètres, Journaux et
-    /// Mentions légales étaient auparavant des fenêtres modales séparées). Le libellé de la barre de
-    /// titre et l'item actif de la barre latérale suivent la page affichée.
+    /// Pages : elles remplacent le tableau de bord dans la même fenêtre. Visibilités, libellé de la
+    /// barre de titre et item actif de la barre latérale se déduisent de la page courante du view-model.
     /// </summary>
-    private void ShowPage(AppPage page)
-    {
-        var hub = page == AppPage.Hub;
-        HubPage.Visibility = hub ? Visibility.Visible : Visibility.Collapsed;
-        PageHost.Visibility = hub ? Visibility.Collapsed : Visibility.Visible;
-        ActusPageView.Visibility = page == AppPage.Actus ? Visibility.Visible : Visibility.Collapsed;
-        ServerPageView.Visibility = page == AppPage.Server ? Visibility.Visible : Visibility.Collapsed;
-        SettingsPageView.Visibility = page == AppPage.Settings ? Visibility.Visible : Visibility.Collapsed;
-        LogsPageView.Visibility = page == AppPage.Logs ? Visibility.Visible : Visibility.Collapsed;
-        LegalPageView.Visibility = page == AppPage.Legal ? Visibility.Visible : Visibility.Collapsed;
-
-        NavJouer.IsActive = hub;
-        NavActus.IsActive = page == AppPage.Actus;
-        NavServeur.IsActive = page == AppPage.Server;
-        NavParametres.IsActive = page is AppPage.Settings or AppPage.Logs or AppPage.Legal;
-
-        TitleLabel.Text = page switch
-        {
-            AppPage.Actus => "OMNÉRIA GAMES LAUNCHER · ACTUS",
-            AppPage.Server => "OMNÉRIA GAMES LAUNCHER · SERVEUR",
-            AppPage.Settings => "OMNÉRIA GAMES LAUNCHER · PARAMÈTRES",
-            AppPage.Logs => "OMNÉRIA GAMES LAUNCHER · JOURNAUX",
-            AppPage.Legal => "OMNÉRIA GAMES LAUNCHER · MENTIONS LÉGALES",
-            _ => "OMNÉRIA GAMES LAUNCHER · HUB",
-        };
-    }
+    private void ShowPage(AppPage page) => _vm.CurrentPage = page;
 
     private void WirePages()
     {
@@ -118,6 +89,7 @@ public partial class MainWindow
         if (!_serverPageWired)
         {
             _serverPageWired = true;
+            ServerPageView.AvatarProvider = name => _playerAvatars.GetAvatarAsync(name);
             ServerPageView.NotificationsToggled += (_, enabled) =>
             {
                 _settings.DesktopNotificationsEnabled = enabled;
@@ -135,7 +107,7 @@ public partial class MainWindow
             ServerPageView.PlayRequested += (_, _) =>
             {
                 ShowPage(AppPage.Hub);
-                if (PlayButton.IsEnabled)
+                if (Launch.PlayEnabled)
                 {
                     PlayButton_Click(PlayButton, new RoutedEventArgs());
                 }
