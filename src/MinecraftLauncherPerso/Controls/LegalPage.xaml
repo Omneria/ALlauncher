@@ -1,6 +1,7 @@
 <UserControl x:Class="MinecraftLauncherPerso.Controls.LegalPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
     <!-- Page Mentions légales (v2.0.0). -->
     <Grid>
@@ -14,28 +15,28 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="MENTIONS LÉGALES" Style="{StaticResource EyebrowTextStyle}" VerticalAlignment="Center" />
+            <controls:TrackedText Grid.Column="0" Text="MENTIONS LÉGALES" Style="{StaticResource EyebrowTrackedStyle}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Content="RETOUR" Style="{StaticResource OutlineButtonStyle}" Click="BackButton_Click" />
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock Text="OMNÉRIA GAMES" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <controls:TrackedText Text="OMNÉRIA GAMES" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,6" />
                 <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,20" Foreground="{StaticResource InkBrush}">
                     Outil non officiel développé pour un usage privé entre amis, sans lien avec Mojang,
                     Microsoft ou Minecraft. Fourni "en l'état", sans garantie. Ce launcher ne scanne rien
                     sur la machine du joueur et n'envoie aucune télémétrie : seules les requêtes réseau
                     nécessaires à son fonctionnement (Java, Forge, mods, authentification Microsoft, statut
-                    du serveur, vérification de mise à jour) sont effectuées.
+                    du serveur, vérification de mise à jour, têtes des joueurs via mc-heads.net ou minotar.net) sont effectuées.
                 </TextBlock>
 
-                <TextBlock Text="CODE SOURCE" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <controls:TrackedText Text="CODE SOURCE" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,6" />
                 <TextBlock FontSize="13" Margin="0,0,0,20">
                     <Hyperlink NavigateUri="https://github.com/Omneria/ALlauncher" RequestNavigate="Hyperlink_RequestNavigate"
                                Foreground="{StaticResource CyanBrush}">github.com/Omneria/ALlauncher</Hyperlink>
                 </TextBlock>
 
-                <TextBlock Text="DÉPENDANCES OPEN SOURCE" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,10" />
+                <controls:TrackedText Text="DÉPENDANCES OPEN SOURCE" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,10" />
 
                 <StackPanel Margin="0,0,0,10">
                     <TextBlock FontSize="13" FontWeight="Bold">CmlLib.Core (MIT)</TextBlock>
@@ -81,7 +82,7 @@
                     </TextBlock>
                 </StackPanel>
 
-                <TextBlock Text="POLICES EMBARQUÉES" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                <controls:TrackedText Text="POLICES EMBARQUÉES" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,6" />
                 <TextBlock FontSize="13" TextWrapping="Wrap">
                     Chakra Petch, Inter, JetBrains Mono — licence SIL Open Font License 1.1.
                 </TextBlock>

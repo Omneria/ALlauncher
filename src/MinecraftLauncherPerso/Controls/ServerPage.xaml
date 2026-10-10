@@ -1,6 +1,7 @@
 <UserControl x:Class="MinecraftLauncherPerso.Controls.ServerPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              xmlns:local="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
     <!-- Page SERVEUR (maquette « SERVEUR — page dédiée ») : à gauche la carte du serveur, la
@@ -26,7 +27,7 @@
                         <Image Grid.Column="0" Source="/Assets/Images/astral-nexus-crest.png" Width="96" Height="96"
                                Stretch="UniformToFill" VerticalAlignment="Center" Margin="0,0,22,0" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock x:Name="AddressText" Style="{StaticResource EyebrowTextStyle}" TextTrimming="CharacterEllipsis" />
+                            <controls:TrackedText x:Name="AddressText" Style="{StaticResource EyebrowTrackedStyle}" Trim="True" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <local:StatusPill x:Name="StatusPill" VerticalAlignment="Center" />
                                 <TextBlock x:Name="PlayersCountText" Margin="14,0,0,0" VerticalAlignment="Center"
@@ -48,7 +49,7 @@
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18" Margin="0,0,0,16">
                     <StackPanel>
                         <Grid Margin="0,0,0,12">
-                            <TextBlock Text="DISPONIBILITÉ · 24 DERNIÈRES HEURES" Style="{StaticResource EyebrowTextStyle}" />
+                            <controls:TrackedText Text="DISPONIBILITÉ · 24 DERNIÈRES HEURES" Style="{StaticResource EyebrowTrackedStyle}" />
                             <TextBlock Text="pings locaux, toutes les minutes" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                         </Grid>
                         <ItemsControl x:Name="AvailabilityBars" Height="32" Focusable="False">
@@ -79,7 +80,7 @@
                 <!-- Message du jour -->
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18">
                     <StackPanel>
-                        <TextBlock Text="MESSAGE DU JOUR" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,8" />
+                        <controls:TrackedText Text="MESSAGE DU JOUR" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,8" />
                         <TextBlock x:Name="MotdText" FontSize="14" LineHeight="21" TextWrapping="Wrap"
                                    Foreground="{StaticResource Ink2Brush}" Text="Pas de message du jour." />
                     </StackPanel>
@@ -91,7 +92,7 @@
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18" Margin="0,0,0,16">
                     <StackPanel>
                         <Grid Margin="0,0,0,8">
-                            <TextBlock Text="JOUEURS CONNECTÉS" Style="{StaticResource EyebrowTextStyle}" />
+                            <controls:TrackedText Text="JOUEURS CONNECTÉS" Style="{StaticResource EyebrowTrackedStyle}" />
                             <TextBlock x:Name="PlayersListCount" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                         </Grid>
                         <TextBlock x:Name="NoPlayersText" Text="Personne n'est connecté pour le moment." TextWrapping="Wrap"
@@ -107,7 +108,10 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Border Width="26" Height="26" Background="{StaticResource Surface2Brush}"
-                                                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,10,0" />
+                                                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,10,0">
+                                                <Image Source="{Binding Avatar}" Stretch="UniformToFill"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                            </Border>
                                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center"
                                                        Foreground="{StaticResource InkBrush}" />
                                             <TextBlock Grid.Column="2" Text="{Binding Duration}" Style="{StaticResource MetaTextStyle}"
@@ -125,7 +129,7 @@
                 <!-- Notifications -->
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18">
                     <StackPanel>
-                        <TextBlock Text="NOTIFICATIONS" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,10" />
+                        <controls:TrackedText Text="NOTIFICATIONS" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,10" />
                         <CheckBox x:Name="NotifyCheckBox" Content="Prévenir quand le serveur revient en ligne"
                                   Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,10"
                                   Checked="NotifyCheckBox_Changed" Unchecked="NotifyCheckBox_Changed" />

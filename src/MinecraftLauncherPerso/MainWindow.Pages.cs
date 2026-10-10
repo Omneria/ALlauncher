@@ -20,6 +20,12 @@ public partial class MainWindow
     private bool _pagesWired;
     private bool _serverPageWired;
     private ServerHistory? _serverHistory;
+    private readonly Services.Skins.PlayerAvatarService _playerAvatars = new(
+        Services.Http.SharedHttpClient.Instance,
+        System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MinecraftLauncherPerso", "avatar-cache", "players"));
+
     private readonly ServerHistoryService _serverHistoryService = new(Services.Http.SharedHttpClient.Instance);
 
     private void HubNavItem_Click(object sender, RoutedEventArgs e) => ShowPage(AppPage.Hub);
@@ -118,6 +124,7 @@ public partial class MainWindow
         if (!_serverPageWired)
         {
             _serverPageWired = true;
+            ServerPageView.AvatarProvider = name => _playerAvatars.GetAvatarAsync(name);
             ServerPageView.NotificationsToggled += (_, enabled) =>
             {
                 _settings.DesktopNotificationsEnabled = enabled;

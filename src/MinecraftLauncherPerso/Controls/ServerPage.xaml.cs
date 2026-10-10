@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -35,7 +36,32 @@ public partial class ServerPage : UserControl
 
     private sealed record AvailabilityBar(Brush Brush, double BarHeight, string Tooltip);
 
-    private sealed record PlayerRow(string Name, string Duration);
+    /// <summary>Une ligne de la liste des joueurs ; la tête arrive après coup (INPC).</summary>
+    private sealed class PlayerRow(string name, string duration) : System.ComponentModel.INotifyPropertyChanged
+    {
+        private ImageSource? _avatar;
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        public string Name { get; } = name;
+
+        public string Duration { get; } = duration;
+
+        public ImageSource? Avatar
+        {
+            get => _avatar;
+            set
+            {
+                _avatar = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Avatar)));
+            }
+        }
+    }
+
+    /// <summary>Fournisseur d'octets d'image (PNG) pour un pseudo, posé par la fenêtre principale.</summary>
+    public Func<string, Task<byte[]?>>? AvatarProvider { get; set; }
+
+    private readonly Dictionary<string, ImageSource> _avatars = new(StringComparer.OrdinalIgnoreCase);
 
     public void Update(LauncherSettings settings, ServerStatus? status, ServerHistory? history, DateTimeOffset now)
     {
@@ -159,8 +185,49 @@ public partial class ServerPage : UserControl
         }
 
         PlayersList.ItemsSource = rows;
+        _ = LoadAvatarsAsync(rows);
         PlayersListCount.Text = status is { IsOnline: true } ? status.OnlinePlayers.ToString() : "";
         NoPlayersText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async Task LoadAvatarsAsync(IReadOnlyList<PlayerRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            if (_avatars.TryGetValue(row.Name, out var known))
+            {
+                row.Avatar = known;
+                continue;
+            }
+
+            if (AvatarProvider is null)
+            {
+                continue;
+            }
+
+            var bytes = await AvatarProvider(row.Name);
+            if (bytes is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var image = new System.Windows.Media.Imaging.BitmapImage();
+                using var stream = new MemoryStream(bytes);
+                image.BeginInit();
+                image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                image.StreamSource = stream;
+                image.EndInit();
+                image.Freeze();
+                _avatars[row.Name] = image;
+                row.Avatar = image;
+            }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException)
+            {
+                // Image illisible (réponse non PNG...) : la case reste vide.
+            }
+        }
     }
 
     private Brush Res(string key) => (Brush)FindResource(key);

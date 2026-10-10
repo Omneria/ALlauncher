@@ -1,6 +1,7 @@
 <UserControl x:Class="MinecraftLauncherPerso.Controls.SettingsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              xmlns:local="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
     <!-- Page PARAMÈTRES (maquette « PARAMÈTRES — page intégrée ») : sous-navigation à gauche
@@ -38,7 +39,7 @@
                                  Drag*), plage bornée par la RAM physique réelle de la machine — par
                                  construction, impossible de configurer une plage invalide. -->
                             <Grid>
-                                <TextBlock Text="MÉMOIRE (RAM)" Style="{StaticResource EyebrowTextStyle}" />
+                                <controls:TrackedText Text="MÉMOIRE (RAM)" Style="{StaticResource LabelTrackedStyle}" />
                                 <TextBlock x:Name="RamRangeValueText" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                             </Grid>
                             <Canvas x:Name="RamRangeCanvas" Height="20" Margin="0,14,0,14"
@@ -76,18 +77,18 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="LARGEUR (0 = AUTO)" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                                    <controls:TrackedText Text="LARGEUR (0 = AUTO)" Style="{StaticResource LabelTrackedStyle}" Margin="0,0,0,6" />
                                     <TextBox x:Name="ScreenWidthTextBox" Style="{StaticResource AppTextBoxStyle}"
                                              AutomationProperties.Name="Largeur de la fenêtre du jeu" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="HAUTEUR (0 = AUTO)" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                                    <controls:TrackedText Text="HAUTEUR (0 = AUTO)" Style="{StaticResource LabelTrackedStyle}" Margin="0,0,0,6" />
                                     <TextBox x:Name="ScreenHeightTextBox" Style="{StaticResource AppTextBoxStyle}"
                                              AutomationProperties.Name="Hauteur de la fenêtre du jeu" />
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Text="DOSSIER DE JEU" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,6" />
+                            <controls:TrackedText Text="DOSSIER DE JEU" Style="{StaticResource LabelTrackedStyle}" Margin="0,0,0,6" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -112,7 +113,7 @@
                                       Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,14" />
                             <CheckBox x:Name="SoundsCheckBox" Content="Sons (mise à jour, fin de synchro)"
                                       Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,14" />
-                            <TextBlock Text="AMIS À SURVEILLER (PSEUDOS SÉPARÉS PAR DES VIRGULES)" Style="{StaticResource EyebrowTextStyle}" Margin="0,2,0,6" />
+                            <controls:TrackedText Text="AMIS À SURVEILLER (PSEUDOS SÉPARÉS PAR DES VIRGULES)" Style="{StaticResource LabelTrackedStyle}" Margin="0,2,0,6" />
                             <TextBox x:Name="FriendsTextBox" Style="{StaticResource AppTextBoxStyle}"
                                      AutomationProperties.Name="Pseudos des amis à surveiller" />
                         </StackPanel>

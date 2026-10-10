@@ -49,6 +49,26 @@
     <FontFamily x:Key="BodyFontFamily">./Assets/Fonts/#Inter</FontFamily>
     <FontFamily x:Key="MonoFontFamily">./Assets/Fonts/#JetBrains Mono</FontFamily>
 
+    <!-- Crénage des maquettes (letter-spacing CSS, voir TrackedText) : eyebrows 0,18 em, labels
+         0,14 em, boutons et items de navigation 0,08 em, pastilles et liens 0,1 em. -->
+    <DataTemplate x:Key="TrackedButtonText">
+        <controls:TrackedText Text="{Binding}" Tracking="0.08" />
+    </DataTemplate>
+    <controls:StringContentSelector x:Key="TrackedButtonTextSelector" StringTemplate="{StaticResource TrackedButtonText}" />
+
+    <Style x:Key="EyebrowTrackedStyle" TargetType="controls:TrackedText">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource CyanBrush}" />
+        <Setter Property="Tracking" Value="0.18" />
+    </Style>
+    <Style x:Key="EyebrowDimTrackedStyle" TargetType="controls:TrackedText" BasedOn="{StaticResource EyebrowTrackedStyle}">
+        <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
+    </Style>
+    <Style x:Key="LabelTrackedStyle" TargetType="controls:TrackedText" BasedOn="{StaticResource EyebrowTrackedStyle}">
+        <Setter Property="Tracking" Value="0.14" />
+    </Style>
+
     <!-- Anneau de focus clavier de la maquette : contour cyan de 2 px décalé de 3 px. -->
     <Style x:Key="AppFocusVisualStyle">
         <Setter Property="Control.Template">
@@ -64,7 +84,7 @@
          seul élément cyan plein de l'écran. Taille libre : BevelBorder suit le bouton. -->
     <ControlTemplate x:Key="PrimaryButtonTemplate" TargetType="Button">
         <controls:BevelBorder x:Name="Shape" Bevel="10" BorderThickness="0" Background="{StaticResource CyanBrush}">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" ContentTemplateSelector="{StaticResource TrackedButtonTextSelector}" />
         </controls:BevelBorder>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -134,7 +154,7 @@
         <Border x:Name="OutlineBackground" Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
                 Padding="{TemplateBinding Padding}">
-            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" ContentTemplateSelector="{StaticResource TrackedButtonTextSelector}" />
         </Border>
     </ControlTemplate>
 
@@ -280,8 +300,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <StackPanel Orientation="Horizontal" Background="Transparent">
-                        <TextBlock x:Name="LinkText" Text="{TemplateBinding Content}" FontFamily="{StaticResource MonoFontFamily}"
-                                   FontSize="11" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center" />
+                        <controls:TrackedText x:Name="LinkText" Text="{TemplateBinding Content}" FontFamily="{StaticResource MonoFontFamily}"
+                                              FontSize="11" Foreground="{StaticResource CyanBrush}" Tracking="0.1" VerticalAlignment="Center" />
                         <Path x:Name="LinkIcon" Data="{Binding Path=(controls:NavButton.IconData), RelativeSource={RelativeSource TemplatedParent}}"
                               Stroke="{StaticResource CyanBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round"
                               StrokeEndLineCap="Round" StrokeLineJoin="Round" Width="16" Height="16" Stretch="Uniform"
@@ -344,7 +364,7 @@
                 <ControlTemplate TargetType="controls:NavButton">
                     <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="2,0,0,0"
                             Padding="14,11,16,11">
-                        <ContentPresenter VerticalAlignment="Center" />
+                        <ContentPresenter VerticalAlignment="Center" ContentTemplateSelector="{StaticResource TrackedButtonTextSelector}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -380,7 +400,7 @@
                             <Path Data="{TemplateBinding IconData}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.8"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                   Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" />
-                            <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center" />
+                            <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center" ContentTemplateSelector="{StaticResource TrackedButtonTextSelector}" />
                         </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>

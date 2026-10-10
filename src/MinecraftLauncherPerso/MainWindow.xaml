@@ -85,9 +85,9 @@
                  gauche, pastille de mise à jour et boutons de fenêtre à droite. -->
             <Grid x:Name="TitleBar" Grid.Row="0" Grid.ColumnSpan="2" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock x:Name="TitleLabel" Text="OMNÉRIA GAMES LAUNCHER · HUB" VerticalAlignment="Center" Margin="24,0,0,0"
+                <controls:TrackedText x:Name="TitleLabel" Text="OMNÉRIA GAMES LAUNCHER · HUB" VerticalAlignment="Center" Margin="24,0,0,0"
                            FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
-                           Foreground="{StaticResource InkDimBrush}" />
+                           Foreground="{StaticResource InkDimBrush}"  Tracking="0.22" />
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,8,0">
                     <Button x:Name="UpdateBannerButton" Visibility="Collapsed" VerticalAlignment="Center" Margin="0,0,8,0"
                             AutomationProperties.Name="Installer la mise à jour du launcher"
@@ -97,8 +97,8 @@
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M13 2 4 14h7l-1 8 9-12h-7z" Stroke="{StaticResource AmberBrush}" StrokeThickness="1.8"
                                   StrokeLineJoin="Round" Width="16" Height="16" Stretch="Uniform" Margin="0,0,8,0" />
-                            <TextBlock x:Name="UpdateBannerText" Text="MISE À JOUR" FontFamily="{StaticResource MonoFontFamily}"
-                                       FontSize="11" FontWeight="Medium" VerticalAlignment="Center" />
+                            <controls:TrackedText x:Name="UpdateBannerText" Text="MISE À JOUR" FontFamily="{StaticResource MonoFontFamily}"
+                                       FontSize="11" FontWeight="Medium" VerticalAlignment="Center"  Tracking="0.1" />
                         </StackPanel>
                     </Button>
                     <Button x:Name="CompactModeButton" Content="⤢" Style="{StaticResource GhostButtonStyle}"
@@ -216,7 +216,7 @@
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                   Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,18,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="SERVEUR EN MAINTENANCE" Style="{StaticResource EyebrowTextStyle}"
+                                <controls:TrackedText Text="SERVEUR EN MAINTENANCE" Style="{StaticResource EyebrowTrackedStyle}"
                                            Foreground="{StaticResource MagentaBrush}" />
                                 <TextBlock x:Name="MaintenanceBannerTitle" FontFamily="{StaticResource DisplayFontFamily}"
                                            FontWeight="Bold" FontSize="17" Foreground="{StaticResource InkBrush}"
@@ -227,7 +227,7 @@
                             </StackPanel>
                             <StackPanel x:Name="MaintenanceBannerEndTimeBlock" Grid.Column="2" VerticalAlignment="Center"
                                         Margin="18,0,0,0" Visibility="Collapsed">
-                                <TextBlock Text="FIN ESTIMÉE" Style="{StaticResource EyebrowDimTextStyle}" FontSize="10"
+                                <controls:TrackedText Text="FIN ESTIMÉE" Style="{StaticResource EyebrowDimTrackedStyle}" FontSize="10"
                                            HorizontalAlignment="Right" />
                                 <TextBlock x:Name="MaintenanceBannerEndTimeValue" FontFamily="{StaticResource MonoFontFamily}"
                                            FontSize="24" FontWeight="Medium" Foreground="{StaticResource MagentaBrush}"
@@ -256,7 +256,7 @@
                                    Margin="0,0,28,0" />
 
                             <StackPanel x:Name="HeroInfo" Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="SERVEUR" Style="{StaticResource EyebrowTextStyle}" />
+                                <controls:TrackedText Text="SERVEUR" Style="{StaticResource EyebrowTrackedStyle}" />
                                 <TextBlock x:Name="ServerNameText" Margin="0,10,0,0" Text="ASTRAL NEXUS"
                                            FontFamily="{StaticResource DisplayFontFamily}" FontWeight="Bold" FontSize="34"
                                            Foreground="{StaticResource InkBrush}" />
@@ -301,7 +301,7 @@
 
                                 <StackPanel x:Name="LoadingPanel" Width="380" Visibility="Collapsed">
                                     <Grid>
-                                        <TextBlock x:Name="LaunchTitleText" Text="LANCEMENT" Style="{StaticResource EyebrowTextStyle}" />
+                                        <controls:TrackedText x:Name="LaunchTitleText" Text="LANCEMENT" Style="{StaticResource EyebrowTrackedStyle}" />
                                         <TextBlock x:Name="LaunchCountText" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                     </Grid>
                                     <ProgressBar x:Name="ProgressBar" Style="{StaticResource AppProgressBarStyle}" Margin="0,12,0,12" />
@@ -357,7 +357,7 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="DERNIÈRE ACTU" Style="{StaticResource EyebrowTextStyle}" />
+                                    <controls:TrackedText Text="DERNIÈRE ACTU" Style="{StaticResource EyebrowTrackedStyle}" />
                                     <TextBlock x:Name="NewsTileDate" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                 </Grid>
                                 <TextBlock x:Name="NewsTileTitle" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
@@ -378,7 +378,7 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="MODPACK" Style="{StaticResource EyebrowTextStyle}" />
+                                    <controls:TrackedText Text="MODPACK" Style="{StaticResource EyebrowTrackedStyle}" />
                                     <TextBlock x:Name="ModpackTileAge" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                                 </Grid>
                                 <TextBlock x:Name="ModpackTileTitle" Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap"
@@ -399,7 +399,7 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0">
-                                    <TextBlock Text="LAUNCHER" Style="{StaticResource EyebrowTextStyle}" VerticalAlignment="Center" />
+                                    <controls:TrackedText Text="LAUNCHER" Style="{StaticResource EyebrowTrackedStyle}" VerticalAlignment="Center" />
                                     <controls:StatusPill x:Name="LauncherTilePill" Compact="True" HorizontalAlignment="Right" />
                                 </Grid>
                                 <TextBlock Grid.Row="1" Margin="0,10,0,0" TextWrapping="Wrap" Text="Nouveautés de cette version"
