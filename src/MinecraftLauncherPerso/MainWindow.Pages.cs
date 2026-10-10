@@ -69,12 +69,12 @@ public partial class MainWindow
 
         TitleLabel.Text = page switch
         {
-            AppPage.Actus => "AL LAUNCHER · ACTUS",
-            AppPage.Server => "AL LAUNCHER · SERVEUR",
-            AppPage.Settings => "AL LAUNCHER · PARAMÈTRES",
-            AppPage.Logs => "AL LAUNCHER · JOURNAUX",
-            AppPage.Legal => "AL LAUNCHER · MENTIONS LÉGALES",
-            _ => "AL LAUNCHER · HUB",
+            AppPage.Actus => "OMNÉRIA GAMES LAUNCHER · ACTUS",
+            AppPage.Server => "OMNÉRIA GAMES LAUNCHER · SERVEUR",
+            AppPage.Settings => "OMNÉRIA GAMES LAUNCHER · PARAMÈTRES",
+            AppPage.Logs => "OMNÉRIA GAMES LAUNCHER · JOURNAUX",
+            AppPage.Legal => "OMNÉRIA GAMES LAUNCHER · MENTIONS LÉGALES",
+            _ => "OMNÉRIA GAMES LAUNCHER · HUB",
         };
     }
 

@@ -1006,9 +1006,8 @@ public partial class MainWindow : Window
             });
             ServerCountText.Inlines.Add(new Run($"/{status.MaxPlayers} joueurs"));
 
-            ServerLatencyText.Visibility = status.LatencyMs is null ? Visibility.Collapsed : Visibility.Visible;
-            ServerLatencyText.Text = status.LatencyMs is { } latency ? $"{latency} ms" : "";
-            ServerLatencyText.Foreground = (Brush)FindResource("InkDimBrush");
+            // La latence est déjà dans la pastille (« EN LIGNE · 17 ms ») : pas de doublon.
+            ServerLatencyText.Visibility = Visibility.Collapsed;
 
             ServerCompatText.Visibility = presentation.Compatibility is null ? Visibility.Collapsed : Visibility.Visible;
             ServerCompatText.Text = presentation.Compatibility ?? "";

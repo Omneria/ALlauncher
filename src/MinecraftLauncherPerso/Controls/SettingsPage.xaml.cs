@@ -84,7 +84,7 @@ public partial class SettingsPage : UserControl
         MinimizeWhileGameCheckBox.IsChecked = _settings.MinimizeWhileGameRuns;
         SoundsCheckBox.IsChecked = _settings.SoundsEnabled;
         FriendsTextBox.Text = string.Join(", ", _settings.FriendNames);
-        AboutVersionText.Text = $"AL Launcher v{AppVersion.Display}";
+        AboutVersionText.Text = $"Omnéria Games Launcher v{AppVersion.Display}";
         AboutBuildText.Text = $"signé Omnéria · build {BuildDate():yyyy-MM-dd} · mises à jour automatiques activées";
         RamRecommendationText.Text = $"Recommandé pour cette machine : {LauncherSettings.RecommendMaxRamMb(SystemInfo.GetTotalPhysicalMemoryMb())} Mo maximum. Au-delà de 75 % de la RAM totale, le launcher préviendra.";
         _modCount = modCount;
