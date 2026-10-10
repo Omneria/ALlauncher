@@ -85,7 +85,7 @@
                  gauche, pastille de mise à jour et boutons de fenêtre à droite. -->
             <Grid x:Name="TitleBar" Grid.Row="0" Grid.ColumnSpan="2" Background="Transparent"
                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <TextBlock x:Name="TitleLabel" Text="AL LAUNCHER · HUB" VerticalAlignment="Center" Margin="24,0,0,0"
+                <TextBlock x:Name="TitleLabel" Text="OMNÉRIA GAMES LAUNCHER · HUB" VerticalAlignment="Center" Margin="24,0,0,0"
                            FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
                            Foreground="{StaticResource InkDimBrush}" />
                 <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,0,8,0">

@@ -82,8 +82,8 @@ public partial class StepList : UserControl
 
     /// <summary>
     /// Applique l'étape en cours (ou en échec) à toutes les lignes. <paramref name="detail"/> est
-    /// affiché sur la ligne en cours ; <paramref name="fraction"/> (0 à 1) sert de détail quand
-    /// l'étape n'en a pas. Une étape qui vient de se terminer garde un résumé court (voir
+    /// mémorisé pour le résumé de l'étape terminée (rien n'est affiché sur la ligne en cours) ; <paramref name="fraction"/> (0 à 1) est conservé pour
+    /// un affichage futur. Une étape qui vient de se terminer garde un résumé court (voir
     /// <see cref="DoneSummary"/>).
     /// </summary>
     public void Update(LaunchStep? current, LaunchStep? failed, string? detail, double? fraction = null)
@@ -95,10 +95,10 @@ public partial class StepList : UserControl
             switch (item.State)
             {
                 case StepState.Active:
-                    item.Detail = !string.IsNullOrWhiteSpace(detail) ? detail
-                        : fraction is > 0 and < 1 ? $"{fraction.Value * 100:0} %"
-                        : "";
-                    item.LastActiveDetail = item.Detail;
+                    // Pas de détail sur l'étape en cours (noms de fichiers, compteurs) : l'icône et
+                    // la barre de progression suffisent. On garde le dernier message pour le résumé.
+                    item.Detail = "";
+                    item.LastActiveDetail = !string.IsNullOrWhiteSpace(detail) ? detail : item.LastActiveDetail;
                     break;
                 case StepState.Done when previous == StepState.Active:
                     item.Detail = DoneSummary(item.Step, item.LastActiveDetail, out var label);

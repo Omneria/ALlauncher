@@ -51,4 +51,12 @@ public sealed class LaunchStepStatesTests
         Assert.Equal(StepState.Failed, LaunchStepStates.StateOf(LaunchStep.Java, current: null, failed: LaunchStep.Java));
         Assert.Equal(StepState.Pending, LaunchStepStates.StateOf(LaunchStep.Forge, current: null, failed: LaunchStep.Java));
     }
+
+    [Fact]
+    public void La_liste_affichee_ne_montre_ni_la_liste_des_serveurs_ni_le_demarrage_du_jeu()
+    {
+        Assert.Equal(
+            [LaunchStep.Java, LaunchStep.Forge, LaunchStep.ModSync, LaunchStep.Auth],
+            LaunchStepStates.VisibleSteps());
+    }
 }
