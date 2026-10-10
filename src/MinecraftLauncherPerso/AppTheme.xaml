@@ -76,6 +76,35 @@
         <Setter Property="Template" Value="{StaticResource PrimaryButtonTemplate}" />
     </Style>
 
+    <!-- CTA du hub (v2.0.0) : même biseau que PrimaryButtonTemplate, à l'échelle 280x64 (coupe 12px). -->
+    <ControlTemplate x:Key="HeroPlayButtonTemplate" TargetType="Button">
+        <Grid x:Name="Root">
+            <Polygon x:Name="ButtonShape"
+                     Points="12,0 280,0 280,52 268,64 0,64 0,12"
+                     Fill="{StaticResource CyanBrush}" />
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ButtonShape" Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="{StaticResource ColorCyan}" BlurRadius="28" ShadowDepth="0" Opacity="0.65" />
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Root" Property="Opacity" Value="0.35" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="HeroPlayButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+        <Setter Property="Width" Value="280" />
+        <Setter Property="Height" Value="64" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Template" Value="{StaticResource HeroPlayButtonTemplate}" />
+    </Style>
+
     <!-- Bouton fantôme : chrome de fenêtre (réduire/fermer), petit bouton carré cyan filaire. -->
     <ControlTemplate x:Key="GhostButtonTemplate" TargetType="Button">
         <Border x:Name="GhostBackground" Background="Transparent">

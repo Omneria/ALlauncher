@@ -4,7 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
         Title="Omnéria Games"
-        Width="1240" Height="600"
+        Width="1240" Height="680"
         MinWidth="620" MinHeight="480"
         WindowStyle="None"
         ResizeMode="CanResize"
@@ -309,31 +309,102 @@
                         </Grid>
                     </Grid>
 
+                    <!-- Hub (v2.0.0) centré sur JOUER : grande carte serveur en tête (statut,
+                         joueurs, message du jour, bouton JOUER et progression), puis trois tuiles
+                         (actus, mises à jour du modpack, notes du launcher). Pendant un lancement
+                         ou une mise à jour, LoadingPanel recouvre les tuiles (même cellule). -->
                     <Grid Grid.Row="3">
-                        <Grid.ColumnDefinitions>
-                            <!-- x:Name sur les 3 colonnes : le mode compact (CompactModeButton_Click)
-                                 réduit NewsColumn/GapColumn à 0 pour ne garder que la colonne serveur,
-                                 plutôt que de dupliquer toute cette mise en page dans une seconde vue. -->
-                            <ColumnDefinition x:Name="NewsColumn" Width="1.3*" />
-                            <ColumnDefinition x:Name="GapColumn" Width="18" />
-                            <ColumnDefinition x:Name="ServerColumn" Width="1*" />
-                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-                        <!-- Colonne gauche : ACTUS (news.txt, VPS) et CHANGELOG (releases GitHub) sont
-                             deux sources indépendantes, jusqu'ici affichées dans une même carte
-                             "ACTUS & CHANGELOG" qui ne montrait en réalité que les actus — séparées
-                             en deux cartes empilées. -->
-                        <Grid Grid.Column="0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="18" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+                        <Border x:Name="ServerCardBorder" Grid.Row="0" Style="{StaticResource CardBorderStyle}"
+                                Padding="22" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="ServerCardScale" />
+                            </Border.RenderTransform>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition x:Name="HeroCrestGap" Width="24" />
+                                    <ColumnDefinition x:Name="HeroCrestColumn" Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <!-- Nom du serveur déplacé ici (depuis l'en-tête du tableau de bord) :
+                                             cette carte est la seule vraiment spécifique à Astral Nexus, l'en-tête
+                                             au-dessus concerne tout le dashboard. -->
+                                        <TextBlock x:Name="ServerNameText" Style="{StaticResource EyebrowTextStyle}"
+                                                   Margin="0,0,0,8" Text="ASTRAL NEXUS" />
+                                        <!-- Background="Transparent" (plutôt que laissé à null) : sans ça, le
+                                             survol entre la pastille et le texte ne déclenche pas le tooltip
+                                             (zone non hit-testable en WPF quand Background est absent). -->
+                                        <StackPanel x:Name="ServerStatusRow" Orientation="Horizontal" Margin="0,0,0,8"
+                                                    Background="Transparent" ToolTipService.InitialShowDelay="300">
+                                            <Ellipse x:Name="ServerStatusDot" Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{StaticResource CyanBrush}" Margin="0,0,8,0" />
+                                            <TextBlock x:Name="ServerStatusText" VerticalAlignment="Center"
+                                                       Text="Vérification..." FontFamily="{StaticResource MonoFontFamily}"
+                                                       FontSize="11" Foreground="{StaticResource InkDimBrush}" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="ServerCountText" FontFamily="{StaticResource DisplayFontFamily}"
+                                                   FontSize="28" FontWeight="Bold" Foreground="{StaticResource CyanBrush}" />
+                                        <TextBlock Text="JOUEURS CONNECTÉS" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
+                                                   Foreground="{StaticResource InkDimBrush}" />
+                                        <!-- Message du jour du serveur (v1.12.0), masqué s'il est vide. -->
+                                        <TextBlock x:Name="ServerMotdText" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   MaxHeight="36" TextTrimming="CharacterEllipsis"
+                                                   FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
+                                                   Foreground="{StaticResource InkBrush}" Visibility="Collapsed" />
+                                    </StackPanel>
+
+                                <!-- Bloc lancement : progression puis JOUER. En mode compact, passe sous
+                                     les infos serveur (voir ApplyCompactMode). -->
+                                <StackPanel x:Name="HeroPlayBlock" Grid.Row="0" Grid.Column="2" Width="280"
+                                            VerticalAlignment="Center">
+                                    <ProgressBar x:Name="ProgressBar" Height="4" Margin="0,0,0,14"
+                                                 Minimum="0" Maximum="100"
+                                                 Background="{StaticResource Surface2Brush}" BorderThickness="0"
+                                                 Foreground="{StaticResource CyanBrush}" />
+
+                                    <Button x:Name="PlayButton" Content="JOUER" HorizontalAlignment="Center"
+                                            Style="{StaticResource HeroPlayButtonStyle}" Click="PlayButton_Click" />
+
+                                    <Button x:Name="ViewLogsButton" Content="VOIR LES LOGS" Margin="0,10,0,0"
+                                            HorizontalAlignment="Center"
+                                            Visibility="Collapsed"
+                                            Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,6"
+                                            FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                                            Click="ViewLogsButton_Click" />
+                                </StackPanel>
+
+                                <Image x:Name="HeroCrest" Grid.Row="0" Grid.Column="4" Source="/Assets/Images/astral-nexus-crest.png"
+                                       Width="116" Height="116" Stretch="UniformToFill" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Grid x:Name="TilesGrid" Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
                             <!-- Actus (news.txt optionnel) : carte toujours visible, avec un état vide
                                  explicite plutôt que de disparaître entièrement (la mise en page
                                  suppose sa présence). -->
-                            <Border x:Name="NewsCardBorder" Grid.Row="0" Style="{StaticResource CardBorderStyle}"
+                            <Border x:Name="NewsCardBorder" Grid.Column="0" Style="{StaticResource CardBorderStyle}"
                                     RenderTransformOrigin="0.5,0.5">
                                 <Border.RenderTransform>
                                     <ScaleTransform x:Name="NewsCardScale" />
@@ -359,16 +430,47 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="0,0,0,16">
-                                                            <!-- Badge MODPACK (v1.12.0) : mise à jour du pack lue
-                                                                 dans changelog.json, mêlée aux actus par date. -->
                                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                                <Border Margin="0,0,8,0" Padding="5,1" BorderThickness="1"
-                                                                        BorderBrush="{StaticResource CyanBrush}"
-                                                                        Visibility="{Binding ModpackBadgeVisibility}">
-                                                                    <TextBlock Text="MODPACK"
-                                                                               FontFamily="{StaticResource MonoFontFamily}"
-                                                                               FontSize="9" Foreground="{StaticResource CyanBrush}" />
-                                                                </Border>
+                                                                <TextBlock Text="{Binding FetchedAtLabel}" VerticalAlignment="Center"
+                                                                           FontFamily="{StaticResource MonoFontFamily}"
+                                                                           FontSize="10" Foreground="{StaticResource InkDimBrush}" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
+                                                                       FontFamily="{StaticResource BodyFontFamily}"
+                                                                       FontSize="13" Foreground="{StaticResource InkBrush}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+
+                            <!-- Mises à jour du modpack (changelog.json) : ce qui change côté mods. -->
+                            <Border x:Name="ModpackCardBorder" Grid.Column="2" Style="{StaticResource CardBorderStyle}"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <ScaleTransform x:Name="ModpackCardScale" />
+                                </Border.RenderTransform>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="MODPACK" Style="{StaticResource EyebrowTextStyle}"
+                                               Margin="18,16,18,8" />
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="18,0,18,16">
+                                            <TextBlock x:Name="ModpackEmptyText" TextWrapping="Wrap"
+                                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                                                       Foreground="{StaticResource InkBrush}"
+                                                       Text="Aucune mise à jour du modpack pour le moment." />
+                                            <ItemsControl x:Name="ModpackList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,16">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                                                 <TextBlock Text="{Binding FetchedAtLabel}" VerticalAlignment="Center"
                                                                            FontFamily="{StaticResource MonoFontFamily}"
                                                                            FontSize="10" Foreground="{StaticResource InkDimBrush}" />
@@ -388,7 +490,7 @@
                             <!-- Changelog : releases GitHub du launcher (même source et mêmes règles
                                  de nettoyage des notes que la carte "Changelog" de la landing page),
                                  pas un fichier changelog.txt séparé à maintenir côté VPS. -->
-                            <Border x:Name="ChangelogCardBorder" Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+                            <Border x:Name="ChangelogCardBorder" Grid.Column="4" Style="{StaticResource CardBorderStyle}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -454,64 +556,10 @@
                             </Border>
                         </Grid>
 
-                        <!-- Colonne serveur + lancement -->
-                        <Grid Grid.Column="2">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <!-- Carte statut serveur : crest à droite, occupant toute la hauteur
-                                 disponible, jamais coincé au niveau du texte "EN LIGNE". -->
-                            <Border x:Name="ServerCardBorder" Grid.Row="0" Style="{StaticResource CardBorderStyle}"
-                                    Padding="14" Margin="0,0,0,14" RenderTransformOrigin="0.5,0.5">
-                                <Border.RenderTransform>
-                                    <ScaleTransform x:Name="ServerCardScale" />
-                                </Border.RenderTransform>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <!-- Nom du serveur déplacé ici (depuis l'en-tête du tableau de bord) :
-                                             cette carte est la seule vraiment spécifique à Astral Nexus, l'en-tête
-                                             au-dessus concerne tout le dashboard. -->
-                                        <TextBlock x:Name="ServerNameText" Style="{StaticResource EyebrowTextStyle}"
-                                                   Margin="0,0,0,8" Text="ASTRAL NEXUS" />
-                                        <!-- Background="Transparent" (plutôt que laissé à null) : sans ça, le
-                                             survol entre la pastille et le texte ne déclenche pas le tooltip
-                                             (zone non hit-testable en WPF quand Background est absent). -->
-                                        <StackPanel x:Name="ServerStatusRow" Orientation="Horizontal" Margin="0,0,0,8"
-                                                    Background="Transparent" ToolTipService.InitialShowDelay="300">
-                                            <Ellipse x:Name="ServerStatusDot" Width="8" Height="8" VerticalAlignment="Center"
-                                                     Fill="{StaticResource CyanBrush}" Margin="0,0,8,0" />
-                                            <TextBlock x:Name="ServerStatusText" VerticalAlignment="Center"
-                                                       Text="Vérification..." FontFamily="{StaticResource MonoFontFamily}"
-                                                       FontSize="11" Foreground="{StaticResource InkDimBrush}" />
-                                        </StackPanel>
-                                        <TextBlock x:Name="ServerCountText" FontFamily="{StaticResource DisplayFontFamily}"
-                                                   FontSize="28" FontWeight="Bold" Foreground="{StaticResource CyanBrush}" />
-                                        <TextBlock Text="JOUEURS CONNECTÉS" Margin="0,2,0,0" TextWrapping="Wrap"
-                                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
-                                                   Foreground="{StaticResource InkDimBrush}" />
-                                        <!-- Message du jour du serveur (v1.12.0), masqué s'il est vide. -->
-                                        <TextBlock x:Name="ServerMotdText" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                   MaxHeight="36" TextTrimming="CharacterEllipsis"
-                                                   FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
-                                                   Foreground="{StaticResource InkBrush}" Visibility="Collapsed" />
-                                    </StackPanel>
-                                    <Image Grid.Column="2" Source="/Assets/Images/astral-nexus-crest.png"
-                                           Width="116" Height="116" Stretch="UniformToFill" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
                             <!-- Panneau de chargement : masqué au repos, affiche un spinner + le
                                  statut de l'étape en cours pendant le lancement/la mise à jour. -->
-                            <Border x:Name="LoadingPanel" Grid.Row="1" Style="{StaticResource CardBorderStyle}"
-                                    Margin="0,0,0,14" Visibility="Collapsed">
+                            <Border x:Name="LoadingPanel" Grid.Row="2" Style="{StaticResource CardBorderStyle}"
+                                    Visibility="Collapsed">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="2" />
@@ -576,25 +624,6 @@
                                     </ScrollViewer>
                                 </Grid>
                             </Border>
-
-                            <!-- Barre de contrôle : progression, bouton Jouer, logs -->
-                            <StackPanel Grid.Row="2">
-                                <ProgressBar x:Name="ProgressBar" Height="4" Margin="0,0,0,14"
-                                             Minimum="0" Maximum="100"
-                                             Background="{StaticResource Surface2Brush}" BorderThickness="0"
-                                             Foreground="{StaticResource CyanBrush}" />
-
-                                <Button x:Name="PlayButton" Content="JOUER" HorizontalAlignment="Center"
-                                        Style="{StaticResource PrimaryButtonStyle}" Click="PlayButton_Click" />
-
-                                <Button x:Name="ViewLogsButton" Content="VOIR LES LOGS" Margin="0,10,0,0"
-                                        HorizontalAlignment="Center"
-                                        Visibility="Collapsed"
-                                        Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,6"
-                                        FontSize="11" Foreground="{StaticResource MagentaBrush}"
-                                        Click="ViewLogsButton_Click" />
-                            </StackPanel>
-                        </Grid>
                     </Grid>
                 </Grid>
 

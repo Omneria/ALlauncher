@@ -390,9 +390,9 @@ public partial class MainWindow : Window
         // latérale) ; seul son contenu change. Historique (pas juste la dernière actu) : chaque
         // contenu distinct observé est horodaté et conservé localement (NewsHistoryStore), puisque
         // news.txt côté VPS ne garde lui-même aucun historique.
-        // Mises à jour du pack (changelog.json, v1.12.0) mêlées aux actus par date, avec un badge
-        // MODPACK : pendant le déploiement du pack en plusieurs salves, les joueurs voient ce qui
-        // arrive sans qu'il faille l'annoncer à la main dans news.txt.
+        // Mises à jour du pack (changelog.json, v1.12.0) : tuile MODPACK du hub (v2.0.0, avant
+        // mêlées aux actus), pour que les joueurs voient ce qui arrive pendant le déploiement du
+        // pack en plusieurs salves sans qu'il faille l'annoncer à la main dans news.txt.
         var newsTask = _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
         var changelogTask = _modSyncService.FetchChangelogAsync(_settings.ModpackManifestUrl);
         var news = await newsTask;
@@ -402,16 +402,21 @@ public partial class MainWindow : Window
             _newsHistory = _newsHistoryStore.RecordIfNew(_newsHistory, news);
         }
 
-        var items = _newsHistory
-            .Select(entry => (Date: entry.FetchedAt, Item: new NewsHistoryItem(FormatNewsDate(entry.FetchedAt), entry.Content, Visibility.Collapsed)))
-            .Concat(changelog.Select(entry => (Date: entry.Date, Item: new NewsHistoryItem(FormatNewsDate(entry.Date), string.Join("\n", entry.Lines), Visibility.Visible))))
-            .OrderByDescending(item => item.Date)
+        var newsItems = _newsHistory
+            .OrderByDescending(entry => entry.FetchedAt)
             .Take(MaxNewsItems)
-            .Select(item => item.Item)
+            .Select(entry => new NewsHistoryItem(FormatNewsDate(entry.FetchedAt), entry.Content))
+            .ToList();
+        var modpackItems = changelog
+            .OrderByDescending(entry => entry.Date)
+            .Take(MaxNewsItems)
+            .Select(entry => new NewsHistoryItem(FormatNewsDate(entry.Date), string.Join("\n", entry.Lines)))
             .ToList();
 
-        NewsEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        NewsHistoryList.ItemsSource = items;
+        NewsEmptyText.Visibility = newsItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NewsHistoryList.ItemsSource = newsItems;
+        ModpackEmptyText.Visibility = modpackItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ModpackList.ItemsSource = modpackItems;
     }
 
     private const int MaxNewsItems = 20;
@@ -420,7 +425,7 @@ public partial class MainWindow : Window
 
     /// <summary>Vue d'affichage d'une actu (news.txt) ou d'une mise à jour du pack
     /// (changelog.json), avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
-    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content, Visibility ModpackBadgeVisibility);
+    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
 
     private static readonly CultureInfo FrenchCulture = CultureInfo.GetCultureInfo("fr-FR");
 
@@ -1308,8 +1313,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Bascule un mode compact (pas de redimensionnement manuel) : masque la colonne ACTUS pour ne
-    /// garder que la colonne serveur + lancement, et rétrécit la fenêtre en conséquence — utile sur
+    /// Bascule un mode compact (pas de redimensionnement manuel) : masque les tuiles et le blason pour ne
+    /// garder que la carte serveur + lancement, et rétrécit la fenêtre en conséquence — utile sur
     /// un petit écran ou pour garder le launcher discret pendant qu'une partie tourne déjà (voir
     /// aussi le redimensionnement libre ajouté au même moment, WindowChrome dans le XAML).
     /// </summary>
@@ -1323,8 +1328,14 @@ public partial class MainWindow : Window
         }
 
         _isCompactMode = compact;
-        NewsColumn.Width = compact ? new GridLength(0) : new GridLength(1.3, GridUnitType.Star);
-        GapColumn.Width = compact ? new GridLength(0) : new GridLength(18);
+        TilesGrid.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        HeroCrest.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        HeroCrestColumn.Width = compact ? new GridLength(0) : GridLength.Auto;
+        HeroCrestGap.Width = compact ? new GridLength(0) : new GridLength(24);
+        Grid.SetRow(HeroPlayBlock, compact ? 1 : 0);
+        Grid.SetColumn(HeroPlayBlock, compact ? 0 : 2);
+        Grid.SetColumnSpan(HeroPlayBlock, compact ? 5 : 1);
+        HeroPlayBlock.Margin = compact ? new Thickness(0, 16, 0, 0) : new Thickness(0);
         Width = compact ? Math.Max(MinWidth, 640) : _normalWidth;
     }
 

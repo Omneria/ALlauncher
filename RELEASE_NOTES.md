@@ -11,3 +11,4 @@
 - Les questions et les erreurs du launcher s'affichent dans la fenêtre au lieu d'ouvrir des boîtes Windows ; les informations (serveur de nouveau en ligne, connexion rétablie, lancement annulé) apparaissent en notification qui disparaît toute seule.
 - Textes secondaires plus lisibles.
 - Paramètres, journaux et mentions légales s'ouvrent dans la fenêtre du launcher au lieu de fenêtres séparées. Les paramètres sont rangés en JEU, LAUNCHER, MAINTENANCE et À PROPOS.
+- Nouvel accueil centré sur JOUER : grande carte serveur avec le bouton JOUER, et trois tuiles en dessous (actus, mises à jour du modpack, notes du launcher).
