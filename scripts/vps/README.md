@@ -103,7 +103,7 @@ conservées). Sans ce fichier, la page SERVEUR n'affiche que l'état du moment.
 ```bash
 cp record-server-history.py /opt/modpack-tools/ && chmod +x /opt/modpack-tools/record-server-history.py
 cp astralnexus-server-history.service astralnexus-server-history.timer /etc/systemd/system/
-# Adapter SERVER_HOST / SERVER_PORT / OUTPUT_FILE dans le .service si besoin
+# Adapter SERVER_HOST / SERVER_PORT (25566) / OUTPUT_FILE dans le .service si besoin
 systemctl daemon-reload
 systemctl enable --now astralnexus-server-history.timer
 systemctl start astralnexus-server-history.service && cat /var/www/html/modpack/server-history.json | head -c 300

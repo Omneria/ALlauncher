@@ -11,7 +11,7 @@ Chaque exécution (astralnexus-server-history.timer, une fois par minute) :
 
 Configuration par variables d'environnement (voir astralnexus-server-history.service) :
   SERVER_HOST   adresse du serveur (défaut 127.0.0.1)
-  SERVER_PORT   port Minecraft (défaut 25565)
+  SERVER_PORT   port Minecraft (défaut 25566)
   OUTPUT_FILE   fichier JSON publié (défaut /var/www/html/modpack/server-history.json)
   KEEP_HOURS    durée conservée (défaut 24)
 
@@ -29,7 +29,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 HOST = os.environ.get("SERVER_HOST", "127.0.0.1")
-PORT = int(os.environ.get("SERVER_PORT", "25565"))
+PORT = int(os.environ.get("SERVER_PORT", "25566"))
 OUTPUT_FILE = os.environ.get("OUTPUT_FILE", "/var/www/html/modpack/server-history.json")
 KEEP_HOURS = int(os.environ.get("KEEP_HOURS", "24"))
 TIMEOUT_SECONDS = 5
