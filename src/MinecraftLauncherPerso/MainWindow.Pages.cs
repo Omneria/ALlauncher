@@ -72,6 +72,7 @@ public partial class MainWindow
             ShowPage(AppPage.Logs);
         };
         SettingsPageView.LegalRequested += (_, _) => ShowPage(AppPage.Legal);
+        SettingsPageView.UpdateCheckRequested += async (_, _) => await RunSafeAsync("Recherche de mise à jour", () => CheckForUpdateAsync(manual: true));
         LogsPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
         LegalPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
         ActusPageView.ReleaseOpenRequested += (_, url) => OpenExternalUrl(url);

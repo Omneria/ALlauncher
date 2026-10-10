@@ -174,7 +174,7 @@ public partial class MainWindow : Window
         // CheckForUpdateAsync ne fait rien de plus si une mise à jour est déjà détectée et en
         // attente, pour ne pas re-notifier/re-sonner à chaque minute.
         _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _updateCheckTimer.Tick += async (_, _) => await RunSafeAsync("Vérification de mise à jour", CheckForUpdateAsync);
+        _updateCheckTimer.Tick += async (_, _) => await RunSafeAsync("Vérification de mise à jour", () => CheckForUpdateAsync());
 
         _newsRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _newsRefreshTimer.Tick += async (_, _) => await RunSafeAsync("Actus", ShowNewsAsync);
@@ -302,7 +302,7 @@ public partial class MainWindow : Window
             RunSafeAsync("Changelog", ShowChangelogAsync),
             RunSafeAsync("Bannière de maintenance", RefreshMaintenanceBannerAsync),
             RunSafeAsync("Statut du serveur", RefreshServerStatusAsync),
-            RunSafeAsync("Vérification de mise à jour", CheckForUpdateAsync),
+            RunSafeAsync("Vérification de mise à jour", () => CheckForUpdateAsync()),
             RunSafeAsync("Restauration de session", RestoreCachedSessionAsync),
             RunSafeAsync("Réglages du pack", LoadPackSettingsAsync));
 
@@ -869,9 +869,9 @@ public partial class MainWindow : Window
     private DateTimeOffset? _lastServerContact;
     private string? _lastMotd;
 
-    private async Task CheckForUpdateAsync()
+    private async Task CheckForUpdateAsync(bool manual = false)
     {
-        if (_pendingUpdate is not null)
+        if (_pendingUpdate is not null && !manual)
         {
             // Déjà détectée (et en attente ou en cours de téléchargement) lors d'un appel
             // précédent : pas la peine de re-solliciter l'API GitHub ni de rejouer le son/la
@@ -879,16 +879,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        var update = await _updateService.CheckForUpdateAsync();
+        var update = _pendingUpdate ?? await _updateService.CheckForUpdateAsync();
         if (update is null)
         {
+            Logger.Info("MainWindow", $"Mise à jour : aucune version plus récente que {AppVersion.Display}.");
+            if (manual)
+            {
+                Toasts.Show("Launcher à jour", $"Version {AppVersion.Display}, aucune mise à jour disponible (détails dans les journaux).", ToastKind.Info);
+            }
+
             return;
         }
 
+        Logger.Info("MainWindow", $"Mise à jour {update.Version} disponible (version actuelle {AppVersion.Display}).");
         _pendingUpdate = update;
         _vm.ShowUpdate(update.Version.ToString());
         Toasts.Show($"Mise à jour {update.Version} disponible", "Cliquer pour installer et redémarrer", ToastKind.Warning, onClick: () => UpdateBannerButton_Click(this, new RoutedEventArgs()));
-        PlaySound(SystemSounds.Asterisk);
+        if (!manual)
+        {
+            PlaySound(SystemSounds.Asterisk);
+        }
     }
 
     private async void UpdateBannerButton_Click(object sender, RoutedEventArgs e)

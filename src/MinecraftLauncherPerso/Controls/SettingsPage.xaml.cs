@@ -58,6 +58,9 @@ public partial class SettingsPage : UserControl
     /// <summary>Demande d'ouverture des mentions légales.</summary>
     public event EventHandler? LegalRequested;
 
+    /// <summary>Demande de recherche manuelle d'une mise à jour du launcher.</summary>
+    public event EventHandler? UpdateCheckRequested;
+
     private IModSyncService ModSync => _modSyncService ?? throw new InvalidOperationException("SettingsPage non initialisée.");
 
     /// <param name="packSettings">Réglages publiés par le pack (RAM conseillée et minimum), pour
@@ -430,6 +433,8 @@ public partial class SettingsPage : UserControl
             Logger.LogFilePath));
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => Closed?.Invoke(this, false);
+
+    private void CheckUpdateButton_Click(object sender, RoutedEventArgs e) => UpdateCheckRequested?.Invoke(this, EventArgs.Empty);
 
     private void LegalButton_Click(object sender, RoutedEventArgs e) => LegalRequested?.Invoke(this, EventArgs.Empty);
 
