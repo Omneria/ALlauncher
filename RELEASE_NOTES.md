@@ -7,4 +7,5 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Le titre du launcher devient « Omnéria Games Launcher » partout, et la latence du serveur n'est plus affichée en double sur l'accueil.
+- Le titre du launcher devient « Omnéria Games Launcher » partout.
+- Accueil : la latence du serveur n'est plus affichée en double, et la liste d'étapes du lancement n'affiche plus les noms de fichiers en cours de téléchargement.
