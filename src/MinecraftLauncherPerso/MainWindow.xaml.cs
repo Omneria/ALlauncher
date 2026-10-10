@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -558,9 +559,17 @@ public partial class MainWindow : Window
     // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
     // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
     // effet à ces items de nav, au lieu de rester des libellés inertes.
-    private void ActusNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashCard(NewsCardScale);
+    private void ActusNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashDashboardCard(NewsCardScale);
 
-    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashCard(ServerCardScale);
+    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashDashboardCard(ServerCardScale);
+
+    private void HubNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ShowPage(AppPage.Hub);
+
+    private void FlashDashboardCard(ScaleTransform scale)
+    {
+        ShowPage(AppPage.Hub);
+        FlashCard(scale);
+    }
 
     // Active/Espace au clavier pour les items de nav (Border, pas Button : pas de KeyDown par
     // défaut) — seule concession "accessibilité" ajoutée ici, le reste (lecteur d'écran, chrome
@@ -572,17 +581,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (ReferenceEquals(sender, NavActus))
+        if (ReferenceEquals(sender, NavJouer))
         {
-            FlashCard(NewsCardScale);
+            ShowPage(AppPage.Hub);
+        }
+        else if (ReferenceEquals(sender, NavActus))
+        {
+            FlashDashboardCard(NewsCardScale);
         }
         else if (ReferenceEquals(sender, NavServeur))
         {
-            FlashCard(ServerCardScale);
+            FlashDashboardCard(ServerCardScale);
         }
         else if (ReferenceEquals(sender, NavParametres))
         {
-            SettingsButton_Click(sender, e);
+            OpenSettings();
         }
     }
 
@@ -885,7 +898,7 @@ public partial class MainWindow : Window
         }
         else if (choice == RepairId)
         {
-            SettingsButton_Click(this, new RoutedEventArgs());
+            OpenSettings(SettingsSection.Maintenance);
         }
     }
 
@@ -1204,22 +1217,80 @@ public partial class MainWindow : Window
     private void PlayerAvatarBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
         OpenExternalUrl(SkinEditorUrl);
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private enum AppPage
     {
-        var window = new SettingsWindow(_settings, _modSyncService, _packSettings) { Owner = this };
-        window.ShowDialog();
-
-        if (window.SettingsSaved)
-        {
-            _settingsManager.Save(_settings);
-        }
+        Hub,
+        Settings,
+        Logs,
+        Legal,
     }
+
+    private bool _pagesWired;
+
+    /// <summary>
+    /// Pages (v2.0.0) : Paramètres, Journaux et Mentions légales remplacent le tableau de bord dans
+    /// la même fenêtre (elles étaient auparavant trois fenêtres modales séparées).
+    /// </summary>
+    private void ShowPage(AppPage page)
+    {
+        var hub = page == AppPage.Hub;
+        HubPage.Visibility = hub ? Visibility.Visible : Visibility.Collapsed;
+        PageHost.Visibility = hub ? Visibility.Collapsed : Visibility.Visible;
+        SettingsPageView.Visibility = page == AppPage.Settings ? Visibility.Visible : Visibility.Collapsed;
+        LogsPageView.Visibility = page == AppPage.Logs ? Visibility.Visible : Visibility.Collapsed;
+        LegalPageView.Visibility = page == AppPage.Legal ? Visibility.Visible : Visibility.Collapsed;
+
+        MarkNavItem(NavJouer, NavJouerText, hub);
+        MarkNavItem(NavParametres, NavParametresText, !hub);
+    }
+
+    private void MarkNavItem(Border item, TextBlock label, bool active)
+    {
+        item.BorderBrush = active ? (Brush)FindResource("CyanBrush") : Brushes.Transparent;
+        item.Background = active ? new SolidColorBrush(Color.FromArgb(0x12, 0x00, 0xE5, 0xC7)) : Brushes.Transparent;
+        label.Style = (Style)FindResource(active ? "NavItemActiveTextStyle" : "NavItemTextStyle");
+    }
+
+    private void WirePages()
+    {
+        if (_pagesWired)
+        {
+            return;
+        }
+
+        _pagesWired = true;
+        SettingsPageView.Closed += (_, saved) =>
+        {
+            if (saved)
+            {
+                _settingsManager.Save(_settings);
+            }
+
+            ShowPage(AppPage.Hub);
+        };
+        SettingsPageView.ViewLogsRequested += (_, _) =>
+        {
+            LogsPageView.Initialize(_settings.GameDirectory);
+            ShowPage(AppPage.Logs);
+        };
+        SettingsPageView.LegalRequested += (_, _) => ShowPage(AppPage.Legal);
+        LogsPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
+        LegalPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
+    }
+
+    private void OpenSettings(SettingsSection section = SettingsSection.Game)
+    {
+        WirePages();
+        SettingsPageView.Initialize(_settings, _modSyncService, _packSettings, section);
+        ShowPage(AppPage.Settings);
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
     // Item "PARAMÈTRES" de la barre latérale : simple relais vers le même handler que l'icône ⚙
     // de la barre de titre (MouseLeftButtonUp, pas Click, car ce n'est pas un Button mais un
     // Border cliquable comme les autres items de nav).
-    private void ParametresNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
-        SettingsButton_Click(sender, e);
+    private void ParametresNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => OpenSettings();
 
     // Fenêtre sans chrome Windows (WindowStyle="None") : on réimplémente le déplacement et les
     // boutons réduire/fermer nous-mêmes.

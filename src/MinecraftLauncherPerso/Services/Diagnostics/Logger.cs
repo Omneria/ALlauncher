@@ -13,7 +13,7 @@ namespace MinecraftLauncherPerso.Services.Diagnostics;
 /// </summary>
 public static class Logger
 {
-    /// <summary>Exposé pour LogViewerWindow (onglet Paramètres) : lecture directe du fichier, pas de
+    /// <summary>Exposé pour LogsPage (page Journaux) : lecture directe du fichier, pas de
     /// méthode d'accès dédiée pour un simple chemin constant.</summary>
     public static readonly string LogFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

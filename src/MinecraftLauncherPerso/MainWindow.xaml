@@ -99,8 +99,8 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Barre latérale : marque, navigation (seul JOUER est un vrai écran pour
-                     l'instant ; ACTUS/SERVEUR restent décoratifs, PARAMÈTRES ouvre la fenêtre
-                     existante), profil connecté en bas. -->
+                     l'instant ; ACTUS/SERVEUR restent décoratifs, PARAMÈTRES ouvre la page
+                     Paramètres), profil connecté en bas. -->
                 <Grid Grid.Column="0" Background="{StaticResource SidebarBrush}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -116,8 +116,10 @@
 
                     <StackPanel Grid.Row="1">
                         <Border x:Name="NavJouer" Padding="14,10" BorderThickness="2,0,0,0"
-                                BorderBrush="{StaticResource CyanBrush}" Background="#1200E5C7">
-                            <TextBlock Text="HUB" Style="{StaticResource NavItemActiveTextStyle}" />
+                                BorderBrush="{StaticResource CyanBrush}" Background="#1200E5C7"
+                                Cursor="Hand" Focusable="True" AutomationProperties.Name="Hub"
+                                MouseLeftButtonUp="HubNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
+                            <TextBlock x:Name="NavJouerText" Text="HUB" Style="{StaticResource NavItemActiveTextStyle}" />
                         </Border>
                         <!-- ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà sur le tableau
                              de bord) : cliquer fait défiler jusqu'à la carte correspondante et la fait
@@ -135,7 +137,7 @@
                         <Border x:Name="NavParametres" Padding="14,10" BorderThickness="2,0,0,0" BorderBrush="Transparent"
                                 Cursor="Hand" Focusable="True" AutomationProperties.Name="Paramètres"
                                 MouseLeftButtonUp="ParametresNavItem_MouseLeftButtonUp" KeyDown="NavItem_KeyDown">
-                            <TextBlock Text="PARAMÈTRES" Style="{StaticResource NavItemTextStyle}" />
+                            <TextBlock x:Name="NavParametresText" Text="PARAMÈTRES" Style="{StaticResource NavItemTextStyle}" />
                         </Border>
                     </StackPanel>
 
@@ -191,7 +193,7 @@
 
                 <!-- Tableau de bord : en-tête (serveur + bandeau MAJ), puis deux colonnes
                      (actus/changelog à gauche, statut serveur + lancement à droite). -->
-                <Grid Grid.Column="1" Margin="26,22,26,24">
+                <Grid x:Name="HubPage" Grid.Column="1" Margin="26,22,26,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -594,6 +596,14 @@
                             </StackPanel>
                         </Grid>
                     </Grid>
+                </Grid>
+
+                <!-- Pages (v2.0.0) : Paramètres, Journaux et Mentions légales s'affichent à la place
+                     du tableau de bord, dans la même fenêtre (voir ShowPage dans MainWindow.xaml.cs). -->
+                <Grid x:Name="PageHost" Grid.Column="1" Margin="26,22,26,24" Visibility="Collapsed">
+                    <controls:SettingsPage x:Name="SettingsPageView" Visibility="Collapsed" />
+                    <controls:LogsPage x:Name="LogsPageView" Visibility="Collapsed" />
+                    <controls:LegalPage x:Name="LegalPageView" Visibility="Collapsed" />
                 </Grid>
             </Grid>
         </Grid>

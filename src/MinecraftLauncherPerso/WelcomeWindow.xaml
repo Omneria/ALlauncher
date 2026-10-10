@@ -17,7 +17,7 @@
             <RowDefinition Height="72" />
         </Grid.RowDefinitions>
 
-        <!-- Barre de titre personnalisée (fenêtre sans chrome Windows), comme SettingsWindow/LegalWindow.
+        <!-- Barre de titre personnalisée (fenêtre sans chrome Windows), comme les autres fenêtres du launcher.
              Un "✕" reste nécessaire malgré WindowStyle="None" (pas de chrome OS pour fermer sinon,
              hors Alt+F4) : ferme l'assistant à tout moment sans perdre les valeurs déjà choisies
              (GameDirectory initialisé dès le constructeur). -->

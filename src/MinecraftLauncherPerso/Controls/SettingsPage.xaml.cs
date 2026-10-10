@@ -1,39 +1,64 @@
+using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.ModSync;
 using MinecraftLauncherPerso.Services.Update;
 
-namespace MinecraftLauncherPerso;
+namespace MinecraftLauncherPerso.Controls;
 
-public partial class SettingsWindow : Window
+public enum SettingsSection
+{
+    Game,
+    Launcher,
+    Maintenance,
+    About,
+}
+
+/// <summary>
+/// Page Paramètres (v2.0.0), hébergée dans la fenêtre principale à la place de l'ancienne fenêtre
+/// modale SettingsWindow. Elle est ré-initialisée par <see cref="Initialize"/> à chaque ouverture.
+/// </summary>
+public partial class SettingsPage : UserControl
 {
     // Palier d'incrément (et de "snap") du slider RAM fusionné, en Mo.
     private const double RamStepMb = 256;
     private const double ThumbSize = 14;
 
-    private readonly LauncherSettings _settings;
-    private readonly IModSyncService _modSyncService;
+    private LauncherSettings _settings = new();
+    private IModSyncService? _modSyncService;
     private double _ramFloorMb = 512;
     private double _ramCeilingMb = 16384;
     private double _minRamMb;
     private double _maxRamMb;
 
-    /// <summary>True si l'utilisateur a cliqué "Enregistrer" (par opposition à fermer sans sauver).</summary>
-    public bool SettingsSaved { get; private set; }
+    public SettingsPage()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>Fermeture de la page ; le paramètre vaut true si l'utilisateur a enregistré.</summary>
+    public event EventHandler<bool>? Closed;
+
+    /// <summary>Demande d'ouverture de la page des journaux.</summary>
+    public event EventHandler? ViewLogsRequested;
+
+    /// <summary>Demande d'ouverture des mentions légales.</summary>
+    public event EventHandler? LegalRequested;
+
+    private IModSyncService ModSync => _modSyncService ?? throw new InvalidOperationException("SettingsPage non initialisée.");
 
     /// <param name="packSettings">Réglages publiés par le pack (RAM conseillée et minimum), pour
     /// l'indication sous le réglage RAM. Null si inconnus (VPS injoignable, mode zip).</param>
-    public SettingsWindow(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings = null)
+    public void Initialize(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings, SettingsSection section = SettingsSection.Game)
     {
-        InitializeComponent();
         _settings = settings;
         _modSyncService = modSyncService;
 
@@ -50,10 +75,55 @@ public partial class SettingsWindow : Window
 
         ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
         ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
+        SetFieldValid(ScreenWidthTextBox, true);
+        SetFieldValid(ScreenHeightTextBox, true);
         GameDirectoryTextBox.Text = _settings.GameDirectory;
         DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
+        AboutVersionText.Text = $"LAUNCHER v{AppVersion.Display}";
+        ValidationErrorText.Visibility = Visibility.Collapsed;
+        RepairStatusText.Visibility = Visibility.Collapsed;
+        RepairButton.IsEnabled = true;
         UpdateRollbackButtonState();
         ShowRamPackHint(packSettings);
+        UpdateRamRangeVisual();
+        ShowSection(section);
+    }
+
+    private void ShowSection(SettingsSection section)
+    {
+        GameSection.Visibility = section == SettingsSection.Game ? Visibility.Visible : Visibility.Collapsed;
+        LauncherSection.Visibility = section == SettingsSection.Launcher ? Visibility.Visible : Visibility.Collapsed;
+        MaintenanceSection.Visibility = section == SettingsSection.Maintenance ? Visibility.Visible : Visibility.Collapsed;
+        AboutSection.Visibility = section == SettingsSection.About ? Visibility.Visible : Visibility.Collapsed;
+
+        MarkSubNav(SubNavGame, SubNavGameText, section == SettingsSection.Game);
+        MarkSubNav(SubNavLauncher, SubNavLauncherText, section == SettingsSection.Launcher);
+        MarkSubNav(SubNavMaintenance, SubNavMaintenanceText, section == SettingsSection.Maintenance);
+        MarkSubNav(SubNavAbout, SubNavAboutText, section == SettingsSection.About);
+    }
+
+    private void MarkSubNav(Border item, TextBlock label, bool active)
+    {
+        item.BorderBrush = active ? (Brush)FindResource("CyanBrush") : Brushes.Transparent;
+        item.Background = active ? new SolidColorBrush(Color.FromArgb(0x12, 0x00, 0xE5, 0xC7)) : Brushes.Transparent;
+        label.Style = (Style)FindResource(active ? "NavItemActiveTextStyle" : "NavItemTextStyle");
+    }
+
+    private SettingsSection SectionOf(object sender) =>
+        ReferenceEquals(sender, SubNavLauncher) ? SettingsSection.Launcher
+        : ReferenceEquals(sender, SubNavMaintenance) ? SettingsSection.Maintenance
+        : ReferenceEquals(sender, SubNavAbout) ? SettingsSection.About
+        : SettingsSection.Game;
+
+    private void SubNav_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ShowSection(SectionOf(sender));
+
+    private void SubNav_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space)
+        {
+            ShowSection(SectionOf(sender));
+            e.Handled = true;
+        }
     }
 
     private void ShowRamPackHint(ModpackPackSettings? packSettings)
@@ -142,14 +212,6 @@ public partial class SettingsWindow : Window
         UpdateRamRangeVisual();
     }
 
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.LeftButton == MouseButtonState.Pressed)
-        {
-            DragMove();
-        }
-    }
-
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
@@ -157,7 +219,7 @@ public partial class SettingsWindow : Window
             InitialDirectory = GameDirectoryTextBox.Text,
         };
 
-        if (dialog.ShowDialog(this) == true)
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
         {
             GameDirectoryTextBox.Text = dialog.FolderName;
         }
@@ -165,9 +227,8 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        // RAM min/max n'a plus besoin d'être validée ici : le slider double poignée l'empêche déjà
-        // par construction (RamMinThumb_DragDelta/RamMaxThumb_DragDelta ci-dessus), contrairement
-        // aux champs texte libres restants ci-dessous.
+        // RAM min/max n'a pas besoin d'être validée ici : le slider double poignée l'empêche déjà
+        // par construction, contrairement aux champs texte libres ci-dessous.
         ValidationErrorText.Visibility = Visibility.Collapsed;
         var errors = new List<string>();
 
@@ -187,6 +248,7 @@ public partial class SettingsWindow : Window
 
         if (errors.Count > 0)
         {
+            ShowSection(SettingsSection.Game);
             ValidationErrorText.Text = string.Join(" ", errors);
             ValidationErrorText.Visibility = Visibility.Visible;
             return;
@@ -204,8 +266,7 @@ public partial class SettingsWindow : Window
 
         _settings.DesktopNotificationsEnabled = DesktopNotificationsCheckBox.IsChecked == true;
 
-        SettingsSaved = true;
-        Close();
+        Closed?.Invoke(this, true);
     }
 
     private void SetFieldValid(TextBox box, bool valid)
@@ -256,7 +317,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            await _modSyncService.RepairAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, progress);
+            await ModSync.RepairAsync(_settings.ModpackZipUrl, _settings.ModpackManifestUrl, _settings.GameDirectory, progress);
 
             if (optionsBackup is not null)
             {
@@ -296,7 +357,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            await _modSyncService.RollbackAsync(_settings.GameDirectory, progress);
+            await ModSync.RollbackAsync(_settings.GameDirectory, progress);
         }
         catch (Exception ex)
         {
@@ -312,11 +373,11 @@ public partial class SettingsWindow : Window
 
     private void UpdateRollbackButtonState()
     {
-        RollbackButton.IsEnabled = _modSyncService.HasRollbackAvailable(_settings.GameDirectory);
+        RollbackButton.IsEnabled = ModSync.HasRollbackAvailable(_settings.GameDirectory);
 
         // Retour en arrière toujours actif (v1.13.0) : dit pourquoi le modpack ne se met plus à
         // jour, et comment en sortir, plutôt que de laisser croire à une panne de synchro.
-        if (RepairStatusText.Visibility != Visibility.Visible && _modSyncService.IsRollbackPinned(_settings.GameDirectory))
+        if (RepairStatusText.Visibility != Visibility.Visible && ModSync.IsRollbackPinned(_settings.GameDirectory))
         {
             RepairStatusText.Visibility = Visibility.Visible;
             RepairStatusText.Foreground = (Brush)FindResource("InkDimBrush");
@@ -324,10 +385,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void ViewLogsButton_Click(object sender, RoutedEventArgs e)
-    {
-        new LogViewerWindow(_settings.GameDirectory) { Owner = this }.ShowDialog();
-    }
+    private void ViewLogsButton_Click(object sender, RoutedEventArgs e) => ViewLogsRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// "Signaler un problème" (v1.9.0) : prépare un rapport prêt à coller sur Discord (version du
@@ -361,14 +419,17 @@ public partial class SettingsWindow : Window
             _settings.MinRamMb,
             _settings.MaxRamMb,
             $"{_settings.ServerHost}:{_settings.ServerPort}",
-            _modSyncService.GetLastSyncedAt(_settings.GameDirectory),
+            ModSync.GetLastSyncedAt(_settings.GameDirectory),
             _settings.GameDirectory,
             Logger.LogFilePath));
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void BackButton_Click(object sender, RoutedEventArgs e) => Closed?.Invoke(this, false);
 
-    private void LegalButton_Click(object sender, RoutedEventArgs e)
+    private void LegalButton_Click(object sender, RoutedEventArgs e) => LegalRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
-        new LegalWindow { Owner = this }.ShowDialog();
+        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
     }
 }

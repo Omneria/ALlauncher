@@ -57,10 +57,10 @@ Pas de gestion multi-comptes : usage privé entre amis, un seul compte par machi
 │       ├── App.xaml(.cs)                   # bootstrap : ouvre SplashWindow au démarrage
 │       ├── SplashWindow.xaml(.cs)          # écran de démarrage (logo animé), puis ouvre MainWindow
 │       ├── MainWindow.xaml(.cs)            # UI + orchestration Java → Forge → Sync → Auth → Lancement
-│       ├── SettingsWindow.xaml(.cs)        # fenêtre de paramètres (RAM, résolution, dossier de jeu, maintenance)
-│       ├── LegalWindow.xaml(.cs)           # mentions légales + dépendances open source
+│       ├── Controls/SettingsPage.xaml(.cs)   # page de paramètres (RAM, résolution, dossier de jeu, maintenance)
+│       ├── Controls/LegalPage.xaml(.cs)      # page mentions légales + dépendances open source
 │       ├── WelcomeWindow.xaml(.cs)         # assistant de premier lancement (v1.8.0)
-│       ├── LogViewerWindow.xaml(.cs)       # visualiseur de logs intégré (v1.8.0, Paramètres)
+│       ├── Controls/LogsPage.xaml(.cs)       # page journaux (v1.8.0, Paramètres)
 │       ├── AppTheme.xaml                   # charte graphique (couleurs, polices, styles de contrôles)
 │       ├── Assets/
 │       │   ├── Fonts/                      # Chakra Petch / Inter / JetBrains Mono (OFL), embarquées
@@ -696,7 +696,7 @@ crash antérieur à ce correctif...), `Load()` ne plante plus : il repart des va
 renomme le fichier fautif à côté (`settings.json.corrupt-<horodatage>`) plutôt que de l'écraser en
 silence. `Load()` valide aussi les champs numériques (RAM min/max positives et dans le bon ordre,
 port serveur dans `[1, 65535]`) et corrige toute valeur absurde — utile si `settings.json` est édité
-à la main, en plus de la validation déjà faite dans `SettingsWindow`.
+à la main, en plus de la validation déjà faite dans `SettingsPage`.
 
 **`HttpClient` partagé :** `Services/Http/SharedHttpClient.cs` fournit une instance unique
 (`SharedHttpClient.Instance`) réutilisée par tous les services HTTP (Java, ModSync, Auth, Update,
@@ -758,7 +758,7 @@ publication des artefacts. `.github/dependabot.yml` propose chaque semaine (PR v
 
 ## Paramètres
 
-Fichiers : `SettingsWindow.xaml(.cs)`
+Fichiers : `Controls/SettingsPage.xaml(.cs)`
 
 Fenêtre ouverte via l'item "PARAMÈTRES" de la barre latérale : RAM minimum/maximum,
 résolution de la fenêtre du jeu (`ScreenWidth`/`ScreenHeight` sur `MLaunchOption` — `0` laisse
@@ -773,7 +773,7 @@ les deux sliders min/max séparés de la v1.7.0, fusionnés en un seul contrôle
 Bornées à `[512, RAM physique totale de la machine]` (`SystemInfo.GetTotalPhysicalMemoryMb`),
 calées sur des paliers de 256 Mo. RAM min > RAM max est rendu impossible par construction (chaque
 poignée ne peut pas dépasser l'autre, `RamMinThumb_DragDelta`/`RamMaxThumb_DragDelta` dans
-`SettingsWindow.xaml.cs`), au lieu de devoir détecter/rejeter la valeur invalide comme avec des
+`Controls/SettingsPage.xaml.cs`), au lieu de devoir détecter/rejeter la valeur invalide comme avec des
 champs texte libres.
 
 **RAM par défaut adaptée à la machine :** `LauncherSettings.MaxRamMb` n'est plus une valeur fixe
@@ -791,7 +791,7 @@ section "Statut du serveur") a le droit de s'afficher au retour en ligne du serv
 - "RÉPARER LE MODPACK" déclenche `IModSyncService.RepairAsync` (voir "Synchronisation mods/config"
   ci-dessus) avec le statut de progression affiché directement sous les boutons, encadré d'une
   sauvegarde/restauration d'`options.txt` en filet de sécurité.
-- "VOIR LES LOGS" ouvre `LogViewerWindow.xaml(.cs)`, un visualiseur intégré qui bascule entre
+- "VOIR LES LOGS" ouvre `Controls/LogsPage.xaml(.cs)`, un visualiseur intégré qui bascule entre
   `launcher.log` (`Logger.LogFilePath`) et `{GameDirectory}/logs/latest.log` (jeu), avec une
   recherche texte simple (filtre par ligne, insensible à la casse) et un bouton "COPIER" qui met le
   contenu affiché dans le presse-papier — pratique pour coller un extrait sur Discord quand un
@@ -806,7 +806,7 @@ section "Statut du serveur") a le droit de s'afficher au retour en ligne du serv
   `%USERPROFILE%` — évite de devoir demander à chaque
   joueur de recopier ces infos à la main quand il demande de l'aide.
 
-**Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `LegalWindow.xaml(.cs)`
+**Mentions légales :** lien "MENTIONS LÉGALES" en bas de cette fenêtre, ouvre `Controls/LegalPage.xaml(.cs)`
 — rappel du statut non officiel du launcher, et surtout la liste des dépendances open source
 utilisées (nom, licence, lien GitHub) : `CmlLib.Core`, `CmlLib.Core.Installer.Forge` (MIT),
 `Microsoft.Identity.Client`/`.Extensions.Msal` (MIT), polices Chakra Petch/Inter/JetBrains Mono
