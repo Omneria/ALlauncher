@@ -541,7 +541,7 @@ public partial class MainWindow : Window
         CancelLaunchButton.Content = "ANNULER";
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = "";
-        _launchStepOrder = LaunchStepStates.StepsFor(includeServerList: !string.IsNullOrWhiteSpace(_settings.ServerHost)).ToList();
+        _launchStepOrder = LaunchStepStates.VisibleSteps().ToList();
         LaunchSteps.Reset(_launchStepOrder);
         LaunchSteps.Update(current: null, failed: null, detail: null);
         LaunchCountText.Text = $"0 / {_launchStepOrder.Count} · 0 %";
@@ -666,7 +666,9 @@ public partial class MainWindow : Window
             AppendLog($"Erreur : {ex.Message}");
             if (ex is LaunchStepException failure)
             {
-                LaunchSteps.Update(current: null, failed: failure.Step, detail: failure.InnerException?.Message ?? failure.Message);
+                // Une étape non listée en échec est rattachée à la dernière ligne, pour garder RÉESSAYER accessible.
+                var failedStep = _launchStepOrder.Contains(failure.Step) ? failure.Step : _launchStepOrder[^1];
+                LaunchSteps.Update(current: null, failed: failedStep, detail: failure.InnerException?.Message ?? failure.Message);
             }
 
             ShowLoadingError($"Erreur : {ex.Message}");
@@ -751,8 +753,11 @@ public partial class MainWindow : Window
     private void ShowLaunchProgress(LaunchStep step, double stepFraction)
     {
         var total = Math.Max(1, _launchStepOrder.Count);
-        var index = Math.Max(0, _launchStepOrder.IndexOf(step));
-        var overall = Math.Clamp((index + stepFraction) / total * 100, 0, 100);
+        // Une étape non listée (liste des serveurs, démarrage du jeu) vient après la dernière listée.
+        var listed = _launchStepOrder.IndexOf(step);
+        var index = listed >= 0 ? listed : total - 1;
+        var fraction = listed >= 0 ? stepFraction : 1;
+        var overall = Math.Clamp((index + fraction) / total * 100, 0, 100);
         ProgressBar.Value = overall;
         LaunchCountText.Text = $"{index + 1} / {total} · {overall:0} %";
     }

@@ -21,6 +21,13 @@ public static class LaunchStepStates
         Enum.GetValues<LaunchStep>().Where(step => includeServerList || step != LaunchStep.ServerList).ToList();
 
     /// <summary>
+    /// Les étapes montrées au joueur : la liste des serveurs et le démarrage du jeu sont quasi
+    /// instantanés et n'apportent rien à l'écran, ils restent exécutés mais ne sont pas listés.
+    /// </summary>
+    public static IReadOnlyList<LaunchStep> VisibleSteps() =>
+        Enum.GetValues<LaunchStep>().Where(step => step is not (LaunchStep.ServerList or LaunchStep.Launch)).ToList();
+
+    /// <summary>
     /// Après un échec, tout ce qui précède l'étape en échec est fait et tout ce qui suit reste à
     /// venir. Sans échec, tout ce qui précède l'étape en cours est fait ; sans étape en cours,
     /// rien n'a commencé.

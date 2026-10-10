@@ -8,4 +8,4 @@
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
 - Le titre du launcher devient « Omnéria Games Launcher » partout.
-- Accueil : la latence du serveur n'est plus affichée en double, et la liste d'étapes du lancement n'affiche plus les noms de fichiers en cours de téléchargement.
+- Accueil : la latence du serveur n'est plus affichée en double, et la liste d'étapes du lancement est plus sobre (quatre étapes, sans noms de fichiers).
