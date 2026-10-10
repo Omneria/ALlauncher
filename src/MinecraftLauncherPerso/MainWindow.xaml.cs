@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CmlLib.Core;
 using CmlLib.Core.ProcessBuilder;
+using MinecraftLauncherPerso.Controls;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
 using MinecraftLauncherPerso.Services.Changelog;
@@ -325,6 +326,7 @@ public partial class MainWindow : Window
         {
             _isOffline = false;
             Logger.Info("MainWindow", "Connexion internet rétablie, rechargement du tableau de bord.");
+            Toasts.Show("Connexion rétablie", "Le tableau de bord se recharge.", ToastKind.Success);
             await LoadDashboardAsync();
         }
     }
@@ -616,7 +618,7 @@ public partial class MainWindow : Window
     /// réglée est sous le minimum demandé par le pack : le jeu risque de manquer de mémoire en
     /// pleine partie, sans message clair.
     /// </summary>
-    private bool ConfirmRamIsEnough()
+    private async Task<bool> ConfirmRamIsEnoughAsync()
     {
         var minRamMb = _packSettings?.MinRamMb;
         if (_ramWarningShown || minRamMb is not > 0 || _settings.MaxRamMb >= minRamMb)
@@ -630,37 +632,36 @@ public partial class MainWindow : Window
         var advice = canRaise
             ? "Augmente la RAM dans Paramètres (poignée de droite du réglage RAM)."
             : $"Ton PC a {totalMb / 1024.0:0.#} Go de RAM : ferme les autres programmes (navigateur, Discord...) pendant la partie.";
-        var result = MessageBox.Show(
+        return await Dialogs.ConfirmAsync(
+            "RAM INSUFFISANTE POUR LE MODPACK",
             $"Le modpack demande au moins {minRamMb / 1024.0:0.#} Go de RAM, le launcher est réglé sur {_settings.MaxRamMb / 1024.0:0.#} Go.\n\n{advice}\n\nLancer quand même ?",
-            "RAM insuffisante pour le modpack",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        return result == MessageBoxResult.Yes;
+            "LANCER QUAND MÊME");
     }
 
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!ConfirmRamIsEnough())
+        if (!await ConfirmRamIsEnoughAsync())
         {
             return;
         }
 
-        if (_lastServerStatus is { IsOnline: false })
+        if (_lastServerStatus is { IsOnline: false } && !await Dialogs.ConfirmAsync(
+            "SERVEUR HORS LIGNE",
+            $"Le serveur {_settings.ServerName} semble hors ligne pour le moment. Lancer quand même le jeu ?",
+            "LANCER QUAND MÊME"))
         {
-            var result = MessageBox.Show(
-                "Le serveur Astral Nexus semble hors ligne pour le moment. Lancer quand même le jeu ?",
-                "Serveur hors ligne",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
+            return;
         }
 
         PlayButton.IsEnabled = false;
         ViewLogsButton.Visibility = Visibility.Collapsed;
+        RetryLaunchButton.Visibility = Visibility.Collapsed;
+        LoadingSpinner.Visibility = Visibility.Collapsed;
+        LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
+        LoadingStatusText.Text = "";
+        LaunchSteps.Reset(LaunchStepStates.StepsFor(includeServerList: !string.IsNullOrWhiteSpace(_settings.ServerHost)));
+        LaunchSteps.Update(current: null, failed: null, detail: null);
+        LaunchSteps.Visibility = Visibility.Visible;
         lock (_gameOutputLock)
         {
             _gameOutputBuffer.Clear();
@@ -723,7 +724,7 @@ public partial class MainWindow : Window
                 ProgressBar.Value = fraction * 100;
             }
 
-            AppendLog(report.Message);
+            LaunchSteps.Update(report.Step, failed: null, report.Message);
         });
         var progressTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
         progressTimer.Tick += (_, _) => launchProgress.Flush();
@@ -772,12 +773,19 @@ public partial class MainWindow : Window
             ProgressBar.Value = 0;
             AppendLog("Lancement annulé.");
             LoadingPanel.Visibility = Visibility.Collapsed;
+            Toasts.Show("Lancement annulé", "Un téléchargement interrompu reprend là où il s'est arrêté.");
         }
         catch (Exception ex)
         {
             ProgressBar.IsIndeterminate = false;
             AppendLog($"Erreur : {ex.Message}");
+            if (ex is LaunchStepException failure)
+            {
+                LaunchSteps.Update(current: null, failed: failure.Step, detail: failure.InnerException?.Message ?? failure.Message);
+            }
+
             ShowLoadingError($"Erreur : {ex.Message}");
+            RetryLaunchButton.Visibility = Visibility.Visible;
         }
         finally
         {
@@ -801,6 +809,14 @@ public partial class MainWindow : Window
         _launchCts?.Cancel();
     }
 
+    /// <summary>Bouton RÉESSAYER, affiché après un échec du lancement : relance le pipeline. Les
+    /// téléchargements déjà faits (Java, Forge, mods) ne sont pas refaits.</summary>
+    private void RetryLaunchButton_Click(object sender, RoutedEventArgs e)
+    {
+        RetryLaunchButton.Visibility = Visibility.Collapsed;
+        PlayButton_Click(sender, e);
+    }
+
     /// <summary>
     /// Déclenché par IGameLauncher.GameExited, sur un thread d'arrière-plan (Process.Exited) :
     /// toute mise à jour de l'UI doit repasser par le Dispatcher. Réactive le bouton "Jouer"
@@ -819,7 +835,7 @@ public partial class MainWindow : Window
                 AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
                 ViewLogsButton.Visibility = Visibility.Visible;
                 SystemSounds.Hand.Play();
-                ShowCrashDiagnosisIfAny();
+                _ = RunSafeAsync("Diagnostic du crash", ShowCrashDiagnosisIfAnyAsync);
             }
 
             LoadingPanel.Visibility = Visibility.Collapsed;
@@ -832,7 +848,7 @@ public partial class MainWindow : Window
     /// mod corrompu...) dans la sortie console déjà bufferisée (voir BufferGameOutput) et
     /// propose une réparation directement si le diagnostic la suggère.
     /// </summary>
-    private void ShowCrashDiagnosisIfAny()
+    private async Task ShowCrashDiagnosisIfAnyAsync()
     {
         List<string> lines;
         lock (_gameOutputLock)
@@ -848,19 +864,26 @@ public partial class MainWindow : Window
 
         AppendLog($"Diagnostic : {diagnosis.Message}");
 
-        if (!diagnosis.SuggestsRepair)
+        const string ViewLogsId = "logs";
+        const string RepairId = "repair";
+        var message = diagnosis.SuggestsRepair
+            ? $"{diagnosis.Message}\n\nLancer une réparation du modpack maintenant ?"
+            : diagnosis.Message;
+        var primary = diagnosis.SuggestsRepair
+            ? new DialogButton("RÉPARER", RepairId, DialogButtonStyle.Primary)
+            : new DialogButton("FERMER", DialogHost.OkId, DialogButtonStyle.Primary);
+
+        var choice = await Dialogs.ShowAsync(new DialogRequest(
+            "LE JEU S'EST ARRÊTÉ",
+            message,
+            [new DialogButton("VOIR LES LOGS", ViewLogsId), primary],
+            DialogHost.CancelId));
+
+        if (choice == ViewLogsId)
         {
-            MessageBox.Show(diagnosis.Message, "Le jeu s'est arrêté", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            ViewLogsButton_Click(this, new RoutedEventArgs());
         }
-
-        var result = MessageBox.Show(
-            $"{diagnosis.Message}\n\nLancer une réparation du modpack maintenant ?",
-            "Le jeu s'est arrêté",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
-        if (result == MessageBoxResult.Yes)
+        else if (choice == RepairId)
         {
             SettingsButton_Click(this, new RoutedEventArgs());
         }
@@ -949,9 +972,13 @@ public partial class MainWindow : Window
         // Seulement sur une vraie transition hors ligne -> en ligne (pas au tout premier check,
         // où _lastServerStatus est encore null = "inconnu", pas "hors ligne") : sans ça, la toute
         // première détection "en ligne" au démarrage déclencherait une notif à chaque lancement.
-        if (wasOffline && status.IsOnline && _settings.DesktopNotificationsEnabled)
+        if (wasOffline && status.IsOnline)
         {
-            DesktopNotificationService.Show(_settings.ServerName, "Le serveur est de nouveau en ligne.");
+            Toasts.Show("Serveur de nouveau en ligne", status.OnlinePlayers > 0 ? $"{status.OnlinePlayers} joueur(s) connecté(s)" : null, ToastKind.Success);
+            if (_settings.DesktopNotificationsEnabled)
+            {
+                DesktopNotificationService.Show(_settings.ServerName, "Le serveur est de nouveau en ligne.");
+            }
         }
 
         // Version du serveur comparée à celle que le launcher installe (v1.12.0) : un serveur passé
@@ -1026,6 +1053,8 @@ public partial class MainWindow : Window
         // Sans ça, la progression (téléchargement, redémarrage) n'apparaissait nulle part :
         // AppendLog met bien à jour le texte du panneau de chargement, mais le panneau lui-même
         // restait masqué tant que PlayButton_Click ne l'avait pas explicitement affiché.
+        LaunchSteps.Visibility = Visibility.Collapsed;
+        RetryLaunchButton.Visibility = Visibility.Collapsed;
         LoadingPanel.Visibility = Visibility.Visible;
         ProgressBar.IsIndeterminate = true;
         try
@@ -1058,12 +1087,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
-                $"Échec de la connexion : {ex.Message}",
-                "Connexion Minecraft",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
             LoginButton.IsEnabled = true;
+            await Dialogs.AlertAsync("CONNEXION MINECRAFT", $"Échec de la connexion : {ex.Message}");
         }
     }
 
@@ -1244,7 +1269,7 @@ public partial class MainWindow : Window
         // chaque ligne de progression et chaque ligne de sortie du jeu sans jamais être affiché,
         // grossissait sans limite et coûtait de plus en plus cher à chaque ajout (une des causes
         // du gel pendant les téléchargements). Les erreurs utiles vont dans launcher.log.
-        LoadingSpinner.Visibility = Visibility.Visible;
+        LoadingSpinner.Visibility = LaunchSteps.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = message;
     }

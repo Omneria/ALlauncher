@@ -15,7 +15,10 @@
     <Color x:Key="ColorViolet">#FF7B5CFF</Color>
     <Color x:Key="ColorAmber">#FFFFB020</Color>
     <Color x:Key="ColorInk">#FFE8ECF5</Color>
-    <Color x:Key="ColorInkDim">#FF8494B0</Color>
+    <!-- v2.0.0 : texte atténué éclairci (#8494B0 -> #9AA8C2, contraste 6,1:1 sur le fond) et un
+         texte secondaire intermédiaire pour les paragraphes (actus, notes, dialogues). -->
+    <Color x:Key="ColorInkDim">#FF9AA8C2</Color>
+    <Color x:Key="ColorInk2">#FFC5CEE0</Color>
     <Color x:Key="ColorInput">#FF080C16</Color>
 
     <SolidColorBrush x:Key="VoidBrush" Color="{StaticResource ColorVoid}" />
@@ -29,6 +32,7 @@
     <SolidColorBrush x:Key="AmberBrush" Color="{StaticResource ColorAmber}" />
     <SolidColorBrush x:Key="InkBrush" Color="{StaticResource ColorInk}" />
     <SolidColorBrush x:Key="InkDimBrush" Color="{StaticResource ColorInkDim}" />
+    <SolidColorBrush x:Key="Ink2Brush" Color="{StaticResource ColorInk2}" />
     <SolidColorBrush x:Key="InputBrush" Color="{StaticResource ColorInput}" />
 
     <!-- Polices embarquées (Assets/Fonts, licence OFL) : ./ = racine de l'assembly courant. -->
@@ -94,6 +98,43 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource InkDimBrush}" />
         <Setter Property="Template" Value="{StaticResource GhostButtonTemplate}" />
+    </Style>
+
+    <!-- Bouton à filet (v2.0.0) : action secondaire des dialogues. Taille libre (Padding), filet
+         Line au repos, cyan au focus clavier, teinte cyan au survol. DangerButtonStyle reprend le
+         même gabarit en magenta (action destructive, annulation). -->
+    <ControlTemplate x:Key="OutlineButtonTemplate" TargetType="Button">
+        <Border x:Name="OutlineBackground" Background="Transparent"
+                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="OutlineBackground" Property="Background" Value="#1900E5C7" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="OutlineBackground" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="OutlineButtonStyle" TargetType="Button">
+        <Setter Property="Padding" Value="14,9" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+        <Setter Property="Template" Value="{StaticResource OutlineButtonTemplate}" />
+    </Style>
+
+    <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource OutlineButtonStyle}">
+        <Setter Property="BorderBrush" Value="{StaticResource MagentaBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource MagentaBrush}" />
     </Style>
 
     <!-- Carte / panneau : coins vifs (jamais de CornerRadius), fond Surface, filet Line. -->

@@ -1,0 +1,24 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.DialogHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Visibility="Collapsed" Focusable="False">
+    <!-- Dialogue intégré à la fenêtre (v2.0.0), à la place des MessageBox Windows : un voile sur
+         tout le launcher, une carte centrée au style de la charte, des boutons à la demande.
+         Piloté par ShowAsync / ConfirmAsync / AlertAsync (DialogHost.xaml.cs). -->
+    <Grid Background="#CC06080F">
+        <Border x:Name="Card" MinWidth="360" MaxWidth="500" Margin="24" Padding="26,22"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource CyanBrush}"
+                BorderThickness="1.5">
+            <StackPanel>
+                <TextBlock x:Name="TitleText" Style="{StaticResource EyebrowTextStyle}" TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="19"
+                           FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                           Foreground="{StaticResource Ink2Brush}" />
+                <StackPanel x:Name="ButtonsPanel" Orientation="Horizontal" HorizontalAlignment="Right"
+                            Margin="0,22,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

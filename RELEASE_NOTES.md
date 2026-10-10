@@ -7,4 +7,6 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- La carte CHANGELOG s'affiche de nouveau même quand GitHub limite les requêtes du launcher : les notes de version sont alors lues sur le flux public des releases.
+- Le lancement affiche ses étapes (Java, Forge, mods, connexion, jeu) avec celle qui est en cours, et un bouton RÉESSAYER si l'une d'elles échoue.
+- Les questions et les erreurs du launcher s'affichent dans la fenêtre au lieu d'ouvrir des boîtes Windows ; les informations (serveur de nouveau en ligne, connexion rétablie, lancement annulé) apparaissent en notification qui disparaît toute seule.
+- Textes secondaires plus lisibles.

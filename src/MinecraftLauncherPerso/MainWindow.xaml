@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
         Title="Omnéria Games"
         Width="1240" Height="600"
         MinWidth="620" MinHeight="480"
@@ -523,7 +524,9 @@
                                             </LinearGradientBrush>
                                         </Rectangle.Fill>
                                     </Rectangle>
-                                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                                                 Margin="12">
                                         <Ellipse x:Name="LoadingSpinner" Width="30" Height="30" StrokeThickness="3"
                                                  Stroke="{StaticResource CyanBrush}" StrokeDashArray="4,3"
@@ -543,19 +546,32 @@
                                                 </EventTrigger>
                                             </Ellipse.Triggers>
                                         </Ellipse>
+                                        <!-- Liste des étapes du lancement (v2.0.0) : visible pendant le
+                                             pipeline de lancement seulement ; le spinner ci-dessus sert
+                                             aux autres chargements (mise à jour du launcher). -->
+                                        <controls:StepList x:Name="LaunchSteps" Visibility="Collapsed" MinWidth="300" />
                                         <TextBlock x:Name="LoadingStatusText" Margin="0,12,0,0"
                                                    HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                                    FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
                                                    Foreground="{StaticResource InkDimBrush}" Text="Préparation..." />
-                                        <!-- Visible seulement pendant le pipeline de lancement (pas pendant
-                                             une mise à jour du launcher) : interrompt l'étape en cours. -->
-                                        <Button x:Name="CancelLaunchButton" Content="ANNULER" Margin="0,12,0,0"
-                                                HorizontalAlignment="Center" Visibility="Collapsed"
-                                                AutomationProperties.Name="Annuler le lancement"
-                                                Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,5"
-                                                FontSize="11" Foreground="{StaticResource MagentaBrush}"
-                                                Click="CancelLaunchButton_Click" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                            <!-- Visible seulement pendant le pipeline de lancement (pas pendant
+                                                 une mise à jour du launcher) : interrompt l'étape en cours. -->
+                                            <Button x:Name="CancelLaunchButton" Content="ANNULER" Visibility="Collapsed"
+                                                    AutomationProperties.Name="Annuler le lancement"
+                                                    Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,5"
+                                                    FontSize="11" Foreground="{StaticResource MagentaBrush}"
+                                                    Click="CancelLaunchButton_Click" />
+                                            <!-- Après un échec du lancement : relance le pipeline, qui reprend
+                                                 là où il en était (téléchargements reprenables). -->
+                                            <Button x:Name="RetryLaunchButton" Content="RÉESSAYER" Visibility="Collapsed"
+                                                    AutomationProperties.Name="Réessayer le lancement"
+                                                    Style="{StaticResource GhostButtonStyle}" Width="Auto" Padding="12,5"
+                                                    FontSize="11" Foreground="{StaticResource CyanBrush}"
+                                                    Click="RetryLaunchButton_Click" />
+                                        </StackPanel>
                                     </StackPanel>
+                                    </ScrollViewer>
                                 </Grid>
                             </Border>
 
@@ -581,5 +597,9 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- Notifications et dialogue intégrés (v2.0.0) : au-dessus de tout le reste. -->
+        <controls:ToastHost x:Name="Toasts" />
+        <controls:DialogHost x:Name="Dialogs" />
     </Grid>
 </Window>

@@ -1,0 +1,59 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.StepList"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <!-- Liste des étapes du lancement (v2.0.0) : une ligne par étape de LaunchPipeline, avec une
+         pastille (✓ fait, ● en cours, ✕ échec, vide à venir), le nom de l'étape et, pour l'étape
+         en cours ou en échec, le détail rapporté par le pipeline. -->
+    <ItemsControl x:Name="StepsControl" Focusable="False">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="Icon" Grid.Column="0" Width="22" Height="22" CornerRadius="11"
+                            BorderThickness="1" BorderBrush="{StaticResource LineBrush}"
+                            VerticalAlignment="Center">
+                        <TextBlock x:Name="Glyph" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                   Foreground="{StaticResource InkDimBrush}" />
+                    </Border>
+                    <TextBlock x:Name="Label" Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center"
+                               Text="{Binding Label}" FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                               Foreground="{StaticResource InkDimBrush}" />
+                    <TextBlock x:Name="Detail" Grid.Column="2" VerticalAlignment="Center" MaxWidth="240"
+                               Text="{Binding Detail}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Detail}"
+                               FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                               Foreground="{StaticResource InkDimBrush}" />
+                </Grid>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding State}" Value="Done">
+                        <Setter TargetName="Icon" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                        <Setter TargetName="Glyph" Property="Text" Value="✓" />
+                        <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource CyanBrush}" />
+                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Ink2Brush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding State}" Value="Active">
+                        <Setter TargetName="Icon" Property="BorderBrush" Value="{StaticResource CyanBrush}" />
+                        <Setter TargetName="Icon" Property="Background" Value="#2600E5C7" />
+                        <Setter TargetName="Glyph" Property="Text" Value="●" />
+                        <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource CyanBrush}" />
+                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource InkBrush}" />
+                        <Setter TargetName="Detail" Property="Foreground" Value="{StaticResource InkBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding State}" Value="Failed">
+                        <Setter TargetName="Icon" Property="BorderBrush" Value="{StaticResource MagentaBrush}" />
+                        <Setter TargetName="Glyph" Property="Text" Value="✕" />
+                        <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource MagentaBrush}" />
+                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource InkBrush}" />
+                        <Setter TargetName="Detail" Property="Foreground" Value="{StaticResource MagentaBrush}" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>
