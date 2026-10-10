@@ -188,7 +188,7 @@ public sealed class LauncherSettings
     /// </summary>
     public double LauncherWindowWidth { get; set; } = 1240;
 
-    public double LauncherWindowHeight { get; set; } = 600;
+    public double LauncherWindowHeight { get; set; } = 680;
 
     /// <summary>Mode compact (v1.8.0, bouton "⤢" de la barre de titre) mémorisé entre deux lancements.</summary>
     public bool IsCompactMode { get; set; }

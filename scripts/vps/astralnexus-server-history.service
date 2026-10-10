@@ -1,0 +1,12 @@
+# Ajoute un échantillon d'état du serveur à server-history.json (voir record-server-history.py).
+# Déclenché toutes les minutes par astralnexus-server-history.timer, ou à la main :
+#   systemctl start astralnexus-server-history.service
+[Unit]
+Description=Enregistre l'état du serveur Minecraft pour la page SERVEUR du launcher
+
+[Service]
+Type=oneshot
+Environment=SERVER_HOST=127.0.0.1
+Environment=SERVER_PORT=25565
+Environment=OUTPUT_FILE=/var/www/html/modpack/server-history.json
+ExecStart=/opt/modpack-tools/record-server-history.py

@@ -566,7 +566,7 @@ public partial class MainWindow : Window
     // effet à ces items de nav, au lieu de rester des libellés inertes.
     private void ActusNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashDashboardCard(NewsCardScale);
 
-    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashDashboardCard(ServerCardScale);
+    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => OpenServerPage();
 
     private void HubNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ShowPage(AppPage.Hub);
 
@@ -596,7 +596,7 @@ public partial class MainWindow : Window
         }
         else if (ReferenceEquals(sender, NavServeur))
         {
-            FlashDashboardCard(ServerCardScale);
+            OpenServerPage();
         }
         else if (ReferenceEquals(sender, NavParametres))
         {
@@ -1036,6 +1036,11 @@ public partial class MainWindow : Window
         {
             ServerCountText.Inlines.Add(new Run("—") { Foreground = statusBrush });
         }
+
+        if (ServerPageView.IsVisible)
+        {
+            await RefreshServerPageAsync();
+        }
     }
 
     private async Task CheckForUpdateAsync()
@@ -1225,6 +1230,7 @@ public partial class MainWindow : Window
     private enum AppPage
     {
         Hub,
+        Server,
         Settings,
         Logs,
         Legal,
@@ -1241,12 +1247,14 @@ public partial class MainWindow : Window
         var hub = page == AppPage.Hub;
         HubPage.Visibility = hub ? Visibility.Visible : Visibility.Collapsed;
         PageHost.Visibility = hub ? Visibility.Collapsed : Visibility.Visible;
+        ServerPageView.Visibility = page == AppPage.Server ? Visibility.Visible : Visibility.Collapsed;
         SettingsPageView.Visibility = page == AppPage.Settings ? Visibility.Visible : Visibility.Collapsed;
         LogsPageView.Visibility = page == AppPage.Logs ? Visibility.Visible : Visibility.Collapsed;
         LegalPageView.Visibility = page == AppPage.Legal ? Visibility.Visible : Visibility.Collapsed;
 
         MarkNavItem(NavJouer, NavJouerText, hub);
-        MarkNavItem(NavParametres, NavParametresText, !hub);
+        MarkNavItem(NavServeur, NavServeurText, page == AppPage.Server);
+        MarkNavItem(NavParametres, NavParametresText, page is AppPage.Settings or AppPage.Logs or AppPage.Legal);
     }
 
     private void MarkNavItem(Border item, TextBlock label, bool active)
@@ -1281,6 +1289,33 @@ public partial class MainWindow : Window
         SettingsPageView.LegalRequested += (_, _) => ShowPage(AppPage.Legal);
         LogsPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
         LegalPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
+    }
+
+    private readonly ServerHistoryService _serverHistoryService = new(SharedHttpClient.Instance);
+    private ServerHistory? _serverHistory;
+    private bool _serverPageWired;
+
+    private void OpenServerPage()
+    {
+        if (!_serverPageWired)
+        {
+            _serverPageWired = true;
+            ServerPageView.NotificationsToggled += (_, enabled) =>
+            {
+                _settings.DesktopNotificationsEnabled = enabled;
+                _settingsManager.Save(_settings);
+            };
+        }
+
+        ServerPageView.Update(_settings, _lastServerStatus, _serverHistory, DateTimeOffset.UtcNow);
+        ShowPage(AppPage.Server);
+        _ = RunSafeAsync("Page serveur", RefreshServerPageAsync);
+    }
+
+    private async Task RefreshServerPageAsync()
+    {
+        _serverHistory = await _serverHistoryService.FetchAsync(_settings.ModpackManifestUrl) ?? _serverHistory;
+        ServerPageView.Update(_settings, _lastServerStatus, _serverHistory, DateTimeOffset.UtcNow);
     }
 
     private void OpenSettings(SettingsSection section = SettingsSection.Game)

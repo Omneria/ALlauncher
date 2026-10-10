@@ -93,6 +93,25 @@ une entrée à `changelog.json` (à côté du manifest, 30 entrées max) : mods 
 modifiées, changement de Forge. Le launcher l'affiche dans la carte ACTUS avec un badge
 MODPACK : rien à annoncer à la main dans `news.txt` pour une simple mise à jour du pack.
 
+## Historique du serveur : `server-history.json` (v2.0.0)
+
+La page SERVEUR du launcher affiche la disponibilité des dernières 24 h et les joueurs vus
+récemment. Le launcher ne tourne pas en permanence : cet historique est écrit par le VPS, une
+fois par minute (`record-server-history.py`, Server List Ping, un échantillon par minute, 24 h
+conservées). Sans ce fichier, la page SERVEUR n'affiche que l'état du moment.
+
+```bash
+cp record-server-history.py /opt/modpack-tools/ && chmod +x /opt/modpack-tools/record-server-history.py
+cp astralnexus-server-history.service astralnexus-server-history.timer /etc/systemd/system/
+# Adapter SERVER_HOST / SERVER_PORT / OUTPUT_FILE dans le .service si besoin
+systemctl daemon-reload
+systemctl enable --now astralnexus-server-history.timer
+systemctl start astralnexus-server-history.service && cat /var/www/html/modpack/server-history.json | head -c 300
+```
+
+Avec Caddy, `server-history.json` doit figurer dans la liste des fichiers publics du Caddyfile
+(déjà le cas dans celui fourni) : `systemctl reload caddy` après mise à jour du Caddyfile.
+
 ## Régénération automatique du manifest
 
 Plutôt que de relancer `generate-manifest.py` à chaque changement, une unité systemd

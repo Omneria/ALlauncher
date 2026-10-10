@@ -12,3 +12,4 @@
 - Textes secondaires plus lisibles.
 - Paramètres, journaux et mentions légales s'ouvrent dans la fenêtre du launcher au lieu de fenêtres séparées. Les paramètres sont rangés en JEU, LAUNCHER, MAINTENANCE et À PROPOS.
 - Nouvel accueil centré sur JOUER : grande carte serveur avec le bouton JOUER, et trois tuiles en dessous (actus, mises à jour du modpack, notes du launcher).
+- Nouvelle page SERVEUR : état du moment, disponibilité sur les dernières 24 h, joueurs connectés (depuis combien de temps) ou vus récemment, et réglage de la notification « serveur de nouveau en ligne ».

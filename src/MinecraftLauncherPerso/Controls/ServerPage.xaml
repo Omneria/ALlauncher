@@ -1,0 +1,118 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.ServerPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <!-- Page SERVEUR (v2.0.0) : état du moment (ping), disponibilité des dernières 24 h et joueurs
+         vus récemment (server-history.json, écrit par le VPS), préférence de notification. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" Text="SERVEUR" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,14" />
+
+            <!-- État du moment -->
+            <Border Style="{StaticResource CardBorderStyle}" Padding="22" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Ellipse x:Name="StatusDot" Width="10" Height="10" VerticalAlignment="Center"
+                                     Fill="{StaticResource InkDimBrush}" Margin="0,0,10,0" />
+                            <TextBlock x:Name="StatusText" Text="Vérification..." VerticalAlignment="Center"
+                                       FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" FontSize="14"
+                                       Foreground="{StaticResource InkBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="MotdText" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,10"
+                                   Foreground="{StaticResource Ink2Brush}" Visibility="Collapsed" />
+                        <TextBlock x:Name="DetailsText" TextWrapping="Wrap" FontFamily="{StaticResource MonoFontFamily}"
+                                   FontSize="12" Foreground="{StaticResource InkDimBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="PlayersCountText" HorizontalAlignment="Right"
+                                   FontFamily="{StaticResource DisplayFontFamily}" FontWeight="Bold" FontSize="32"
+                                   Foreground="{StaticResource CyanBrush}" />
+                        <TextBlock Text="JOUEURS CONNECTÉS" HorizontalAlignment="Right"
+                                   FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                                   Foreground="{StaticResource InkDimBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Disponibilité 24 h -->
+            <Border Style="{StaticResource CardBorderStyle}" Padding="22" Margin="0,0,0,16">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="DISPONIBILITÉ · 24 H" Style="{StaticResource EyebrowTextStyle}" />
+                        <TextBlock x:Name="UptimeText" Grid.Column="1" FontFamily="{StaticResource MonoFontFamily}"
+                                   FontWeight="Bold" FontSize="14" Foreground="{StaticResource InkBrush}" />
+                    </Grid>
+                    <ItemsControl x:Name="AvailabilityBars" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Height="40" Margin="1,0" Background="{Binding Brush}" ToolTip="{Binding Tooltip}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid Margin="0,6,0,0">
+                        <TextBlock Text="il y a 24 h" FontFamily="{StaticResource MonoFontFamily}" FontSize="11"
+                                   Foreground="{StaticResource InkDimBrush}" />
+                        <TextBlock Text="maintenant" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFontFamily}"
+                                   FontSize="11" Foreground="{StaticResource InkDimBrush}" />
+                    </Grid>
+                    <TextBlock x:Name="HistoryUnavailableText" TextWrapping="Wrap" FontSize="12" Margin="0,10,0,0"
+                               Foreground="{StaticResource InkDimBrush}" Visibility="Collapsed"
+                               Text="Historique indisponible pour le moment (le serveur ne le publie pas encore, ou il est injoignable)." />
+                </StackPanel>
+            </Border>
+
+            <!-- Joueurs -->
+            <Border Style="{StaticResource CardBorderStyle}" Padding="22" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="JOUEURS" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,12" />
+                    <TextBlock x:Name="NoPlayersText" Text="Personne n'a été vu sur le serveur ces dernières 24 h."
+                               TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource InkDimBrush}"
+                               Visibility="Collapsed" />
+                    <ItemsControl x:Name="PlayersList" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" Margin="0,0,10,0"
+                                             VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13"
+                                               Foreground="{StaticResource InkBrush}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Detail}" FontFamily="{StaticResource MonoFontFamily}"
+                                               FontSize="12" Foreground="{StaticResource InkDimBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Notification -->
+            <Border Style="{StaticResource CardBorderStyle}" Padding="22" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="NOTIFICATIONS" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,10" />
+                    <CheckBox x:Name="NotifyCheckBox" Content="ME PRÉVENIR QUAND LE SERVEUR REVIENT EN LIGNE"
+                              Style="{StaticResource AppCheckBoxStyle}"
+                              Checked="NotifyCheckBox_Changed" Unchecked="NotifyCheckBox_Changed" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

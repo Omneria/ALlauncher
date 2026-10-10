@@ -162,11 +162,23 @@ public sealed partial class ServerStatusService : IServerStatusService
         var motd = root.TryGetProperty("description", out var description) ? FlattenChat(description) : "";
         motd = FormattingCodePattern().Replace(motd, "").Trim();
 
+        // Échantillon de pseudos que le serveur accepte de révéler (au plus une douzaine, parfois masqué).
+        List<string>? names = null;
+        if (players.TryGetProperty("sample", out var sample) && sample.ValueKind == JsonValueKind.Array)
+        {
+            names = sample.EnumerateArray()
+                .Select(entry => entry.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() : null)
+                .OfType<string>()
+                .Where(name => name.Length > 0)
+                .ToList();
+        }
+
         return new ServerStatus(true, online, max,
             LatencyMs: latencyMs,
             ProtocolVersion: protocol,
             VersionName: versionName,
-            Motd: motd.Length > 0 ? motd : null);
+            Motd: motd.Length > 0 ? motd : null,
+            PlayerNames: names);
     }
 
     /// <summary>MOTD : texte simple, ou composant de chat JSON ({"text": ..., "extra": [...]}).</summary>
