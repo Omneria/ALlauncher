@@ -10,4 +10,8 @@ public interface IJavaManager
     /// </summary>
     /// <returns>Chemin complet vers l'exécutable java (java.exe sous Windows) à utiliser pour lancer Forge/Minecraft.</returns>
     Task<string> EnsureJavaAsync(IProgress<JavaSetupProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Vrai si un Java 17 utilisable est déjà présent (sans rien télécharger). Peut lancer
+    /// des processus : à appeler hors du thread UI.</summary>
+    bool IsJavaAvailable() => false;
 }

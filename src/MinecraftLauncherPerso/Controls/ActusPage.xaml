@@ -1,0 +1,83 @@
+<UserControl x:Class="MinecraftLauncherPerso.Controls.ActusPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <!-- Page ACTUS (v2.0.0) : historique complet derrière les trois tuiles du hub. Les actus
+         (news.txt) et les mises à jour du modpack (changelog.json) sont conservées localement ;
+         les notes du launcher viennent des releases GitHub. -->
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Focusable="False">
+        <StackPanel>
+            <TextBlock Text="ACTUS" Style="{StaticResource EyebrowTextStyle}" Margin="0,0,0,14" />
+
+            <Border x:Name="NewsSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Actus du serveur" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                    <TextBlock x:Name="NewsEmptyText" Text="Aucune actualité pour le moment." Style="{StaticResource BodyTextStyle}" />
+                    <ItemsControl x:Name="NewsList" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,16">
+                                    <TextBlock Text="{Binding DateLabel}" Style="{StaticResource MetaTextStyle}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding Content}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="ModpackSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Mises à jour du modpack" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                    <TextBlock x:Name="ModpackEmptyText" Text="Aucune mise à jour du modpack pour le moment." Style="{StaticResource BodyTextStyle}" />
+                    <ItemsControl x:Name="ModpackList" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,16">
+                                    <TextBlock Text="{Binding DateLabel}" Style="{StaticResource MetaTextStyle}" Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding Content}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="LauncherSection" Style="{StaticResource CardBorderStyle}" Padding="24,20" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Notes de version du launcher" Style="{StaticResource DisplayHeadingStyle}" Margin="0,0,0,14" />
+                    <TextBlock x:Name="ReleasesEmptyText" Text="Notes de version indisponibles pour le moment." Style="{StaticResource BodyTextStyle}" />
+                    <ItemsControl x:Name="ReleasesList" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,16">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                        <!-- Numéro de version cliquable : Tag porte l'URL de la release. -->
+                                        <TextBlock Text="{Binding VersionTag}" Tag="{Binding Url}"
+                                                   FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{StaticResource InkBrush}" Cursor="Hand" TextDecorations="Underline"
+                                                   ToolTip="Ouvrir cette version sur GitHub"
+                                                   MouseLeftButtonUp="ReleaseVersion_MouseLeftButtonUp" />
+                                        <Border Margin="8,0,0,0" Padding="6,2" BorderThickness="1" BorderBrush="#8000E5C7"
+                                                Visibility="{Binding LatestBadgeVisibility}">
+                                            <TextBlock Text="DERNIÈRE" FontFamily="{StaticResource MonoFontFamily}" FontSize="9"
+                                                       Foreground="{StaticResource CyanBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding DateLabel}" Style="{StaticResource MetaTextStyle}" Margin="0,0,0,6" />
+                                    <ItemsControl ItemsSource="{Binding Notes}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat=— {0}}" Style="{StaticResource BodyTextStyle}" Margin="0,0,0,3" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -12,45 +12,49 @@
     <ItemsControl x:Name="ToastsControl" Focusable="False">
         <ItemsControl.ItemTemplate>
             <DataTemplate>
-                <Border x:Name="Card" Margin="0,8,0,0" Padding="14,12" Background="{StaticResource Surface2Brush}"
-                        BorderBrush="{StaticResource LineBrush}" BorderThickness="1,1,1,1">
+                <!-- Maquette « toast » : fond Surface2, filet Line, filet d'accent de 2 px à gauche,
+                     icône 16 px, titre semi-gras 13 et message 12 atténué. Un clic ferme le toast
+                     (et lance son action, ex. installer la mise à jour). -->
+                <Border x:Name="Card" Margin="0,8,0,0" Background="{StaticResource Surface2Brush}"
+                        BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,1,1" Cursor="Hand"
+                        Tag="{Binding}" MouseLeftButtonUp="Toast_MouseLeftButtonUp">
                     <Border.Effect>
-                        <DropShadowEffect Color="Black" BlurRadius="24" ShadowDepth="6" Opacity="0.45" />
+                        <DropShadowEffect Color="Black" BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" />
                     </Border.Effect>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="3" />
+                            <ColumnDefinition Width="2" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Rectangle x:Name="Accent" Grid.Column="0" Fill="{StaticResource CyanBrush}" />
-                        <StackPanel Grid.Column="1" Margin="10,0,8,0">
-                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"
-                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
-                                       Foreground="{StaticResource InkBrush}" />
-                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,2,0,0"
-                                       Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}"
-                                       FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
-                                       Foreground="{StaticResource InkDimBrush}" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,12">
+                            <Path x:Name="Icon" Data="{Binding IconData}" Stroke="{StaticResource CyanBrush}" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Top" Margin="0,1,12,0" />
+                            <StackPanel MaxWidth="270">
+                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"
+                                           FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                                           Foreground="{StaticResource InkBrush}" />
+                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}"
+                                           FontFamily="{StaticResource BodyFontFamily}" FontSize="12"
+                                           Foreground="{StaticResource InkDimBrush}" />
+                            </StackPanel>
                         </StackPanel>
-                        <Button Grid.Column="2" Content="✕" Width="24" Height="24" VerticalAlignment="Top"
-                                Style="{StaticResource GhostButtonStyle}" FontSize="11"
-                                AutomationProperties.Name="Fermer la notification"
-                                Tag="{Binding}" Click="CloseToast_Click" />
                     </Grid>
                 </Border>
                 <DataTemplate.Triggers>
-                    <DataTrigger Binding="{Binding Kind}" Value="Success">
-                        <Setter TargetName="Accent" Property="Fill" Value="{StaticResource CyanBrush}" />
-                    </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Info">
                         <Setter TargetName="Accent" Property="Fill" Value="{StaticResource VioletBrush}" />
+                        <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource VioletBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Warning">
                         <Setter TargetName="Accent" Property="Fill" Value="{StaticResource AmberBrush}" />
+                        <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource AmberBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Error">
                         <Setter TargetName="Accent" Property="Fill" Value="{StaticResource MagentaBrush}" />
+                        <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource MagentaBrush}" />
                     </DataTrigger>
                 </DataTemplate.Triggers>
             </DataTemplate>

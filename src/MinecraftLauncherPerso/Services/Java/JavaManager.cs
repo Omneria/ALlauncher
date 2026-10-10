@@ -93,6 +93,8 @@ public sealed class JavaManager : IJavaManager
         }
     }
 
+    public bool IsJavaAvailable() => FindBundledJava() is not null || FindSystemJava() is not null;
+
     private string? FindBundledJava()
     {
         var javaRoot = Path.Combine(_runtimeRootDirectory, $"java{RequiredMajorVersion}");

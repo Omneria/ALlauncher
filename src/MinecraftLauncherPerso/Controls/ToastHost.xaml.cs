@@ -14,9 +14,18 @@ public enum ToastKind
 }
 
 /// <summary>Une notification affichée par <see cref="ToastHost"/>.</summary>
-public sealed record ToastItem(string Title, string? Message, ToastKind Kind)
+public sealed record ToastItem(string Title, string? Message, ToastKind Kind, Action? OnClick = null)
 {
     public bool HasMessage => !string.IsNullOrWhiteSpace(Message);
+
+    /// <summary>Icône de la maquette : coche (succès), éclair (avertissement), alerte (erreur), info.</summary>
+    public string IconData => Kind switch
+    {
+        ToastKind.Success => "m5 12 4 4 10-10",
+        ToastKind.Warning => "M13 2 4 14h7l-1 8 9-12h-7z",
+        ToastKind.Error => "M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
+        _ => "M12 11v5m0-8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z",
+    };
 }
 
 /// <summary>
@@ -38,9 +47,9 @@ public partial class ToastHost : UserControl
         ToastsControl.ItemsSource = _toasts;
     }
 
-    public void Show(string title, string? message = null, ToastKind kind = ToastKind.Info, TimeSpan? duration = null)
+    public void Show(string title, string? message = null, ToastKind kind = ToastKind.Info, TimeSpan? duration = null, Action? onClick = null)
     {
-        var toast = new ToastItem(title, message, kind);
+        var toast = new ToastItem(title, message, kind, onClick);
         _toasts.Add(toast);
         while (_toasts.Count > MaxVisible)
         {
@@ -56,11 +65,12 @@ public partial class ToastHost : UserControl
         timer.Start();
     }
 
-    private void CloseToast_Click(object sender, RoutedEventArgs e)
+    private void Toast_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement { Tag: ToastItem toast })
         {
             _toasts.Remove(toast);
+            toast.OnClick?.Invoke();
         }
     }
 }

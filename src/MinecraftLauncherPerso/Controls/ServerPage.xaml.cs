@@ -7,33 +7,45 @@ using MinecraftLauncherPerso.Services.Status;
 namespace MinecraftLauncherPerso.Controls;
 
 /// <summary>
-/// Page SERVEUR (v2.0.0) : état du moment, disponibilité des dernières 24 h et joueurs vus
-/// récemment. L'historique vient du VPS (<see cref="ServerHistory"/>) ; sans lui, la page se limite
-/// à l'état du moment et aux pseudos annoncés par le serveur.
+/// Page SERVEUR (maquette « SERVEUR — page dédiée ») : état du moment, disponibilité des dernières
+/// 24 h, message du jour, joueurs connectés. L'historique vient du VPS (<see cref="ServerHistory"/>) ;
+/// sans lui, la page se limite à l'état du moment et aux pseudos annoncés par le serveur.
 /// </summary>
 public partial class ServerPage : UserControl
 {
-    private bool _updatingCheckBox;
+    /// <summary>Hauteur d'une barre de disponibilité : 4 px (coupure) à 30 px (toujours en ligne).</summary>
+    private const double MinBarHeight = 4;
+    private const double MaxBarHeight = 30;
+
+    private bool _updating;
 
     public ServerPage()
     {
         InitializeComponent();
     }
 
-    /// <summary>L'utilisateur a coché ou décoché la notification « serveur de nouveau en ligne ».</summary>
+    /// <summary>Case « serveur de nouveau en ligne » cochée ou décochée.</summary>
     public event EventHandler<bool>? NotificationsToggled;
 
-    private sealed record AvailabilityBar(Brush Brush, string Tooltip);
+    /// <summary>Case « un ami se connecte » cochée ou décochée.</summary>
+    public event EventHandler<bool>? FriendNotificationsToggled;
 
-    private sealed record PlayerRow(string Name, string Detail, Brush DotBrush);
+    /// <summary>Clic sur JOUER : le hub prend le relais pour le lancement.</summary>
+    public event EventHandler? PlayRequested;
+
+    private sealed record AvailabilityBar(Brush Brush, double BarHeight, string Tooltip);
+
+    private sealed record PlayerRow(string Name, string Duration);
 
     public void Update(LauncherSettings settings, ServerStatus? status, ServerHistory? history, DateTimeOffset now)
     {
-        TitleText.Text = string.IsNullOrWhiteSpace(settings.ServerName) ? "SERVEUR" : $"SERVEUR · {settings.ServerName.ToUpperInvariant()}";
-
-        _updatingCheckBox = true;
+        _updating = true;
         NotifyCheckBox.IsChecked = settings.DesktopNotificationsEnabled;
-        _updatingCheckBox = false;
+        FriendCheckBox.IsChecked = settings.NotifyFriendConnected;
+        _updating = false;
+
+        var name = string.IsNullOrWhiteSpace(settings.ServerName) ? "SERVEUR" : settings.ServerName.ToUpperInvariant();
+        AddressText.Text = $"{name} · {settings.ServerHost}";
 
         ShowStatus(settings, status);
         ShowAvailability(history, now);
@@ -42,40 +54,55 @@ public partial class ServerPage : UserControl
 
     private void ShowStatus(LauncherSettings settings, ServerStatus? status)
     {
-        var details = new List<string> { $"{settings.ServerHost}:{settings.ServerPort}" };
-
         if (status is null)
         {
-            StatusPill.Set(StatusKind.Neutral, "Vérification...");
-            MotdText.Visibility = Visibility.Collapsed;
-            PlayersCountText.Text = "—";
-            DetailsText.Text = string.Join("  ·  ", details);
+            StatusPill.Set(StatusKind.Neutral, "INCONNU");
+            PlayersCountText.Text = "";
+            LatencyText.Inlines.Clear();
+            VersionText.Inlines.Clear();
+            ProtocolText.Inlines.Clear();
+            MotdText.Text = "Pas de message du jour.";
             return;
         }
 
-        StatusPill.Set(ServerStatusPresentation.From(status, settings.MinecraftVersion));
-        MotdText.Text = status.IsOnline ? status.Motd ?? "" : "";
-        MotdText.Visibility = string.IsNullOrEmpty(MotdText.Text) ? Visibility.Collapsed : Visibility.Visible;
-        PlayersCountText.Text = status.IsOnline ? $"{status.OnlinePlayers}/{status.MaxPlayers}" : "—";
+        var presentation = ServerStatusPresentation.From(status, settings.MinecraftVersion);
+        StatusPill.Set(presentation.Kind, status.IsOnline ? "EN LIGNE" : "HORS LIGNE", presentation.Tooltip);
 
+        PlayersCountText.Inlines.Clear();
         if (status.IsOnline)
         {
-            if (status.VersionName is { Length: > 0 } version)
+            PlayersCountText.Inlines.Add(new System.Windows.Documents.Run(status.OnlinePlayers.ToString()));
+            PlayersCountText.Inlines.Add(new System.Windows.Documents.Run($"/{status.MaxPlayers}")
             {
-                details.Add(version);
-            }
-
-            if (status.ProtocolVersion is { } protocol)
-            {
-                details.Add($"protocole {protocol}");
-            }
+                FontSize = 16,
+                Foreground = Res("InkDimBrush"),
+            });
         }
-        else if (!string.IsNullOrEmpty(status.ErrorDetail))
+
+        Meta(LatencyText, "LATENCE ", status.IsOnline && status.LatencyMs is { } latency ? $"{latency} ms" : "—", null);
+        Meta(VersionText, "VERSION ", status.IsOnline ? status.VersionName ?? settings.MinecraftVersion : "—", null);
+
+        var expected = ServerStatusService.ExpectedProtocol(settings.MinecraftVersion);
+        var protocolOk = status.ProtocolVersion is { } protocol && expected == protocol;
+        Meta(
+            ProtocolText,
+            "PROTOCOLE ",
+            status.IsOnline && status.ProtocolVersion is { } value ? $"{value}{(protocolOk ? " ✓" : "")}" : "—",
+            protocolOk ? Res("CyanBrush") : null);
+
+        MotdText.Text = status.IsOnline && !string.IsNullOrWhiteSpace(status.Motd) ? status.Motd : "Pas de message du jour.";
+    }
+
+    /// <summary>« LATENCE <b>24 ms</b> » : libellé atténué, valeur en gras (couleur de l'encre ou d'accent).</summary>
+    private void Meta(TextBlock target, string label, string value, Brush? accent)
+    {
+        target.Inlines.Clear();
+        target.Inlines.Add(new System.Windows.Documents.Run(label));
+        target.Inlines.Add(new System.Windows.Documents.Run(value)
         {
-            details.Add(status.ErrorDetail);
-        }
-
-        DetailsText.Text = string.Join("  ·  ", details);
+            FontWeight = FontWeights.Bold,
+            Foreground = accent ?? Res("InkBrush"),
+        });
     }
 
     private void ShowAvailability(ServerHistory? history, DateTimeOffset now)
@@ -83,16 +110,16 @@ public partial class ServerPage : UserControl
         if (history is null || history.Samples.Count == 0)
         {
             AvailabilityBars.ItemsSource = null;
-            UptimeText.Text = "—";
+            OutageText.Text = "";
             HistoryUnavailableText.Visibility = Visibility.Visible;
             return;
         }
 
         HistoryUnavailableText.Visibility = Visibility.Collapsed;
-        var uptime = ServerHistoryAnalyzer.UptimeRatio(history, now);
-        UptimeText.Text = uptime is { } ratio ? $"{ratio * 100:0.#} %" : "—";
 
-        AvailabilityBars.ItemsSource = ServerHistoryAnalyzer.Hourly(history, now)
+        // 48 barres d'une demi-heure : hauteur proportionnelle à la disponibilité, cyan si complète,
+        // ambre si partielle, magenta et plate (4 px) pour une coupure franche.
+        AvailabilityBars.ItemsSource = ServerHistoryAnalyzer.Hourly(history, now, hours: 24, bucketsPerHour: 2)
             .Select(bucket => new AvailabilityBar(
                 bucket.UptimeRatio switch
                 {
@@ -101,10 +128,19 @@ public partial class ServerPage : UserControl
                     > 0 => Res("AmberBrush"),
                     _ => Res("MagentaBrush"),
                 },
-                bucket.UptimeRatio is { } r
-                    ? $"{bucket.Start.ToLocalTime():dd/MM HH:mm} · {r * 100:0} % disponible"
+                MinBarHeight + ((MaxBarHeight - MinBarHeight) * (bucket.UptimeRatio ?? 0)),
+                bucket.UptimeRatio is { } ratio
+                    ? $"{bucket.Start.ToLocalTime():dd/MM HH:mm} · {ratio * 100:0} % disponible"
                     : $"{bucket.Start.ToLocalTime():dd/MM HH:mm} · pas de données"))
             .ToList();
+
+        var outage = ServerHistoryAnalyzer.LastOutage(history, now);
+        OutageText.Text = outage switch
+        {
+            null => "",
+            { End: { } end } => $"coupure {outage.Start.ToLocalTime():HH:mm} → {end.ToLocalTime():HH:mm}",
+            _ => $"coupure depuis {outage.Start.ToLocalTime():HH:mm}",
+        };
     }
 
     private void ShowPlayers(ServerStatus? status, ServerHistory? history, DateTimeOffset now)
@@ -112,19 +148,18 @@ public partial class ServerPage : UserControl
         var rows = new List<PlayerRow>();
         if (history is { Samples.Count: > 0 })
         {
-            foreach (var presence in ServerHistoryAnalyzer.Presence(history, now))
-            {
-                rows.Add(presence.IsOnline
-                    ? new PlayerRow(presence.Name, $"connecté depuis {ServerHistoryAnalyzer.FormatDuration(now - presence.SessionStart)}", Res("CyanBrush"))
-                    : new PlayerRow(presence.Name, $"vu il y a {ServerHistoryAnalyzer.FormatDuration(now - presence.LastSeen)}", Res("InkDimBrush")));
-            }
+            rows.AddRange(ServerHistoryAnalyzer.Presence(history, now)
+                .Where(presence => presence.IsOnline)
+                .Select(presence => new PlayerRow(presence.Name, ServerHistoryAnalyzer.FormatDuration(now - presence.SessionStart))));
         }
-        else if (status is { IsOnline: true, PlayerNames: { Count: > 0 } names })
+
+        if (rows.Count == 0 && status is { IsOnline: true, PlayerNames: { Count: > 0 } names })
         {
-            rows.AddRange(names.Select(name => new PlayerRow(name, "connecté", Res("CyanBrush"))));
+            rows.AddRange(names.Select(name => new PlayerRow(name, "")));
         }
 
         PlayersList.ItemsSource = rows;
+        PlayersListCount.Text = status is { IsOnline: true } ? status.OnlinePlayers.ToString() : "";
         NoPlayersText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -132,9 +167,19 @@ public partial class ServerPage : UserControl
 
     private void NotifyCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        if (!_updatingCheckBox)
+        if (!_updating)
         {
             NotificationsToggled?.Invoke(this, NotifyCheckBox.IsChecked == true);
         }
     }
+
+    private void FriendCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_updating)
+        {
+            FriendNotificationsToggled?.Invoke(this, FriendCheckBox.IsChecked == true);
+        }
+    }
+
+    private void PlayButton_Click(object sender, RoutedEventArgs e) => PlayRequested?.Invoke(this, EventArgs.Empty);
 }

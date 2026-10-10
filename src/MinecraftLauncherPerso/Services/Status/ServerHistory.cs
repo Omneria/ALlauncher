@@ -37,6 +37,9 @@ public sealed record AvailabilityBucket(DateTimeOffset Start, double? UptimeRati
 /// <summary>Un joueur vu dans l'historique : en ligne depuis <see cref="SessionStart"/>, ou vu pour la dernière fois à <see cref="LastSeen"/>.</summary>
 public sealed record PlayerPresence(string Name, bool IsOnline, DateTimeOffset SessionStart, DateTimeOffset LastSeen);
 
+/// <summary>Coupure du serveur : <see cref="End"/> est null tant qu'elle dure.</summary>
+public sealed record ServerOutage(DateTimeOffset Start, DateTimeOffset? End);
+
 /// <summary>Calculs purs sur <see cref="ServerHistory"/>, séparés de l'interface pour être testés.</summary>
 public static class ServerHistoryAnalyzer
 {
@@ -46,14 +49,19 @@ public static class ServerHistoryAnalyzer
     /// <summary>Au-delà, l'historique est périmé (le script du VPS ne tourne plus) : personne n'est « en ligne ».</summary>
     private static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(5);
 
-    /// <summary>Une case par heure, de la plus ancienne à la plus récente (la dernière se termine à <paramref name="now"/>).</summary>
-    public static IReadOnlyList<AvailabilityBucket> Hourly(ServerHistory history, DateTimeOffset now, int hours = 24)
+    /// <summary>
+    /// Des cases de disponibilité, de la plus ancienne à la plus récente (la dernière se termine à
+    /// <paramref name="now"/>) : une par heure, ou davantage avec <paramref name="bucketsPerHour"/>.
+    /// </summary>
+    public static IReadOnlyList<AvailabilityBucket> Hourly(ServerHistory history, DateTimeOffset now, int hours = 24, int bucketsPerHour = 1)
     {
-        var buckets = new List<AvailabilityBucket>(hours);
-        for (var i = hours - 1; i >= 0; i--)
+        var count = hours * bucketsPerHour;
+        var width = TimeSpan.FromHours(1.0 / bucketsPerHour);
+        var buckets = new List<AvailabilityBucket>(count);
+        for (var i = count - 1; i >= 0; i--)
         {
-            var end = now - TimeSpan.FromHours(i);
-            var start = end - TimeSpan.FromHours(1);
+            var end = now - (width * i);
+            var start = end - width;
             var inside = history.Samples.Where(s => s.Time > start && s.Time <= end).ToList();
             buckets.Add(new AvailabilityBucket(start, inside.Count == 0 ? null : inside.Count(s => s.Online) / (double)inside.Count));
         }
@@ -106,6 +114,29 @@ public static class ServerHistoryAnalyzer
             .ThenBy(p => p.IsOnline ? p.SessionStart : DateTimeOffset.MaxValue)
             .ThenByDescending(p => p.LastSeen)
             .ToList();
+    }
+
+    /// <summary>La coupure la plus récente de la période (suite d'échantillons hors ligne), ou null s'il n'y en a pas.</summary>
+    public static ServerOutage? LastOutage(ServerHistory history, DateTimeOffset now, int hours = 24)
+    {
+        var since = now - TimeSpan.FromHours(hours);
+        var ordered = history.Samples.Where(s => s.Time > since && s.Time <= now).OrderBy(s => s.Time).ToList();
+        ServerOutage? last = null;
+        DateTimeOffset? start = null;
+        foreach (var sample in ordered)
+        {
+            if (!sample.Online)
+            {
+                start ??= sample.Time;
+            }
+            else if (start is { } began)
+            {
+                last = new ServerOutage(began, sample.Time);
+                start = null;
+            }
+        }
+
+        return start is { } ongoing ? new ServerOutage(ongoing, null) : last;
     }
 
     /// <summary>Durée lisible et courte : « 12 min », « 1 h 05 », « 3 h », « 2 j ».</summary>

@@ -7,10 +7,7 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Le lancement affiche ses étapes (Java, Forge, mods, connexion, jeu) avec celle qui est en cours, et un bouton RÉESSAYER si l'une d'elles échoue.
-- Les questions et les erreurs du launcher s'affichent dans la fenêtre au lieu d'ouvrir des boîtes Windows ; les informations (serveur de nouveau en ligne, connexion rétablie, lancement annulé) apparaissent en notification qui disparaît toute seule.
-- Textes secondaires plus lisibles.
-- Paramètres, journaux et mentions légales s'ouvrent dans la fenêtre du launcher au lieu de fenêtres séparées. Les paramètres sont rangés en JEU, LAUNCHER, MAINTENANCE et À PROPOS.
-- Nouvel accueil centré sur JOUER : grande carte serveur avec le bouton JOUER, et trois tuiles en dessous (actus, mises à jour du modpack, notes du launcher).
-- Nouvelle page SERVEUR : état du moment, disponibilité sur les dernières 24 h, joueurs connectés (depuis combien de temps) ou vus récemment, et réglage de la notification « serveur de nouveau en ligne ».
-- Le statut du serveur s'affiche de la même façon partout (accueil et page SERVEUR), avec l'alerte « version différente » si le serveur change de version de Minecraft.
+- Nouvelle interface : accueil centré sur JOUER avec trois tuiles (actus, modpack, launcher), et pages ACTUS, SERVEUR, PARAMÈTRES, journaux et mentions légales dans la même fenêtre.
+- Lancement : liste des étapes en direct, ANNULER, RÉESSAYER sur l'étape en échec ; notifications et dialogues intégrés au launcher.
+- Page SERVEUR : disponibilité des dernières 24 h, joueurs connectés et depuis combien de temps, prévenir quand le serveur revient en ligne ou quand un ami se connecte.
+- Nouveaux réglages : réduire le launcher pendant le jeu, sons, amis à surveiller. Serveur hors ligne : JOUER est grisé, LANCER QUAND MÊME reste possible.

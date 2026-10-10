@@ -53,4 +53,16 @@ public sealed class ServerStatusPresentationTests
 
         Assert.Equal(StatusKind.Online, ServerStatusPresentation.From(status, "1.21").Kind);
     }
+
+    [Fact]
+    public void La_compatibilite_est_annoncee_quand_le_protocole_correspond()
+    {
+        var compatible = ServerStatusPresentation.From(new ServerStatus(true, 1, 12, ProtocolVersion: 763), "1.20.1");
+        var different = ServerStatusPresentation.From(new ServerStatus(true, 1, 12, ProtocolVersion: 767, VersionName: "1.21"), "1.20.1");
+        var unknown = ServerStatusPresentation.From(new ServerStatus(true, 1, 12), "1.20.1");
+
+        Assert.Equal("1.20.1 · compatible", compatible.Compatibility);
+        Assert.Equal("1.21 · version différente", different.Compatibility);
+        Assert.Null(unknown.Compatibility);
+    }
 }

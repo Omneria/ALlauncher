@@ -111,4 +111,26 @@ public sealed class ServerHistoryAnalyzerTests
     {
         Assert.Equal(expected, ServerHistoryAnalyzer.FormatDuration(TimeSpan.FromSeconds(seconds)));
     }
+
+    [Fact]
+    public void La_derniere_coupure_va_du_premier_echantillon_hors_ligne_au_retour_en_ligne()
+    {
+        var history = History(Sample(30), Sample(20, online: false), Sample(19, online: false), Sample(18), Sample(5));
+
+        var outage = ServerHistoryAnalyzer.LastOutage(history, Now);
+
+        Assert.NotNull(outage);
+        Assert.Equal(Now.AddMinutes(-20), outage.Start);
+        Assert.Equal(Now.AddMinutes(-18), outage.End);
+    }
+
+    [Fact]
+    public void Une_coupure_en_cours_na_pas_de_fin_et_sans_coupure_rien_nest_renvoye()
+    {
+        var ongoing = ServerHistoryAnalyzer.LastOutage(History(Sample(10), Sample(2, online: false)), Now);
+
+        Assert.NotNull(ongoing);
+        Assert.Null(ongoing.End);
+        Assert.Null(ServerHistoryAnalyzer.LastOutage(History(Sample(10), Sample(2)), Now));
+    }
 }

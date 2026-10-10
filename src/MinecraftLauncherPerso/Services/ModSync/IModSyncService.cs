@@ -75,9 +75,16 @@ public interface IModSyncService
     /// </summary>
     Task<IReadOnlyList<ModpackChangelogEntry>> FetchChangelogAsync(string? manifestUrl, CancellationToken cancellationToken = default);
 
+    /// <summary>Nombre de mods (jars de mods/) listés par le manifest du modpack, ou null s'il est
+    /// indisponible (mode zip, VPS injoignable). Sert à la tuile MODPACK du hub.</summary>
+    Task<int?> FetchModCountAsync(string? manifestUrl, CancellationToken cancellationToken = default) => Task.FromResult<int?>(null);
+
     /// <summary>Vrai si une version précédente du modpack (mods/config) a été sauvegardée par un
     /// SyncAsync/RepairAsync antérieur et peut être restaurée via RollbackAsync.</summary>
     bool HasRollbackAvailable(string gameDirectory);
+
+    /// <summary>Date de la sauvegarde de la version précédente, ou null s'il n'y en a pas.</summary>
+    DateTimeOffset? GetRollbackDate(string gameDirectory) => null;
 
     /// <summary>
     /// Restaure la version de mods/config sauvegardée juste avant la dernière mise à jour

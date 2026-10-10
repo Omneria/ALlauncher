@@ -10,7 +10,7 @@ namespace MinecraftLauncherPerso.Services.Diagnostics;
 /// </summary>
 public static class CrashDiagnosisService
 {
-    public sealed record CrashDiagnosis(string Message, bool SuggestsRepair);
+    public sealed record CrashDiagnosis(string Message, bool SuggestsRepair, string Heading = "Le jeu s'est arrêté");
 
     /// <summary>
     /// Cherche parmi les dernières lignes de sortie du jeu (voir MainWindow, tampon borné alimenté
@@ -26,7 +26,7 @@ public static class CrashDiagnosisService
         {
             return new CrashDiagnosis(
                 "Le jeu a manqué de mémoire (OutOfMemoryError). Essayez d'augmenter la RAM maximum " +
-                "dans Paramètres.", SuggestsRepair: false);
+                "dans Paramètres.", SuggestsRepair: false, Heading: "Le jeu a manqué de mémoire");
         }
 
         if (lines.Any(l => l.Contains("UnsupportedClassVersionError", StringComparison.OrdinalIgnoreCase)
@@ -35,7 +35,8 @@ public static class CrashDiagnosisService
             return new CrashDiagnosis(
                 "Version de Java incompatible détectée. Ce modpack nécessite Java 17 — si une autre " +
                 "version est forcée via JAVA_HOME, elle peut prendre le pas sur le Java 17 du launcher.",
-                SuggestsRepair: false);
+                SuggestsRepair: false,
+                Heading: "Version de Java incompatible");
         }
 
         if (lines.Any(l => l.Contains("A fatal error has been detected by the Java Runtime Environment", StringComparison.OrdinalIgnoreCase))
@@ -44,7 +45,8 @@ public static class CrashDiagnosisService
             return new CrashDiagnosis(
                 "Crash natif détecté (bibliothèque native manquante ou corrompue, ex. LWJGL). Une " +
                 "réparation du modpack peut résoudre le problème si un fichier a été altéré.",
-                SuggestsRepair: true);
+                SuggestsRepair: true,
+                Heading: "Crash natif détecté");
         }
 
         if (lines.Any(l => l.Contains("Missing or unsupported mandatory dependencies", StringComparison.OrdinalIgnoreCase)
@@ -54,7 +56,8 @@ public static class CrashDiagnosisService
             return new CrashDiagnosis(
                 "Un ou plusieurs mods n'ont pas pu être chargés (fichier manquant ou corrompu). " +
                 "Une réparation du modpack (Paramètres) devrait résoudre le problème.",
-                SuggestsRepair: true);
+                SuggestsRepair: true,
+                Heading: "Un mod n'a pas pu être chargé");
         }
 
         if (lines.Any(l => l.Contains("ZipException", StringComparison.OrdinalIgnoreCase)
@@ -63,7 +66,8 @@ public static class CrashDiagnosisService
             return new CrashDiagnosis(
                 "Un fichier .jar semble corrompu (archive illisible). Une réparation du modpack " +
                 "(Paramètres) devrait le retélécharger proprement.",
-                SuggestsRepair: true);
+                SuggestsRepair: true,
+                Heading: "Un fichier du modpack est corrompu");
         }
 
         return null;

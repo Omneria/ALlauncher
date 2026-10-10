@@ -10,7 +10,7 @@ public enum StatusKind
 }
 
 /// <summary>Ce que l'interface affiche pour l'état du serveur : pastille, libellé et infobulle.</summary>
-public sealed record ServerStatusPresentation(StatusKind Kind, string Text, string? Tooltip)
+public sealed record ServerStatusPresentation(StatusKind Kind, string Text, string? Tooltip, string? Compatibility = null)
 {
     /// <summary>
     /// Version du serveur comparée à celle que le launcher installe (v1.12.0) : un serveur passé à
@@ -29,12 +29,14 @@ public sealed record ServerStatusPresentation(StatusKind Kind, string Text, stri
             return new ServerStatusPresentation(
                 StatusKind.Warning,
                 "EN LIGNE · VERSION DIFFÉRENTE",
-                $"Le serveur annonce {status.VersionName ?? "une autre version"} (protocole {status.ProtocolVersion}), le launcher installe Minecraft {minecraftVersion} : la connexion risque d'être refusée.");
+                $"Le serveur annonce {status.VersionName ?? "une autre version"} (protocole {status.ProtocolVersion}), le launcher installe Minecraft {minecraftVersion} : la connexion risque d'être refusée.",
+                $"{status.VersionName ?? "autre version"} · version différente");
         }
 
         return new ServerStatusPresentation(
             StatusKind.Online,
             status.LatencyMs is { } latency ? $"EN LIGNE · {latency} ms" : "EN LIGNE",
-            null);
+            null,
+            expectedProtocol is not null && status.ProtocolVersion == expectedProtocol ? $"{minecraftVersion} · compatible" : null);
     }
 }

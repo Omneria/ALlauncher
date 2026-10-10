@@ -186,9 +186,9 @@ public sealed class LauncherSettings
     /// WindowChrome) — sans ça, elle revenait systématiquement à sa taille par défaut au redémarrage
     /// malgré un redimensionnement manuel.
     /// </summary>
-    public double LauncherWindowWidth { get; set; } = 1240;
+    public double LauncherWindowWidth { get; set; } = 1280;
 
-    public double LauncherWindowHeight { get; set; } = 680;
+    public double LauncherWindowHeight { get; set; } = 720;
 
     /// <summary>Mode compact (v1.8.0, bouton "⤢" de la barre de titre) mémorisé entre deux lancements.</summary>
     public bool IsCompactMode { get; set; }
@@ -199,4 +199,21 @@ public sealed class LauncherSettings
     /// entièrement silencieux.
     /// </summary>
     public bool DesktopNotificationsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Réduit le launcher dans la barre des tâches pendant que le jeu tourne, et le rouvre à la
+    /// fermeture du jeu (v2.0.0, Paramètres > Launcher).
+    /// </summary>
+    public bool MinimizeWhileGameRuns { get; set; } = true;
+
+    /// <summary>Sons du launcher (mise à jour disponible, fin de synchro, plantage du jeu) — désactivés
+    /// par défaut (v2.0.0, Paramètres > Launcher).</summary>
+    public bool SoundsEnabled { get; set; }
+
+    /// <summary>Prévient (notification dans le launcher) quand un ami de <see cref="FriendNames"/> se
+    /// connecte au serveur (v2.0.0, page SERVEUR).</summary>
+    public bool NotifyFriendConnected { get; set; }
+
+    /// <summary>Pseudos Minecraft des amis à surveiller (Paramètres > Launcher, séparés par des virgules).</summary>
+    public List<string> FriendNames { get; set; } = [];
 }

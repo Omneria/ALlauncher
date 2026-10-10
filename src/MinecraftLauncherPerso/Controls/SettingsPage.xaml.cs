@@ -10,6 +10,7 @@ using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.ModSync;
+using MinecraftLauncherPerso.Services.Status;
 using MinecraftLauncherPerso.Services.Update;
 
 namespace MinecraftLauncherPerso.Controls;
@@ -38,6 +39,7 @@ public partial class SettingsPage : UserControl
     private double _ramCeilingMb = 16384;
     private double _minRamMb;
     private double _maxRamMb;
+    private int? _modCount;
 
     public SettingsPage()
     {
@@ -57,7 +59,7 @@ public partial class SettingsPage : UserControl
 
     /// <param name="packSettings">Réglages publiés par le pack (RAM conseillée et minimum), pour
     /// l'indication sous le réglage RAM. Null si inconnus (VPS injoignable, mode zip).</param>
-    public void Initialize(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings, SettingsSection section = SettingsSection.Game)
+    public void Initialize(LauncherSettings settings, IModSyncService modSyncService, ModpackPackSettings? packSettings, int? modCount = null, SettingsSection section = SettingsSection.Game)
     {
         _settings = settings;
         _modSyncService = modSyncService;
@@ -79,34 +81,94 @@ public partial class SettingsPage : UserControl
         SetFieldValid(ScreenHeightTextBox, true);
         GameDirectoryTextBox.Text = _settings.GameDirectory;
         DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
-        AboutVersionText.Text = $"LAUNCHER v{AppVersion.Display}";
+        MinimizeWhileGameCheckBox.IsChecked = _settings.MinimizeWhileGameRuns;
+        SoundsCheckBox.IsChecked = _settings.SoundsEnabled;
+        FriendsTextBox.Text = string.Join(", ", _settings.FriendNames);
+        AboutVersionText.Text = $"AL Launcher v{AppVersion.Display}";
+        AboutBuildText.Text = $"signé Omnéria · build {BuildDate():yyyy-MM-dd} · mises à jour automatiques activées";
+        RamRecommendationText.Text = $"Recommandé pour cette machine : {LauncherSettings.RecommendMaxRamMb(SystemInfo.GetTotalPhysicalMemoryMb())} Mo maximum. Au-delà de 75 % de la RAM totale, le launcher préviendra.";
+        _modCount = modCount;
         ValidationErrorText.Visibility = Visibility.Collapsed;
         RepairStatusText.Visibility = Visibility.Collapsed;
         RepairButton.IsEnabled = true;
         UpdateRollbackButtonState();
+        RefreshMaintenanceSummary();
         ShowRamPackHint(packSettings);
         UpdateRamRangeVisual();
         ShowSection(section);
     }
 
-    private void ShowSection(SettingsSection section)
+    /// <summary>Date de build : écriture de l'exécutable (la CI le produit à chaque build).</summary>
+    private static DateTime BuildDate()
     {
-        GameSection.Visibility = section == SettingsSection.Game ? Visibility.Visible : Visibility.Collapsed;
-        LauncherSection.Visibility = section == SettingsSection.Launcher ? Visibility.Visible : Visibility.Collapsed;
-        MaintenanceSection.Visibility = section == SettingsSection.Maintenance ? Visibility.Visible : Visibility.Collapsed;
-        AboutSection.Visibility = section == SettingsSection.About ? Visibility.Visible : Visibility.Collapsed;
-
-        MarkSubNav(SubNavGame, SubNavGameText, section == SettingsSection.Game);
-        MarkSubNav(SubNavLauncher, SubNavLauncherText, section == SettingsSection.Launcher);
-        MarkSubNav(SubNavMaintenance, SubNavMaintenanceText, section == SettingsSection.Maintenance);
-        MarkSubNav(SubNavAbout, SubNavAboutText, section == SettingsSection.About);
+        try
+        {
+            var path = Environment.ProcessPath;
+            return path is not null ? File.GetLastWriteTime(path) : DateTime.Now;
+        }
+        catch (IOException)
+        {
+            return DateTime.Now;
+        }
     }
 
-    private void MarkSubNav(Border item, TextBlock label, bool active)
+    /// <summary>« Dernière synchro il y a 2 h · 48 mods · sauvegarde de la version précédente disponible (il y a 3 j). »</summary>
+    private void RefreshMaintenanceSummary()
     {
-        item.BorderBrush = active ? (Brush)FindResource("CyanBrush") : Brushes.Transparent;
-        item.Background = active ? new SolidColorBrush(Color.FromArgb(0x12, 0x00, 0xE5, 0xC7)) : Brushes.Transparent;
-        label.Style = (Style)FindResource(active ? "NavItemActiveTextStyle" : "NavItemTextStyle");
+        var parts = new List<string>();
+        var lastSynced = ModSync.GetLastSyncedAt(_settings.GameDirectory);
+        parts.Add(lastSynced is null ? "Jamais synchronisé" : $"Dernière synchro {RelativeTime(lastSynced.Value)}");
+        if (_modCount is { } count)
+        {
+            parts.Add($"{count} mods");
+        }
+
+        if (ModSync.HasRollbackAvailable(_settings.GameDirectory))
+        {
+            var backupDate = ModSync.GetRollbackDate(_settings.GameDirectory);
+            parts.Add(backupDate is { } date
+                ? $"sauvegarde de la version précédente disponible ({RelativeTime(date)})"
+                : "sauvegarde de la version précédente disponible");
+        }
+
+        MaintenanceSummaryText.Text = string.Join(" · ", parts) + ".";
+    }
+
+    private static string RelativeTime(DateTimeOffset instant)
+    {
+        var elapsed = DateTimeOffset.Now - instant;
+        return elapsed < TimeSpan.FromMinutes(1) ? "à l'instant"
+            : elapsed < TimeSpan.FromHours(1) ? $"il y a {(int)elapsed.TotalMinutes} min"
+            : elapsed < TimeSpan.FromDays(1) ? $"il y a {(int)elapsed.TotalHours} h"
+            : $"il y a {(int)elapsed.TotalDays} j";
+    }
+
+    /// <summary>Met en avant la rubrique et fait défiler jusqu'à sa carte.</summary>
+    private void ShowSection(SettingsSection section)
+    {
+        SubNavGame.IsActive = section == SettingsSection.Game;
+        SubNavLauncher.IsActive = section == SettingsSection.Launcher;
+        SubNavMaintenance.IsActive = section == SettingsSection.Maintenance;
+        SubNavAbout.IsActive = section == SettingsSection.About;
+
+        FrameworkElement target = section switch
+        {
+            SettingsSection.Launcher => LauncherSection,
+            SettingsSection.Maintenance => MaintenanceSection,
+            SettingsSection.About => AboutSection,
+            _ => GameSection,
+        };
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (section == SettingsSection.Game)
+            {
+                Scroller.ScrollToTop();
+            }
+            else
+            {
+                target.BringIntoView();
+            }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private SettingsSection SectionOf(object sender) =>
@@ -115,16 +177,7 @@ public partial class SettingsPage : UserControl
         : ReferenceEquals(sender, SubNavAbout) ? SettingsSection.About
         : SettingsSection.Game;
 
-    private void SubNav_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ShowSection(SectionOf(sender));
-
-    private void SubNav_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Enter or Key.Space)
-        {
-            ShowSection(SectionOf(sender));
-            e.Handled = true;
-        }
-    }
+    private void SubNav_Click(object sender, RoutedEventArgs e) => ShowSection(SectionOf(sender));
 
     private void ShowRamPackHint(ModpackPackSettings? packSettings)
     {
@@ -146,7 +199,7 @@ public partial class SettingsPage : UserControl
             parts.Add($"minimum {minMb / 1024.0:0.#} Go");
         }
 
-        RamPackHintText.Text = $"Modpack : {string.Join(", ", parts)} (RAM max, poignée de droite). Ton PC : {_ramCeilingMb / 1024.0:0.#} Go.";
+        RamPackHintText.Text = $"Modpack : {string.Join(", ", parts)} (RAM max, poignée de droite).";
         RamPackHintText.Visibility = Visibility.Visible;
     }
 
@@ -192,7 +245,7 @@ public partial class SettingsPage : UserControl
         Canvas.SetLeft(RamRangeFill, minX + thumbCenter);
         RamRangeFill.Width = Math.Max(0, maxX - minX);
 
-        RamRangeValueText.Text = $"{(int)_minRamMb} – {(int)_maxRamMb} Mo";
+        RamRangeValueText.Text = $"{(int)_minRamMb} – {(int)_maxRamMb} Mo · {_ramCeilingMb / 1024.0:0.#} Go détectés";
     }
 
     // Empêche par construction RAM min > RAM max : une poignée ne peut pas dépasser l'autre,
@@ -265,6 +318,9 @@ public partial class SettingsPage : UserControl
         }
 
         _settings.DesktopNotificationsEnabled = DesktopNotificationsCheckBox.IsChecked == true;
+        _settings.MinimizeWhileGameRuns = MinimizeWhileGameCheckBox.IsChecked == true;
+        _settings.SoundsEnabled = SoundsCheckBox.IsChecked == true;
+        _settings.FriendNames = FriendWatcher.ParseNames(FriendsTextBox.Text);
 
         Closed?.Invoke(this, true);
     }
@@ -373,6 +429,7 @@ public partial class SettingsPage : UserControl
 
     private void UpdateRollbackButtonState()
     {
+        RefreshMaintenanceSummary();
         RollbackButton.IsEnabled = ModSync.HasRollbackAvailable(_settings.GameDirectory);
 
         // Retour en arrière toujours actif (v1.13.0) : dit pourquoi le modpack ne se met plus à

@@ -21,8 +21,18 @@ public enum DialogButtonStyle
 /// <summary>Un bouton du dialogue : son libellé, l'identifiant renvoyé à l'appelant et son style.</summary>
 public sealed record DialogButton(string Label, string Id, DialogButtonStyle Style = DialogButtonStyle.Secondary);
 
-/// <summary>Contenu d'un dialogue. <paramref name="CancelId"/> est renvoyé par la touche Échap.</summary>
-public sealed record DialogRequest(string Title, string Message, IReadOnlyList<DialogButton> Buttons, string CancelId);
+/// <summary>
+/// Contenu d'un dialogue : <paramref name="Title"/> est le titre (Display 18), <paramref name="Eyebrow"/>
+/// le sur-titre mono au-dessus (magenta si <paramref name="IsDanger"/>). <paramref name="CancelId"/>
+/// est renvoyé par la touche Échap.
+/// </summary>
+public sealed record DialogRequest(
+    string Title,
+    string Message,
+    IReadOnlyList<DialogButton> Buttons,
+    string CancelId,
+    string Eyebrow = "CONFIRMATION",
+    bool IsDanger = false);
 
 /// <summary>
 /// Dialogue modal intégré au launcher (v2.0.0). À utiliser sur le thread UI ; si un dialogue est
@@ -57,6 +67,8 @@ public partial class DialogHost : UserControl
             _pending = pending;
             _cancelId = request.CancelId;
 
+            EyebrowText.Text = request.Eyebrow;
+            EyebrowText.Foreground = (System.Windows.Media.Brush)FindResource(request.IsDanger ? "MagentaBrush" : "CyanBrush");
             TitleText.Text = request.Title;
             MessageText.Text = request.Message;
             AutomationProperties.SetName(Card, request.Title);
@@ -84,7 +96,7 @@ public partial class DialogHost : UserControl
     }
 
     /// <summary>Question à deux issues : vrai si le joueur confirme, faux s'il renonce (ou Échap).</summary>
-    public async Task<bool> ConfirmAsync(string title, string message, string confirmLabel, string cancelLabel = "ANNULER")
+    public async Task<bool> ConfirmAsync(string title, string message, string confirmLabel, string cancelLabel = "ANNULER", string eyebrow = "CONFIRMATION")
     {
         var choice = await ShowAsync(new DialogRequest(
             title,
@@ -93,17 +105,20 @@ public partial class DialogHost : UserControl
                 new DialogButton(confirmLabel, ConfirmId, DialogButtonStyle.Primary),
                 new DialogButton(cancelLabel, CancelId, DialogButtonStyle.Secondary),
             ],
-            CancelId));
+            CancelId,
+            eyebrow));
         return choice == ConfirmId;
     }
 
     /// <summary>Message à acquitter : un seul bouton.</summary>
-    public async Task AlertAsync(string title, string message, string okLabel = "OK") =>
+    public async Task AlertAsync(string title, string message, string okLabel = "OK", string eyebrow = "ATTENTION", bool isDanger = true) =>
         _ = await ShowAsync(new DialogRequest(
             title,
             message,
             [new DialogButton(okLabel, OkId, DialogButtonStyle.Primary)],
-            OkId));
+            OkId,
+            eyebrow,
+            isDanger));
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
@@ -128,10 +143,11 @@ public partial class DialogHost : UserControl
 
         foreach (var definition in buttons.OrderBy(button => button.Style == DialogButtonStyle.Primary ? 1 : 0))
         {
+            var primary = definition.Style == DialogButtonStyle.Primary;
             var button = new Button
             {
                 Content = definition.Label,
-                Margin = new Thickness(12, 0, 0, 0),
+                Margin = new Thickness(10, 0, 0, 0),
                 Style = (Style)FindResource(definition.Style switch
                 {
                     DialogButtonStyle.Primary => "PrimaryButtonStyle",
@@ -139,6 +155,19 @@ public partial class DialogHost : UserControl
                     _ => "OutlineButtonStyle",
                 }),
             };
+            if (primary)
+            {
+                // Maquette : principal 170x42 (texte 12), secondaire à filet (11, marges 16/10).
+                button.Width = 170;
+                button.Height = 42;
+                button.FontSize = 12;
+            }
+            else
+            {
+                button.Padding = new Thickness(16, 10, 16, 10);
+                button.FontSize = 11;
+            }
+
             button.Click += (_, _) => pending.TrySetResult(definition.Id);
             ButtonsPanel.Children.Add(button);
 

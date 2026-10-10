@@ -84,7 +84,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _playButtonWatchdog;
     private List<NewsHistoryEntry> _newsHistory = [];
     private bool _isCompactMode;
-    private double _normalWidth = 1240;
+    private double _normalWidth = 1280;
     private string? _connectedUuid;
     private readonly DispatcherTimer _avatarRefreshTimer;
 
@@ -251,8 +251,10 @@ public partial class MainWindow : Window
     {
         ServerNameText.Text = _settings.ServerName.ToUpperInvariant();
         // "-dev.<build>" sur un exe de test (v1.12.0), pour ne pas le confondre avec la release.
-        VersionText.Text = $"LAUNCHER v{AppVersion.Display}";
+        ConnectedPill.Set(StatusKind.Online, "CONNECTÉ");
+        LauncherTilePill.Set(StatusKind.Neutral, "v" + AppVersion.Display);
         RefreshLastSyncText();
+        _ = RunSafeAsync("Java", CheckJavaReadyAsync);
 
         // Assistant de premier lancement (v1.8.0) : seulement si settings.json n'existait pas
         // encore au tout début du constructeur (voir _isFirstLaunch) — après ce point, Load() l'a
@@ -317,12 +319,15 @@ public partial class MainWindow : Window
                 Logger.Warn("MainWindow", "Aucune connexion internet détectée.");
             }
 
+            if (!_isOffline)
+            {
+                Toasts.Show("Pas de connexion internet", "Le dernier état connu reste affiché", ToastKind.Error);
+            }
+
             _isOffline = true;
-            OfflineBanner.Visibility = Visibility.Visible;
             return;
         }
 
-        OfflineBanner.Visibility = Visibility.Collapsed;
         if (_isOffline)
         {
             _isOffline = false;
@@ -333,21 +338,6 @@ public partial class MainWindow : Window
     }
 
     private const string GitHubApiProbeUrl = "https://api.github.com/";
-
-    private async void OfflineRetryButton_Click(object sender, RoutedEventArgs e)
-    {
-        OfflineRetryButton.IsEnabled = false;
-        OfflineRetryButton.Content = "VÉRIFICATION...";
-        try
-        {
-            await RunSafeAsync("Connexion internet", RefreshConnectivityAsync);
-        }
-        finally
-        {
-            OfflineRetryButton.IsEnabled = true;
-            OfflineRetryButton.Content = "RÉESSAYER";
-        }
-    }
 
     /// <summary>
     /// Réaffiche automatiquement le profil connecté si une session Microsoft valide est déjà en
@@ -382,91 +372,6 @@ public partial class MainWindow : Window
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
-    }
-
-    private async Task ShowNewsAsync()
-    {
-        // La carte actus reste toujours visible (mise en page deux colonnes de la barre
-        // latérale) ; seul son contenu change. Historique (pas juste la dernière actu) : chaque
-        // contenu distinct observé est horodaté et conservé localement (NewsHistoryStore), puisque
-        // news.txt côté VPS ne garde lui-même aucun historique.
-        // Mises à jour du pack (changelog.json, v1.12.0) : tuile MODPACK du hub (v2.0.0, avant
-        // mêlées aux actus), pour que les joueurs voient ce qui arrive pendant le déploiement du
-        // pack en plusieurs salves sans qu'il faille l'annoncer à la main dans news.txt.
-        var newsTask = _newsService.FetchNewsAsync(_settings.ModpackZipUrl);
-        var changelogTask = _modSyncService.FetchChangelogAsync(_settings.ModpackManifestUrl);
-        var news = await newsTask;
-        var changelog = await changelogTask;
-        if (news is not null)
-        {
-            _newsHistory = _newsHistoryStore.RecordIfNew(_newsHistory, news);
-        }
-
-        var newsItems = _newsHistory
-            .OrderByDescending(entry => entry.FetchedAt)
-            .Take(MaxNewsItems)
-            .Select(entry => new NewsHistoryItem(FormatNewsDate(entry.FetchedAt), entry.Content))
-            .ToList();
-        var modpackItems = changelog
-            .OrderByDescending(entry => entry.Date)
-            .Take(MaxNewsItems)
-            .Select(entry => new NewsHistoryItem(FormatNewsDate(entry.Date), string.Join("\n", entry.Lines)))
-            .ToList();
-
-        NewsEmptyText.Visibility = newsItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        NewsHistoryList.ItemsSource = newsItems;
-        ModpackEmptyText.Visibility = modpackItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        ModpackList.ItemsSource = modpackItems;
-    }
-
-    private const int MaxNewsItems = 20;
-
-    private static string FormatNewsDate(DateTimeOffset date) => date.ToLocalTime().ToString("dd/MM HH:mm");
-
-    /// <summary>Vue d'affichage d'une actu (news.txt) ou d'une mise à jour du pack
-    /// (changelog.json), avec l'horodatage déjà mis en forme pour le binding XAML.</summary>
-    private sealed record NewsHistoryItem(string FetchedAtLabel, string Content);
-
-    private static readonly CultureInfo FrenchCulture = CultureInfo.GetCultureInfo("fr-FR");
-
-    /// <summary>
-    /// Changelog (releases GitHub du launcher, pas un fichier changelog.txt séparé côté VPS) : même
-    /// source et mêmes règles de nettoyage des notes que la carte "Changelog" de la landing page
-    /// (ReleaseChangelogService). Best-effort comme les actus : une requête échouée laisse le
-    /// dernier contenu affiché plutôt que de vider la carte.
-    /// </summary>
-    private async Task ShowChangelogAsync()
-    {
-        var releases = await _changelogService.GetRecentReleasesAsync(count: 4);
-        if (releases.Count == 0)
-        {
-            ChangelogEmptyText.Visibility = ChangelogList.ItemsSource is null ? Visibility.Visible : Visibility.Collapsed;
-            return;
-        }
-
-        ChangelogEmptyText.Visibility = Visibility.Collapsed;
-        ChangelogList.ItemsSource = releases
-            .Select(release => new ChangelogItem(
-                release.Tag,
-                release.Url,
-                release.PublishedAt.ToLocalTime().ToString("d MMMM yyyy", FrenchCulture),
-                release.IsLatest ? Visibility.Visible : Visibility.Collapsed,
-                release.Notes))
-            .ToList();
-    }
-
-    /// <summary>Vue d'affichage d'une ReleaseChangelogEntry pour le binding XAML. "VersionTag"
-    /// plutôt que "Tag" pour ne pas se confondre avec FrameworkElement.Tag, qui porte l'URL.</summary>
-    private sealed record ChangelogItem(string VersionTag, string Url, string DateLabel, Visibility LatestBadgeVisibility, IReadOnlyList<string> Notes);
-
-    /// <summary>Clic sur un numéro de version de la carte CHANGELOG : ouvre la release GitHub
-    /// correspondante (notes complètes, exe joint) dans le navigateur.</summary>
-    private void ChangelogVersion_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string url } && !string.IsNullOrEmpty(url))
-        {
-            OpenExternalUrl(url);
-        }
     }
 
     private void OpenExternalUrl(string url)
@@ -561,63 +466,6 @@ public partial class MainWindow : Window
         MaintenanceBanner.Visibility = Visibility.Visible;
     }
 
-    // ACTUS/SERVEUR n'ouvrent pas un écran séparé (tout est déjà visible sur ce tableau de bord
-    // à deux colonnes) : un clic fait juste pulser la carte correspondante pour donner un vrai
-    // effet à ces items de nav, au lieu de rester des libellés inertes.
-    private void ActusNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => FlashDashboardCard(NewsCardScale);
-
-    private void ServeurNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => OpenServerPage();
-
-    private void HubNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ShowPage(AppPage.Hub);
-
-    private void FlashDashboardCard(ScaleTransform scale)
-    {
-        ShowPage(AppPage.Hub);
-        FlashCard(scale);
-    }
-
-    // Active/Espace au clavier pour les items de nav (Border, pas Button : pas de KeyDown par
-    // défaut) — seule concession "accessibilité" ajoutée ici, le reste (lecteur d'écran, chrome
-    // de fenêtre natif) resterait un chantier bien plus large.
-    private void NavItem_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter && e.Key != Key.Space)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(sender, NavJouer))
-        {
-            ShowPage(AppPage.Hub);
-        }
-        else if (ReferenceEquals(sender, NavActus))
-        {
-            FlashDashboardCard(NewsCardScale);
-        }
-        else if (ReferenceEquals(sender, NavServeur))
-        {
-            OpenServerPage();
-        }
-        else if (ReferenceEquals(sender, NavParametres))
-        {
-            OpenSettings();
-        }
-    }
-
-    private static void FlashCard(ScaleTransform scale)
-    {
-        var pulse = new DoubleAnimation
-        {
-            From = 1.0,
-            To = 1.03,
-            Duration = TimeSpan.FromMilliseconds(160),
-            AutoReverse = true,
-            EasingFunction = new QuadraticEase(),
-        };
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
-    }
-
     /// <summary>Réglages publiés par le pack (RAM conseillée/minimum, Forge), lus au démarrage
     /// pour l'avertissement de RAM et l'indication des Paramètres. Null tant qu'inconnus.</summary>
     private ModpackPackSettings? _packSettings;
@@ -651,34 +499,52 @@ public partial class MainWindow : Window
             ? "Augmente la RAM dans Paramètres (poignée de droite du réglage RAM)."
             : $"Ton PC a {totalMb / 1024.0:0.#} Go de RAM : ferme les autres programmes (navigateur, Discord...) pendant la partie.";
         return await Dialogs.ConfirmAsync(
-            "RAM INSUFFISANTE POUR LE MODPACK",
+            "RAM insuffisante pour le modpack",
             $"Le modpack demande au moins {minRamMb / 1024.0:0.#} Go de RAM, le launcher est réglé sur {_settings.MaxRamMb / 1024.0:0.#} Go.\n\n{advice}\n\nLancer quand même ?",
-            "LANCER QUAND MÊME");
+            "LANCER QUAND MÊME",
+            eyebrow: "MÉMOIRE");
     }
+
+    /// <summary>
+    /// « Au-delà de 75 % de la RAM totale, le launcher préviendra » (Paramètres > Jeu) : un maximum
+    /// trop proche de la RAM physique fait swapper la machine. Une seule fois par session.
+    /// </summary>
+    private async Task<bool> ConfirmRamIsNotExcessiveAsync()
+    {
+        var totalMb = SystemInfo.GetTotalPhysicalMemoryMb();
+        if (_ramExcessWarningShown || totalMb is not > 0 || _settings.MaxRamMb <= totalMb.Value * 0.75)
+        {
+            return true;
+        }
+
+        _ramExcessWarningShown = true;
+        return await Dialogs.ConfirmAsync(
+            "RAM très élevée",
+            $"Le launcher est réglé sur {_settings.MaxRamMb / 1024.0:0.#} Go, soit plus de 75 % des {totalMb.Value / 1024.0:0.#} Go de ton PC. Windows et tes autres programmes risquent de manquer de mémoire (jeu saccadé, plantage).\n\nLancer quand même ?",
+            "LANCER QUAND MÊME",
+            eyebrow: "MÉMOIRE");
+    }
+
+    private bool _ramExcessWarningShown;
 
     private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!await ConfirmRamIsEnoughAsync())
+        if (!await ConfirmRamIsEnoughAsync() || !await ConfirmRamIsNotExcessiveAsync())
         {
             return;
         }
 
-        if (_lastServerStatus is { IsOnline: false } && !await Dialogs.ConfirmAsync(
-            "SERVEUR HORS LIGNE",
-            $"Le serveur {_settings.ServerName} semble hors ligne pour le moment. Lancer quand même le jeu ?",
-            "LANCER QUAND MÊME"))
-        {
-            return;
-        }
-
-        PlayButton.IsEnabled = false;
+        SetLaunching(true);
         ViewLogsButton.Visibility = Visibility.Collapsed;
-        RetryLaunchButton.Visibility = Visibility.Collapsed;
         LoadingSpinner.Visibility = Visibility.Collapsed;
+        LaunchTitleText.Text = "LANCEMENT";
+        CancelLaunchButton.Content = "ANNULER";
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = "";
-        LaunchSteps.Reset(LaunchStepStates.StepsFor(includeServerList: !string.IsNullOrWhiteSpace(_settings.ServerHost)));
+        _launchStepOrder = LaunchStepStates.StepsFor(includeServerList: !string.IsNullOrWhiteSpace(_settings.ServerHost)).ToList();
+        LaunchSteps.Reset(_launchStepOrder);
         LaunchSteps.Update(current: null, failed: null, detail: null);
+        LaunchCountText.Text = $"0 / {_launchStepOrder.Count} · 0 %";
         LaunchSteps.Visibility = Visibility.Visible;
         lock (_gameOutputLock)
         {
@@ -719,30 +585,31 @@ public partial class MainWindow : Window
         // Dispatcher au lieu d'un message par rapport : voir CoalescingProgress (gel du launcher
         // pendant les téléchargements, v1.11.0).
         LaunchStep? lastStep = null;
+        var stepFraction = 0.0;
         var launchProgress = new CoalescingProgress<LaunchProgress>(report =>
         {
-            // Changement d'étape : la barre repart de zéro (Java, Forge et la synchro ont chacun
-            // leur propre progression chiffrée ; auth et lancement n'en ont pas → indéterminée).
+            // Changement d'étape : la fraction repart de zéro (Java, Forge et la synchro ont chacun
+            // leur propre progression chiffrée ; auth et lancement n'en ont pas).
             if (report.Step != lastStep)
             {
                 lastStep = report.Step;
-                ProgressBar.Value = 0;
-                ProgressBar.IsIndeterminate = report.Step is LaunchStep.Auth or LaunchStep.ServerList or LaunchStep.Launch;
+                stepFraction = 0;
                 if (report.Step == LaunchStep.Auth)
                 {
                     // La synchro vient de se terminer : "dernière synchro" doit avancer.
                     RefreshLastSyncText();
+                    PlaySound(SystemSounds.Asterisk);
                 }
             }
 
             // Fraction déjà garantie finie et bornée par LaunchProgress (NaN = exception WPF).
             if (report.Fraction is { } fraction)
             {
-                ProgressBar.IsIndeterminate = false;
-                ProgressBar.Value = fraction * 100;
+                stepFraction = fraction;
             }
 
-            LaunchSteps.Update(report.Step, failed: null, report.Message);
+            ShowLaunchProgress(report.Step, stepFraction);
+            LaunchSteps.Update(report.Step, failed: null, report.Message, report.Fraction);
         });
         var progressTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(100) };
         progressTimer.Tick += (_, _) => launchProgress.Flush();
@@ -754,6 +621,7 @@ public partial class MainWindow : Window
         // message au thread UI pour chacune des milliers de lignes d'un démarrage moddé.
         var gameOutput = new SynchronousProgress<string>(BufferGameOutput);
 
+        var launchFailed = false;
         try
         {
             // Task.Run : le pipeline tourne entièrement hors du thread UI. Sans ça, chaque
@@ -770,8 +638,8 @@ public partial class MainWindow : Window
             progressTimer.Stop();
             launchProgress.Flush();
             _activeGame = result.Game;
+            MinimizeForGame();
 
-            ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 100;
             LoadingPanel.Visibility = Visibility.Collapsed;
             // Bouton laissé désactivé tant que cette partie tourne : le jeu n'empêche pas
@@ -787,7 +655,6 @@ public partial class MainWindow : Window
         {
             // Annulation demandée par le joueur : pas une erreur. Un téléchargement interrompu
             // reprend là où il en était au prochain clic (.part reprenable, manifest par fichier).
-            ProgressBar.IsIndeterminate = false;
             ProgressBar.Value = 0;
             AppendLog("Lancement annulé.");
             LoadingPanel.Visibility = Visibility.Collapsed;
@@ -795,7 +662,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ProgressBar.IsIndeterminate = false;
+            launchFailed = true;
             AppendLog($"Erreur : {ex.Message}");
             if (ex is LaunchStepException failure)
             {
@@ -803,7 +670,6 @@ public partial class MainWindow : Window
             }
 
             ShowLoadingError($"Erreur : {ex.Message}");
-            RetryLaunchButton.Visibility = Visibility.Visible;
         }
         finally
         {
@@ -815,25 +681,101 @@ public partial class MainWindow : Window
             launchCts.Dispose();
         }
 
-        PlayButton.IsEnabled = true;
+        // Après un échec, la liste reste affichée avec son lien RÉESSAYER ; FERMER la replie.
+        if (launchFailed)
+        {
+            CancelLaunchButton.Content = "FERMER";
+            CancelLaunchButton.IsEnabled = true;
+            CancelLaunchButton.Visibility = Visibility.Visible;
+        }
+
+        SetLaunching(false);
+    }
+
+    private bool _minimizedForGame;
+
+    /// <summary>Sons du launcher : désactivés par défaut (Paramètres > Launcher > Sons).</summary>
+    private void PlaySound(SystemSound sound)
+    {
+        if (_settings.SoundsEnabled)
+        {
+            sound.Play();
+        }
+    }
+
+    /// <summary>« Réduire le launcher pendant que le jeu tourne » (Paramètres > Launcher).</summary>
+    private void MinimizeForGame()
+    {
+        if (_settings.MinimizeWhileGameRuns && WindowState != WindowState.Minimized)
+        {
+            _minimizedForGame = true;
+            WindowState = WindowState.Minimized;
+        }
+    }
+
+    /// <summary>Rouvre le launcher à la fermeture du jeu s'il a été réduit pour lui (pas si le joueur l'avait réduit lui-même).</summary>
+    private void RestoreAfterGame()
+    {
+        if (_minimizedForGame)
+        {
+            _minimizedForGame = false;
+            WindowState = WindowState.Normal;
+            Activate();
+        }
+    }
+
+    private List<LaunchStep> _launchStepOrder = [];
+    private bool _launching;
+
+    /// <summary>Vrai du clic sur JOUER jusqu'à la fin de la partie (ou de l'échec).</summary>
+    private void SetLaunching(bool launching)
+    {
+        _launching = launching;
+        ApplyPlayAvailability();
+    }
+
+    /// <summary>
+    /// JOUER est désactivé pendant un lancement ou une partie, et tant que le serveur est
+    /// injoignable : LANCER QUAND MÊME prend alors le relais (maquette « hors ligne »).
+    /// </summary>
+    private void ApplyPlayAvailability()
+    {
+        var serverOffline = _lastServerStatus is { IsOnline: false };
+        PlayButton.IsEnabled = !_launching && !serverOffline;
+        LaunchAnywayButton.IsEnabled = !_launching;
+        LaunchAnywayButton.Visibility = serverOffline ? Visibility.Visible : Visibility.Collapsed;
+        HeroReadyMeta.Visibility = serverOffline ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>Progression globale « 3 / 6 · 42 % » : étapes terminées plus la part de l'étape en cours.</summary>
+    private void ShowLaunchProgress(LaunchStep step, double stepFraction)
+    {
+        var total = Math.Max(1, _launchStepOrder.Count);
+        var index = Math.Max(0, _launchStepOrder.IndexOf(step));
+        var overall = Math.Clamp((index + stepFraction) / total * 100, 0, 100);
+        ProgressBar.Value = overall;
+        LaunchCountText.Text = $"{index + 1} / {total} · {overall:0} %";
     }
 
     /// <summary>Bouton ANNULER du panneau de chargement : interrompt le pipeline de lancement à
     /// l'étape en cours (voir LaunchPipeline). Sans effet une fois le jeu démarré.</summary>
     private void CancelLaunchButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_launching && CancelLaunchButton.Content is "FERMER")
+        {
+            CancelLaunchButton.Visibility = Visibility.Collapsed;
+            LoadingPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         CancelLaunchButton.IsEnabled = false;
         AppendLog("Annulation en cours...");
         _launchCts?.Cancel();
     }
 
-    /// <summary>Bouton RÉESSAYER, affiché après un échec du lancement : relance le pipeline. Les
-    /// téléchargements déjà faits (Java, Forge, mods) ne sont pas refaits.</summary>
-    private void RetryLaunchButton_Click(object sender, RoutedEventArgs e)
-    {
-        RetryLaunchButton.Visibility = Visibility.Collapsed;
-        PlayButton_Click(sender, e);
-    }
+    /// <summary>Lien RÉESSAYER de l'étape en échec : relance le pipeline. Les téléchargements déjà
+    /// faits (Java, Forge, mods) ne sont pas refaits.</summary>
+    private void LaunchSteps_RetryRequested(object? sender, EventArgs e) => PlayButton_Click(sender ?? this, new RoutedEventArgs());
 
     /// <summary>
     /// Déclenché par IGameLauncher.GameExited, sur un thread d'arrière-plan (Process.Exited) :
@@ -846,13 +788,14 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             _playButtonWatchdog?.Stop();
-            PlayButton.IsEnabled = true;
+            SetLaunching(false);
+            RestoreAfterGame();
 
             if (exitCode != 0)
             {
                 AppendLog($"Le jeu s'est arrêté de façon inattendue (code {exitCode}).");
                 ViewLogsButton.Visibility = Visibility.Visible;
-                SystemSounds.Hand.Play();
+                PlaySound(SystemSounds.Hand);
                 _ = RunSafeAsync("Diagnostic du crash", ShowCrashDiagnosisIfAnyAsync);
             }
 
@@ -892,10 +835,12 @@ public partial class MainWindow : Window
             : new DialogButton("FERMER", DialogHost.OkId, DialogButtonStyle.Primary);
 
         var choice = await Dialogs.ShowAsync(new DialogRequest(
-            "LE JEU S'EST ARRÊTÉ",
+            diagnosis.Heading,
             message,
             [new DialogButton("VOIR LES LOGS", ViewLogsId), primary],
-            DialogHost.CancelId));
+            DialogHost.CancelId,
+            "LE JEU S'EST ARRÊTÉ",
+            IsDanger: true));
 
         if (choice == ViewLogsId)
         {
@@ -947,10 +892,10 @@ public partial class MainWindow : Window
         _playButtonWatchdog.Tick += (_, _) =>
         {
             _playButtonWatchdog!.Stop();
-            if (!PlayButton.IsEnabled)
+            if (_launching)
             {
                 AppendLog("Bouton JOUER réactivé automatiquement (sécurité : aucune détection de fermeture du jeu depuis 6h).");
-                PlayButton.IsEnabled = true;
+                SetLaunching(false);
             }
         };
         _playButtonWatchdog.Start();
@@ -977,7 +922,6 @@ public partial class MainWindow : Window
         {
             ServerStatusPill.Set(StatusKind.Neutral, "Non configuré");
             ServerCountText.Inlines.Clear();
-            ServerCountText.Inlines.Add(new Run("—"));
             return;
         }
 
@@ -998,33 +942,93 @@ public partial class MainWindow : Window
             }
         }
 
+        NotifyFriendsIfAny(status);
+
         var presentation = ServerStatusPresentation.From(status, _settings.MinecraftVersion);
         ServerStatusPill.Set(presentation);
-        var statusBrush = ServerStatusPill.Accent;
-
-        ServerMotdText.Text = status.IsOnline ? status.Motd ?? "" : "";
-        ServerMotdText.ToolTip = string.IsNullOrEmpty(ServerMotdText.Text) ? null : ServerMotdText.Text;
-        ServerMotdText.Visibility = string.IsNullOrEmpty(ServerMotdText.Text) ? Visibility.Collapsed : Visibility.Visible;
-
-        ServerCountText.Inlines.Clear();
-        if (status.IsOnline)
+        if (!status.IsOnline && _serverHistory is null)
         {
-            ServerCountText.Inlines.Add(new Run(status.OnlinePlayers.ToString()));
-            ServerCountText.Inlines.Add(new Run($"/{status.MaxPlayers}")
-            {
-                FontSize = 16,
-                Foreground = (Brush)FindResource("InkDimBrush"),
-            });
+            // Pour « dernier contact il y a... » quand le serveur est déjà hors ligne au démarrage.
+            _serverHistory = await _serverHistoryService.FetchAsync(_settings.ModpackManifestUrl);
         }
-        else
-        {
-            ServerCountText.Inlines.Add(new Run("—") { Foreground = statusBrush });
-        }
+
+        ShowHeroServerDetails(status, presentation);
+        ApplyPlayAvailability();
 
         if (ServerPageView.IsVisible)
         {
             await RefreshServerPageAsync();
         }
+    }
+
+    private IReadOnlyList<string>? _lastPlayerNames;
+
+    /// <summary>« Un ami se connecte » (page SERVEUR) : compare les pseudos de l'échantillon du ping à
+    /// ceux de la sonde précédente. Le serveur peut masquer ou tronquer l'échantillon : au mieux.</summary>
+    private void NotifyFriendsIfAny(ServerStatus status)
+    {
+        var current = status.IsOnline ? status.PlayerNames ?? [] : null;
+        if (_settings.NotifyFriendConnected)
+        {
+            foreach (var friend in FriendWatcher.NewlyConnected(_lastPlayerNames, current, _settings.FriendNames))
+            {
+                Toasts.Show($"{friend} est en ligne", $"Sur {_settings.ServerName}", ToastKind.Success);
+                if (_settings.DesktopNotificationsEnabled)
+                {
+                    DesktopNotificationService.Show(_settings.ServerName, $"{friend} vient de se connecter.");
+                }
+            }
+        }
+
+        // Serveur injoignable : on repart de zéro, ceux qui reviennent avec lui ne sont pas « nouveaux ».
+        _lastPlayerNames = current;
+    }
+
+    private DateTimeOffset? _lastServerContact;
+    private string? _lastMotd;
+
+    /// <summary>
+    /// Ligne d'infos de la carte héros : « 3/8 joueurs · 24 ms · 1.20.1 · compatible » en ligne,
+    /// « dernier contact il y a 12 min · timeout 8 s » hors ligne (maquettes « HUB »).
+    /// </summary>
+    private void ShowHeroServerDetails(ServerStatus status, ServerStatusPresentation presentation)
+    {
+        ServerCountText.Inlines.Clear();
+        if (status.IsOnline)
+        {
+            _lastServerContact = DateTimeOffset.Now;
+            _lastMotd = status.Motd;
+            ServerCountText.Inlines.Add(new Run(status.OnlinePlayers.ToString())
+            {
+                FontSize = 13,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)FindResource("InkBrush"),
+            });
+            ServerCountText.Inlines.Add(new Run($"/{status.MaxPlayers} joueurs"));
+
+            ServerLatencyText.Visibility = status.LatencyMs is null ? Visibility.Collapsed : Visibility.Visible;
+            ServerLatencyText.Text = status.LatencyMs is { } latency ? $"{latency} ms" : "";
+            ServerLatencyText.Foreground = (Brush)FindResource("InkDimBrush");
+
+            ServerCompatText.Visibility = presentation.Compatibility is null ? Visibility.Collapsed : Visibility.Visible;
+            ServerCompatText.Text = presentation.Compatibility ?? "";
+            ServerCompatText.Foreground = (Brush)FindResource(presentation.Kind == StatusKind.Warning ? "AmberBrush" : "CyanBrush");
+        }
+        else
+        {
+            var contact = _lastServerContact ?? _serverHistory?.Samples.Where(sample => sample.Online).Select(sample => (DateTimeOffset?)sample.Time).Max();
+            ServerCountText.Inlines.Add(new Run(contact is { } at ? $"dernier contact {FormatRelativeTime(at)}" : "aucun contact récent"));
+
+            ServerLatencyText.Visibility = Visibility.Visible;
+            ServerLatencyText.Text = status.ErrorDetail?.StartsWith("Timeout", StringComparison.OrdinalIgnoreCase) == true ? "timeout 8 s" : "injoignable";
+            ServerLatencyText.Foreground = (Brush)FindResource("InkDimBrush");
+            ServerCompatText.Visibility = Visibility.Collapsed;
+        }
+
+        var motd = status.IsOnline ? status.Motd : _lastMotd;
+        ServerMotdText.Text = string.IsNullOrWhiteSpace(motd) ? "" : $"« {motd} »";
+        ServerMotdText.ToolTip = string.IsNullOrEmpty(ServerMotdText.Text) ? null : ServerMotdText.Text;
+        ServerMotdText.Visibility = string.IsNullOrEmpty(ServerMotdText.Text) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async Task CheckForUpdateAsync()
@@ -1044,9 +1048,10 @@ public partial class MainWindow : Window
         }
 
         _pendingUpdate = update;
-        UpdateBannerButton.Content = $"MISE À JOUR {update.Version} DISPONIBLE";
+        UpdateBannerText.Text = $"MISE À JOUR {update.Version}";
         UpdateBannerButton.Visibility = Visibility.Visible;
-        SystemSounds.Asterisk.Play();
+        Toasts.Show($"Mise à jour {update.Version} disponible", "Cliquer pour installer et redémarrer", ToastKind.Warning, onClick: () => UpdateBannerButton_Click(this, new RoutedEventArgs()));
+        PlaySound(SystemSounds.Asterisk);
     }
 
     private async void UpdateBannerButton_Click(object sender, RoutedEventArgs e)
@@ -1061,16 +1066,17 @@ public partial class MainWindow : Window
         // AppendLog met bien à jour le texte du panneau de chargement, mais le panneau lui-même
         // restait masqué tant que PlayButton_Click ne l'avait pas explicitement affiché.
         LaunchSteps.Visibility = Visibility.Collapsed;
-        RetryLaunchButton.Visibility = Visibility.Collapsed;
+        LaunchTitleText.Text = "MISE À JOUR";
+        LaunchCountText.Text = "";
+        CancelLaunchButton.Visibility = Visibility.Collapsed;
         LoadingPanel.Visibility = Visibility.Visible;
-        ProgressBar.IsIndeterminate = true;
+        ProgressBar.Value = 0;
         try
         {
             await _updateService.ApplyUpdateAndRestartAsync(_pendingUpdate, new Progress<string>(AppendLog));
         }
         catch (Exception ex)
         {
-            ProgressBar.IsIndeterminate = false;
             AppendLog($"Échec de la mise à jour : {ex.Message}");
             ShowLoadingError($"Échec de la mise à jour : {ex.Message}");
             UpdateBannerButton.IsEnabled = true;
@@ -1095,7 +1101,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             LoginButton.IsEnabled = true;
-            await Dialogs.AlertAsync("CONNEXION MINECRAFT", $"Échec de la connexion : {ex.Message}");
+            await Dialogs.AlertAsync("Connexion impossible", $"Échec de la connexion : {ex.Message}", eyebrow: "CONNEXION MINECRAFT");
         }
     }
 
@@ -1199,7 +1205,7 @@ public partial class MainWindow : Window
         image.Freeze();
 
         PlayerAvatarImage.Source = image;
-        PlayerAvatarBorder.Visibility = Visibility.Visible;
+        PlayerAvatarImage.Visibility = Visibility.Visible;
         AvatarErrorHint.Visibility = Visibility.Collapsed;
     }
 
@@ -1210,111 +1216,6 @@ public partial class MainWindow : Window
     /// </summary>
     private void PlayerAvatarBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
         OpenExternalUrl(SkinEditorUrl);
-
-    private enum AppPage
-    {
-        Hub,
-        Server,
-        Settings,
-        Logs,
-        Legal,
-    }
-
-    private bool _pagesWired;
-
-    /// <summary>
-    /// Pages (v2.0.0) : Paramètres, Journaux et Mentions légales remplacent le tableau de bord dans
-    /// la même fenêtre (elles étaient auparavant trois fenêtres modales séparées).
-    /// </summary>
-    private void ShowPage(AppPage page)
-    {
-        var hub = page == AppPage.Hub;
-        HubPage.Visibility = hub ? Visibility.Visible : Visibility.Collapsed;
-        PageHost.Visibility = hub ? Visibility.Collapsed : Visibility.Visible;
-        ServerPageView.Visibility = page == AppPage.Server ? Visibility.Visible : Visibility.Collapsed;
-        SettingsPageView.Visibility = page == AppPage.Settings ? Visibility.Visible : Visibility.Collapsed;
-        LogsPageView.Visibility = page == AppPage.Logs ? Visibility.Visible : Visibility.Collapsed;
-        LegalPageView.Visibility = page == AppPage.Legal ? Visibility.Visible : Visibility.Collapsed;
-
-        MarkNavItem(NavJouer, NavJouerText, hub);
-        MarkNavItem(NavServeur, NavServeurText, page == AppPage.Server);
-        MarkNavItem(NavParametres, NavParametresText, page is AppPage.Settings or AppPage.Logs or AppPage.Legal);
-    }
-
-    private void MarkNavItem(Border item, TextBlock label, bool active)
-    {
-        item.BorderBrush = active ? (Brush)FindResource("CyanBrush") : Brushes.Transparent;
-        item.Background = active ? new SolidColorBrush(Color.FromArgb(0x12, 0x00, 0xE5, 0xC7)) : Brushes.Transparent;
-        label.Style = (Style)FindResource(active ? "NavItemActiveTextStyle" : "NavItemTextStyle");
-    }
-
-    private void WirePages()
-    {
-        if (_pagesWired)
-        {
-            return;
-        }
-
-        _pagesWired = true;
-        SettingsPageView.Closed += (_, saved) =>
-        {
-            if (saved)
-            {
-                _settingsManager.Save(_settings);
-            }
-
-            ShowPage(AppPage.Hub);
-        };
-        SettingsPageView.ViewLogsRequested += (_, _) =>
-        {
-            LogsPageView.Initialize(_settings.GameDirectory);
-            ShowPage(AppPage.Logs);
-        };
-        SettingsPageView.LegalRequested += (_, _) => ShowPage(AppPage.Legal);
-        LogsPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
-        LegalPageView.BackRequested += (_, _) => ShowPage(AppPage.Settings);
-    }
-
-    private readonly ServerHistoryService _serverHistoryService = new(SharedHttpClient.Instance);
-    private ServerHistory? _serverHistory;
-    private bool _serverPageWired;
-
-    private void OpenServerPage()
-    {
-        if (!_serverPageWired)
-        {
-            _serverPageWired = true;
-            ServerPageView.NotificationsToggled += (_, enabled) =>
-            {
-                _settings.DesktopNotificationsEnabled = enabled;
-                _settingsManager.Save(_settings);
-            };
-        }
-
-        ServerPageView.Update(_settings, _lastServerStatus, _serverHistory, DateTimeOffset.UtcNow);
-        ShowPage(AppPage.Server);
-        _ = RunSafeAsync("Page serveur", RefreshServerPageAsync);
-    }
-
-    private async Task RefreshServerPageAsync()
-    {
-        _serverHistory = await _serverHistoryService.FetchAsync(_settings.ModpackManifestUrl) ?? _serverHistory;
-        ServerPageView.Update(_settings, _lastServerStatus, _serverHistory, DateTimeOffset.UtcNow);
-    }
-
-    private void OpenSettings(SettingsSection section = SettingsSection.Game)
-    {
-        WirePages();
-        SettingsPageView.Initialize(_settings, _modSyncService, _packSettings, section);
-        ShowPage(AppPage.Settings);
-    }
-
-    private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
-
-    // Item "PARAMÈTRES" de la barre latérale : simple relais vers le même handler que l'icône ⚙
-    // de la barre de titre (MouseLeftButtonUp, pas Click, car ce n'est pas un Button mais un
-    // Border cliquable comme les autres items de nav).
-    private void ParametresNavItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => OpenSettings();
 
     // Fenêtre sans chrome Windows (WindowStyle="None") : on réimplémente le déplacement et les
     // boutons réduire/fermer nous-mêmes.
@@ -1349,12 +1250,13 @@ public partial class MainWindow : Window
         _isCompactMode = compact;
         TilesGrid.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         HeroCrest.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        HeroCrestColumn.Width = compact ? new GridLength(0) : GridLength.Auto;
-        HeroCrestGap.Width = compact ? new GridLength(0) : new GridLength(24);
-        Grid.SetRow(HeroPlayBlock, compact ? 1 : 0);
-        Grid.SetColumn(HeroPlayBlock, compact ? 0 : 2);
-        Grid.SetColumnSpan(HeroPlayBlock, compact ? 5 : 1);
-        HeroPlayBlock.Margin = compact ? new Thickness(0, 16, 0, 0) : new Thickness(0);
+        HeroInfo.Margin = new Thickness(0);
+        Grid.SetRow(HeroAction, compact ? 1 : 0);
+        Grid.SetColumn(HeroAction, compact ? 0 : 2);
+        Grid.SetColumnSpan(HeroAction, compact ? 3 : 1);
+        HeroAction.Margin = compact ? new Thickness(0, 18, 0, 0) : new Thickness(28, 0, 0, 0);
+        HeroAction.HorizontalAlignment = compact ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+        LoadingPanel.Width = compact ? double.NaN : 380;
         Width = compact ? Math.Max(MinWidth, 640) : _normalWidth;
     }
 
@@ -1373,6 +1275,7 @@ public partial class MainWindow : Window
         LoadingSpinner.Visibility = LaunchSteps.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         LoadingStatusText.Foreground = (Brush)FindResource("InkDimBrush");
         LoadingStatusText.Text = message;
+        LoadingStatusText.Visibility = Visibility.Visible;
     }
 
     /// <summary>Indicateur visible ("dernière synchro : il y a...") lu depuis le cache local du
@@ -1380,9 +1283,11 @@ public partial class MainWindow : Window
     private void RefreshLastSyncText()
     {
         var lastSyncedAt = _modSyncService.GetLastSyncedAt(_settings.GameDirectory);
-        LastSyncText.Text = lastSyncedAt is null
-            ? "SYNCHRO : JAMAIS"
-            : $"SYNCHRO : {FormatRelativeTime(lastSyncedAt.Value).ToUpperInvariant()}";
+        // "-dev.<build>" sur un exe de test (v1.12.0), pour ne pas le confondre avec la release.
+        VersionText.Text = lastSyncedAt is null
+            ? $"v{AppVersion.Display} · JAMAIS SYNCHRONISÉ"
+            : $"v{AppVersion.Display} · SYNCHRO {FormatRelativeTime(lastSyncedAt.Value).ToUpperInvariant()}";
+        RefreshHeroMeta();
     }
 
     private static string FormatRelativeTime(DateTimeOffset instant)
@@ -1412,5 +1317,6 @@ public partial class MainWindow : Window
         LoadingSpinner.Visibility = Visibility.Collapsed;
         LoadingStatusText.Foreground = (Brush)FindResource("MagentaBrush");
         LoadingStatusText.Text = message;
+        LoadingStatusText.Visibility = Visibility.Visible;
     }
 }

@@ -6,18 +6,35 @@
          tout le launcher, une carte centrée au style de la charte, des boutons à la demande.
          Piloté par ShowAsync / ConfirmAsync / AlertAsync (DialogHost.xaml.cs). -->
     <Grid Background="#CC06080F">
-        <Border x:Name="Card" MinWidth="360" MaxWidth="500" Margin="24" Padding="26,22"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource CyanBrush}"
-                BorderThickness="1.5">
+        <!-- Maquette « dialogue intégré » : 440 px, filet de dégradé en tête, eyebrow + titre +
+             message, puis un pied bordé qui porte les boutons. -->
+        <Border x:Name="Card" Width="440" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" BlurRadius="64" ShadowDepth="24" Direction="270" Opacity="0.6" />
+            </Border.Effect>
             <StackPanel>
-                <TextBlock x:Name="TitleText" Style="{StaticResource EyebrowTextStyle}" TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="19"
-                           FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
-                           Foreground="{StaticResource Ink2Brush}" />
-                <StackPanel x:Name="ButtonsPanel" Orientation="Horizontal" HorizontalAlignment="Right"
-                            Margin="0,22,0,0" />
+                <Rectangle Height="2">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="{StaticResource ColorCyan}" Offset="0" />
+                            <GradientStop Color="{StaticResource ColorViolet}" Offset="0.5" />
+                            <GradientStop Color="{StaticResource ColorMagenta}" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <StackPanel Margin="24,22">
+                    <TextBlock x:Name="EyebrowText" Style="{StaticResource EyebrowTextStyle}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="TitleText" Style="{StaticResource DisplayHeadingStyle}" TextWrapping="Wrap"
+                               Margin="0,10,0,0" />
+                    <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="19" Margin="0,10,0,0"
+                               FontFamily="{StaticResource BodyFontFamily}" FontSize="13"
+                               Foreground="{StaticResource Ink2Brush}" />
+                </StackPanel>
+                <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,14,24,20">
+                    <StackPanel x:Name="ButtonsPanel" Orientation="Horizontal" HorizontalAlignment="Right" />
+                </Border>
             </StackPanel>
         </Border>
     </Grid>
