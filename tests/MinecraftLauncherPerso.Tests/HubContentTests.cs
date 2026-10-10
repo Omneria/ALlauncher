@@ -1,4 +1,4 @@
-using MinecraftLauncherPerso.Controls;
+using MinecraftLauncherPerso.ViewModels;
 using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.ModSync;
 using Xunit;
@@ -41,21 +41,21 @@ public sealed class HubContentTests
     [Fact]
     public void La_premiere_ligne_dune_actu_est_son_titre()
     {
-        Assert.Equal(("Event PvE samedi", "RDV au spawn à 21h."), MainWindow.SplitNews("Event PvE samedi\n\nRDV au spawn\nà 21h."));
-        Assert.Equal(("", "Maintenance ce soir"), MainWindow.SplitNews("Maintenance ce soir"));
-        Assert.Equal(("", ""), MainWindow.SplitNews("  \n "));
+        Assert.Equal(("Event PvE samedi", "RDV au spawn à 21h."), TilesViewModel.SplitNews("Event PvE samedi\n\nRDV au spawn\nà 21h."));
+        Assert.Equal(("", "Maintenance ce soir"), TilesViewModel.SplitNews("Maintenance ce soir"));
+        Assert.Equal(("", ""), TilesViewModel.SplitNews("  \n "));
     }
 
     [Fact]
     public void Une_etape_terminee_garde_un_resume_court()
     {
-        Assert.Equal("prêt", StepList.DoneSummary(LaunchStep.Java, "Java 17 prêt : C:\\java", out var javaLabel));
+        Assert.Equal("prêt", LaunchViewModel.DoneSummary(LaunchStep.Java, "Java 17 prêt : C:\\java", out var javaLabel));
         Assert.Null(javaLabel);
 
-        Assert.Equal("prêt", StepList.DoneSummary(LaunchStep.Forge, "Forge prêt : 1.20.1-forge-47.3.0", out var forgeLabel));
+        Assert.Equal("prêt", LaunchViewModel.DoneSummary(LaunchStep.Forge, "Forge prêt : 1.20.1-forge-47.3.0", out var forgeLabel));
         Assert.Equal("Forge 47.3.0", forgeLabel);
 
-        Assert.Equal("Dro0id", StepList.DoneSummary(LaunchStep.Auth, "Connecté en tant que Dro0id.", out _));
-        Assert.Equal("terminé", StepList.DoneSummary(LaunchStep.ModSync, "Téléchargement du modpack...", out _));
+        Assert.Equal("Dro0id", LaunchViewModel.DoneSummary(LaunchStep.Auth, "Connecté en tant que Dro0id.", out _));
+        Assert.Equal("terminé", LaunchViewModel.DoneSummary(LaunchStep.ModSync, "Téléchargement du modpack...", out _));
     }
 }

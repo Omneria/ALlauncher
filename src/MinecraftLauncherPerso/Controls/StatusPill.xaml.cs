@@ -11,6 +11,15 @@ public partial class StatusPill : UserControl
     public static readonly DependencyProperty CompactProperty = DependencyProperty.Register(
         nameof(Compact), typeof(bool), typeof(StatusPill), new PropertyMetadata(false, (d, _) => ((StatusPill)d).ApplySize()));
 
+    public static readonly DependencyProperty KindProperty = DependencyProperty.Register(
+        nameof(Kind), typeof(StatusKind), typeof(StatusPill), new PropertyMetadata(StatusKind.Neutral, (d, _) => ((StatusPill)d).Refresh()));
+
+    public static readonly DependencyProperty LabelTextProperty = DependencyProperty.Register(
+        nameof(LabelText), typeof(string), typeof(StatusPill), new PropertyMetadata("Vérification...", (d, _) => ((StatusPill)d).Refresh()));
+
+    public static readonly DependencyProperty HintProperty = DependencyProperty.Register(
+        nameof(Hint), typeof(string), typeof(StatusPill), new PropertyMetadata(null, (d, _) => ((StatusPill)d).Refresh()));
+
     public StatusPill()
     {
         InitializeComponent();
@@ -23,6 +32,29 @@ public partial class StatusPill : UserControl
         get => (bool)GetValue(CompactProperty);
         set => SetValue(CompactProperty, value);
     }
+
+    /// <summary>État affiché (liaison de données) : couleur du point, du texte et du filet.</summary>
+    public StatusKind Kind
+    {
+        get => (StatusKind)GetValue(KindProperty);
+        set => SetValue(KindProperty, value);
+    }
+
+    /// <summary>Libellé affiché (liaison de données).</summary>
+    public string LabelText
+    {
+        get => (string)GetValue(LabelTextProperty);
+        set => SetValue(LabelTextProperty, value);
+    }
+
+    /// <summary>Infobulle (liaison de données), null pour aucune.</summary>
+    public string? Hint
+    {
+        get => (string?)GetValue(HintProperty);
+        set => SetValue(HintProperty, value);
+    }
+
+    private void Refresh() => Set(Kind, LabelText, Hint);
 
     /// <summary>Couleur d'accent de l'état affiché (aussi utilisée pour les valeurs voisines).</summary>
     public Brush Accent { get; private set; } = Brushes.Gray;
