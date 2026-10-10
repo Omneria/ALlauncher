@@ -7,6 +7,5 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Les libellés (titres, boutons, pastilles) ont maintenant l'espacement de lettres de la maquette.
-- Page SERVEUR : la tête de chaque joueur connecté s'affiche à côté de son pseudo.
-- Interface plus fiable : l'accueil, le lancement, la page SERVEUR et les Paramètres sont désormais vérifiés par des tests automatiques.
+- Paramètres > À PROPOS : nouveau bouton « Rechercher une mise à jour » qui vérifie tout de suite si une nouvelle version existe et l'indique.
+- La recherche de mise à jour laisse maintenant une trace claire dans les journaux, pour comprendre pourquoi une version n'est pas proposée.

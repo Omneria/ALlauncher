@@ -186,8 +186,12 @@
                                     <TextBlock x:Name="AboutVersionText" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" />
                                     <TextBlock x:Name="AboutBuildText" Style="{StaticResource MetaTextStyle}" Margin="0,4,0,0" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <Button Grid.Column="1" Content="MENTIONS LÉGALES" Style="{StaticResource OutlineButtonStyle}"
-                                        Padding="14,9" FontSize="11" Margin="16,0,0,0" Click="LegalButton_Click" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="RECHERCHER UNE MISE À JOUR" Style="{StaticResource OutlineButtonStyle}"
+                                            Padding="14,9" FontSize="11" Margin="16,0,0,0" Click="CheckUpdateButton_Click" />
+                                    <Button Content="MENTIONS LÉGALES" Style="{StaticResource OutlineButtonStyle}"
+                                            Padding="14,9" FontSize="11" Margin="8,0,0,0" Click="LegalButton_Click" />
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
