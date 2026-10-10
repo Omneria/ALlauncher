@@ -494,11 +494,11 @@
 
                 <!-- Pages (v2.0.0) : elles remplacent le hub dans la même fenêtre (voir ShowPage). -->
                 <Grid x:Name="PageHost" Margin="26,12,26,24" Visibility="{Binding IsNotHubPage, Converter={StaticResource BoolToVisibility}}">
-                    <controls:ActusPage x:Name="ActusPageView" Visibility="{Binding IsActusPage, Converter={StaticResource BoolToVisibility}}" />
-                    <controls:ServerPage x:Name="ServerPageView" Visibility="{Binding IsServerPage, Converter={StaticResource BoolToVisibility}}" />
-                    <controls:SettingsPage x:Name="SettingsPageView" Visibility="{Binding IsSettingsPage, Converter={StaticResource BoolToVisibility}}" />
-                    <controls:LogsPage x:Name="LogsPageView" Visibility="{Binding IsLogsPage, Converter={StaticResource BoolToVisibility}}" />
-                    <controls:LegalPage x:Name="LegalPageView" Visibility="{Binding IsLegalPage, Converter={StaticResource BoolToVisibility}}" />
+                    <Grid Visibility="{Binding IsActusPage, Converter={StaticResource BoolToVisibility}}"><controls:ActusPage x:Name="ActusPageView" /></Grid>
+                    <Grid Visibility="{Binding IsServerPage, Converter={StaticResource BoolToVisibility}}"><controls:ServerPage x:Name="ServerPageView" /></Grid>
+                    <Grid Visibility="{Binding IsSettingsPage, Converter={StaticResource BoolToVisibility}}"><controls:SettingsPage x:Name="SettingsPageView" /></Grid>
+                    <Grid Visibility="{Binding IsLogsPage, Converter={StaticResource BoolToVisibility}}"><controls:LogsPage x:Name="LogsPageView" /></Grid>
+                    <Grid Visibility="{Binding IsLegalPage, Converter={StaticResource BoolToVisibility}}"><controls:LegalPage x:Name="LegalPageView" /></Grid>
                 </Grid>
             </Grid>
         </Grid>

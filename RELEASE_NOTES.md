@@ -7,5 +7,4 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Paramètres > À PROPOS : nouveau bouton « Rechercher une mise à jour » qui vérifie tout de suite si une nouvelle version existe et l'indique.
-- La recherche de mise à jour laisse maintenant une trace claire dans les journaux, pour comprendre pourquoi une version n'est pas proposée.
+- Correction : en quittant le hub (Actus, Serveur, Paramètres…), les pages ne s'affichent plus les unes sur les autres.
