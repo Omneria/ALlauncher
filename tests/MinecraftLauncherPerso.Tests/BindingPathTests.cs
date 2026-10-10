@@ -84,6 +84,34 @@ public sealed partial class BindingPathTests
     }
 
     [Fact]
+    public void Les_liaisons_de_la_page_serveur_pointent_vers_son_view_model()
+    {
+        var xaml = File.ReadAllText(XamlPath(Path.Combine("Controls", "ServerPage.xaml")));
+        var unresolved = BindingPattern().Matches(xaml)
+            .Select(match => match.Groups["path"].Value)
+            .Where(path => !Resolves(typeof(ServerPageViewModel), path)
+                && !Resolves(typeof(PlayerRowViewModel), path)
+                && !Resolves(typeof(AvailabilityBar), path))
+            .Distinct()
+            .ToList();
+
+        Assert.True(unresolved.Count == 0, "Liaisons sans propriété correspondante : " + string.Join(", ", unresolved));
+    }
+
+    [Fact]
+    public void Les_liaisons_de_la_page_parametres_pointent_vers_son_view_model()
+    {
+        var xaml = File.ReadAllText(XamlPath(Path.Combine("Controls", "SettingsPage.xaml")));
+        var unresolved = BindingPattern().Matches(xaml)
+            .Select(match => match.Groups["path"].Value)
+            .Where(path => !Resolves(typeof(SettingsViewModel), path))
+            .Distinct()
+            .ToList();
+
+        Assert.True(unresolved.Count == 0, "Liaisons sans propriété correspondante : " + string.Join(", ", unresolved));
+    }
+
+    [Fact]
     public void Le_nombre_de_liaisons_verifiees_nest_pas_nul()
     {
         // Évite qu'une regex cassée rende les tests ci-dessus vides de sens.

@@ -10,7 +10,7 @@ using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Diagnostics;
 using MinecraftLauncherPerso.Services.Hardware;
 using MinecraftLauncherPerso.Services.ModSync;
-using MinecraftLauncherPerso.Services.Status;
+using MinecraftLauncherPerso.ViewModels;
 using MinecraftLauncherPerso.Services.Update;
 
 namespace MinecraftLauncherPerso.Controls;
@@ -41,9 +41,12 @@ public partial class SettingsPage : UserControl
     private double _maxRamMb;
     private int? _modCount;
 
+    private readonly SettingsViewModel _vm = new();
+
     public SettingsPage()
     {
         InitializeComponent();
+        DataContext = _vm;
     }
 
     /// <summary>Fermeture de la page ; le paramètre vaut true si l'utilisateur a enregistré.</summary>
@@ -75,20 +78,11 @@ public partial class SettingsPage : UserControl
         _minRamMb = Math.Clamp(_settings.MinRamMb, _ramFloorMb, _ramCeilingMb);
         _maxRamMb = Math.Clamp(_settings.MaxRamMb, _ramFloorMb, _ramCeilingMb);
 
-        ScreenWidthTextBox.Text = _settings.ScreenWidth.ToString();
-        ScreenHeightTextBox.Text = _settings.ScreenHeight.ToString();
-        SetFieldValid(ScreenWidthTextBox, true);
-        SetFieldValid(ScreenHeightTextBox, true);
-        GameDirectoryTextBox.Text = _settings.GameDirectory;
-        DesktopNotificationsCheckBox.IsChecked = _settings.DesktopNotificationsEnabled;
-        MinimizeWhileGameCheckBox.IsChecked = _settings.MinimizeWhileGameRuns;
-        SoundsCheckBox.IsChecked = _settings.SoundsEnabled;
-        FriendsTextBox.Text = string.Join(", ", _settings.FriendNames);
+        _vm.Load(_settings);
         AboutVersionText.Text = $"Omnéria Games Launcher v{AppVersion.Display}";
         AboutBuildText.Text = $"signé Omnéria · build {BuildDate():yyyy-MM-dd} · mises à jour automatiques activées";
         RamRecommendationText.Text = $"Recommandé pour cette machine : {LauncherSettings.RecommendMaxRamMb(SystemInfo.GetTotalPhysicalMemoryMb())} Mo maximum. Au-delà de 75 % de la RAM totale, le launcher préviendra.";
         _modCount = modCount;
-        ValidationErrorText.Visibility = Visibility.Collapsed;
         RepairStatusText.Visibility = Visibility.Collapsed;
         RepairButton.IsEnabled = true;
         UpdateRollbackButtonState();
@@ -269,72 +263,27 @@ public partial class SettingsPage : UserControl
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            InitialDirectory = GameDirectoryTextBox.Text,
+            InitialDirectory = _vm.GameDirectory,
         };
 
         if (dialog.ShowDialog(Window.GetWindow(this)) == true)
         {
-            GameDirectoryTextBox.Text = dialog.FolderName;
+            _vm.GameDirectory = dialog.FolderName;
         }
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        // RAM min/max n'a pas besoin d'être validée ici : le slider double poignée l'empêche déjà
-        // par construction, contrairement aux champs texte libres ci-dessous.
-        ValidationErrorText.Visibility = Visibility.Collapsed;
-        var errors = new List<string>();
-
-        var widthValid = int.TryParse(ScreenWidthTextBox.Text, out var width) && width >= 0;
-        SetFieldValid(ScreenWidthTextBox, widthValid);
-        if (!widthValid)
-        {
-            errors.Add("Largeur : entier positif ou 0 (automatique) attendu.");
-        }
-
-        var heightValid = int.TryParse(ScreenHeightTextBox.Text, out var height) && height >= 0;
-        SetFieldValid(ScreenHeightTextBox, heightValid);
-        if (!heightValid)
-        {
-            errors.Add("Hauteur : entier positif ou 0 (automatique) attendu.");
-        }
-
-        if (errors.Count > 0)
+        // RAM min/max n'a pas besoin d'être validée ici : le slider double poignée l'empêche déjà par
+        // construction. La saisie libre (résolution) est validée par le view-model, qui dit pourquoi
+        // rien n'est enregistré.
+        if (!_vm.TryApply(_settings, (int)_minRamMb, (int)_maxRamMb))
         {
             ShowSection(SettingsSection.Game);
-            ValidationErrorText.Text = string.Join(" ", errors);
-            ValidationErrorText.Visibility = Visibility.Visible;
             return;
         }
 
-        _settings.MinRamMb = (int)_minRamMb;
-        _settings.MaxRamMb = (int)_maxRamMb;
-        _settings.ScreenWidth = width;
-        _settings.ScreenHeight = height;
-
-        if (!string.IsNullOrWhiteSpace(GameDirectoryTextBox.Text))
-        {
-            _settings.GameDirectory = GameDirectoryTextBox.Text;
-        }
-
-        _settings.DesktopNotificationsEnabled = DesktopNotificationsCheckBox.IsChecked == true;
-        _settings.MinimizeWhileGameRuns = MinimizeWhileGameCheckBox.IsChecked == true;
-        _settings.SoundsEnabled = SoundsCheckBox.IsChecked == true;
-        _settings.FriendNames = FriendWatcher.ParseNames(FriendsTextBox.Text);
-
         Closed?.Invoke(this, true);
-    }
-
-    private void SetFieldValid(TextBox box, bool valid)
-    {
-        if (valid)
-        {
-            box.ClearValue(TextBox.BorderBrushProperty);
-        }
-        else
-        {
-            box.BorderBrush = (Brush)FindResource("MagentaBrush");
-        }
     }
 
     /// <summary>

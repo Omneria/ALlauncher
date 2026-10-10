@@ -4,6 +4,9 @@
              xmlns:controls="clr-namespace:MinecraftLauncherPerso.Controls"
              xmlns:local="clr-namespace:MinecraftLauncherPerso.Controls"
              Focusable="False">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
     <!-- Page SERVEUR (maquette « SERVEUR — page dédiée ») : à gauche la carte du serveur, la
          disponibilité des dernières 24 h et le message du jour ; à droite les joueurs connectés et
          les notifications. L'historique vient du VPS (server-history.json). -->
@@ -27,17 +30,38 @@
                         <Image Grid.Column="0" Source="/Assets/Images/astral-nexus-crest.png" Width="96" Height="96"
                                Stretch="UniformToFill" VerticalAlignment="Center" Margin="0,0,22,0" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <controls:TrackedText x:Name="AddressText" Style="{StaticResource EyebrowTrackedStyle}" Trim="True" />
+                            <controls:TrackedText Text="{Binding AddressText}" Style="{StaticResource EyebrowTrackedStyle}" Trim="True" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <local:StatusPill x:Name="StatusPill" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PlayersCountText" Margin="14,0,0,0" VerticalAlignment="Center"
+                                <local:StatusPill Kind="{Binding StatusKind}" LabelText="{Binding StatusText}" Hint="{Binding StatusHint}" VerticalAlignment="Center" />
+                                <TextBlock Margin="14,0,0,0" VerticalAlignment="Center"
                                            FontFamily="{StaticResource DisplayFontFamily}" FontWeight="Bold" FontSize="30"
-                                           Foreground="{StaticResource CyanBrush}" />
+                                           Foreground="{StaticResource CyanBrush}">
+                                    <Run Text="{Binding PlayersOnline, Mode=OneWay}" /><Run Text="{Binding PlayersMax, Mode=OneWay}"
+                                         FontSize="16" Foreground="{StaticResource InkDimBrush}" />
+                                </TextBlock>
                             </StackPanel>
                             <WrapPanel Margin="0,8,0,0">
-                                <TextBlock x:Name="LatencyText" Style="{StaticResource MetaTextStyle}" Margin="0,0,18,0" />
-                                <TextBlock x:Name="VersionText" Style="{StaticResource MetaTextStyle}" Margin="0,0,18,0" />
-                                <TextBlock x:Name="ProtocolText" Style="{StaticResource MetaTextStyle}" />
+                                <TextBlock Style="{StaticResource MetaTextStyle}" Margin="0,0,18,0">
+                                    <Run Text="LATENCE " /><Run Text="{Binding Latency, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource MetaTextStyle}" Margin="0,0,18,0">
+                                    <Run Text="VERSION " /><Run Text="{Binding Version, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="PROTOCOLE " Style="{StaticResource MetaTextStyle}" />
+                                    <TextBlock Text="{Binding Protocol}" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource MetaTextStyle}">
+                                                <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ProtocolOk}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource CyanBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
                             </WrapPanel>
                         </StackPanel>
                         <Button Grid.Column="2" Content="JOUER" Style="{StaticResource PrimaryButtonStyle}" Width="180" Height="52"
@@ -52,7 +76,7 @@
                             <controls:TrackedText Text="DISPONIBILITÉ · 24 DERNIÈRES HEURES" Style="{StaticResource EyebrowTrackedStyle}" />
                             <TextBlock Text="pings locaux, toutes les minutes" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                         </Grid>
-                        <ItemsControl x:Name="AvailabilityBars" Height="32" Focusable="False">
+                        <ItemsControl ItemsSource="{Binding Bars}" Height="32" Focusable="False">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid Rows="1" />
@@ -61,18 +85,36 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Height="{Binding BarHeight}" Margin="1.5,0" VerticalAlignment="Bottom"
-                                            Background="{Binding Brush}" ToolTip="{Binding Tooltip}" />
+                                            ToolTip="{Binding Tooltip}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Up">
+                                                        <Setter Property="Background" Value="{StaticResource CyanBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Partial">
+                                                        <Setter Property="Background" Value="{StaticResource AmberBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Down">
+                                                        <Setter Property="Background" Value="{StaticResource MagentaBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <Grid Margin="0,12,0,0">
                             <TextBlock Text="−24 h" Style="{StaticResource MetaTextStyle}" />
-                            <TextBlock x:Name="OutageText" HorizontalAlignment="Center" Style="{StaticResource MetaTextStyle}"
+                            <TextBlock Text="{Binding OutageText}" HorizontalAlignment="Center" Style="{StaticResource MetaTextStyle}"
                                        Foreground="{StaticResource MagentaBrush}" />
                             <TextBlock Text="maintenant" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                         </Grid>
-                        <TextBlock x:Name="HistoryUnavailableText" TextWrapping="Wrap" Margin="0,10,0,0"
-                                   Style="{StaticResource MetaTextStyle}" Visibility="Collapsed"
+                        <TextBlock TextWrapping="Wrap" Margin="0,10,0,0"
+                                   Style="{StaticResource MetaTextStyle}"
+                                   Visibility="{Binding HistoryUnavailable, Converter={StaticResource BoolToVisibility}}"
                                    Text="Historique indisponible pour le moment (le serveur ne le publie pas encore, ou il est injoignable)." />
                     </StackPanel>
                 </Border>
@@ -81,8 +123,8 @@
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18">
                     <StackPanel>
                         <controls:TrackedText Text="MESSAGE DU JOUR" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,8" />
-                        <TextBlock x:Name="MotdText" FontSize="14" LineHeight="21" TextWrapping="Wrap"
-                                   Foreground="{StaticResource Ink2Brush}" Text="Pas de message du jour." />
+                        <TextBlock Text="{Binding Motd}" FontSize="14" LineHeight="21" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Ink2Brush}" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -93,11 +135,12 @@
                     <StackPanel>
                         <Grid Margin="0,0,0,8">
                             <controls:TrackedText Text="JOUEURS CONNECTÉS" Style="{StaticResource EyebrowTrackedStyle}" />
-                            <TextBlock x:Name="PlayersListCount" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
+                            <TextBlock Text="{Binding PlayersListCount}" HorizontalAlignment="Right" Style="{StaticResource MetaTextStyle}" />
                         </Grid>
-                        <TextBlock x:Name="NoPlayersText" Text="Personne n'est connecté pour le moment." TextWrapping="Wrap"
-                                   FontSize="13" Foreground="{StaticResource InkDimBrush}" Margin="0,4,0,4" />
-                        <ItemsControl x:Name="PlayersList" Focusable="False">
+                        <TextBlock Text="Personne n'est connecté pour le moment." TextWrapping="Wrap"
+                                   FontSize="13" Foreground="{StaticResource InkDimBrush}" Margin="0,4,0,4"
+                                   Visibility="{Binding NoPlayers, Converter={StaticResource BoolToVisibility}}" />
+                        <ItemsControl ItemsSource="{Binding Players}" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,8">
@@ -130,12 +173,12 @@
                 <Border Style="{StaticResource CardBorderStyle}" Padding="22,18">
                     <StackPanel>
                         <controls:TrackedText Text="NOTIFICATIONS" Style="{StaticResource EyebrowTrackedStyle}" Margin="0,0,0,10" />
-                        <CheckBox x:Name="NotifyCheckBox" Content="Prévenir quand le serveur revient en ligne"
-                                  Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,10"
-                                  Checked="NotifyCheckBox_Changed" Unchecked="NotifyCheckBox_Changed" />
-                        <CheckBox x:Name="FriendCheckBox" Content="Prévenir quand un ami se connecte"
-                                  Style="{StaticResource AppCheckBoxStyle}"
-                                  Checked="FriendCheckBox_Changed" Unchecked="FriendCheckBox_Changed" />
+                        <CheckBox Content="Prévenir quand le serveur revient en ligne"
+                                  IsChecked="{Binding NotifyServerBack, Mode=TwoWay}"
+                                  Style="{StaticResource AppCheckBoxStyle}" Margin="0,0,0,10" />
+                        <CheckBox Content="Prévenir quand un ami se connecte"
+                                  IsChecked="{Binding NotifyFriend, Mode=TwoWay}"
+                                  Style="{StaticResource AppCheckBoxStyle}" />
                     </StackPanel>
                 </Border>
             </StackPanel>
