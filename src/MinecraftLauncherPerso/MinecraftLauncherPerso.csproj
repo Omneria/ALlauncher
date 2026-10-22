@@ -51,7 +51,7 @@
          ambiguë). Cette référence seule donne accès au type sans ce comportement global. -->
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <!-- Gère la version vanilla, le classpath et le lancement du jeu (arguments JVM/jeu). -->
-    <PackageReference Include="CmlLib.Core" Version="4.0.6" />
+    <PackageReference Include="CmlLib.Core" Version="4.1.0" />
     <!-- Installation de Forge (mapping de version + téléchargement des libs Forge). -->
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="1.1.1" />
     <!-- Authentification Microsoft (navigateur système, flux OAuth interactif) pour obtenir la session Minecraft. -->
