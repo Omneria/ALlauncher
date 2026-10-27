@@ -58,4 +58,46 @@ public sealed class JavaManagerTests
 
         Assert.Null(info);
     }
+
+    [Theory]
+    [InlineData("17.0.12", 12)]
+    [InlineData("17.0.14+7", 14)]
+    [InlineData("17.0.9", 9)]
+    [InlineData("17", 0)]
+    [InlineData("17.0", 0)]
+    [InlineData("1.8.0_392", 0)] // ancien schéma : le "0" est le 3e segment, aucune importance pour Java 17
+    public void ParseUpdate_extrait_le_correctif(string versionString, int expectedUpdate)
+    {
+        Assert.Equal(expectedUpdate, JavaManager.ParseUpdate(versionString));
+    }
+
+    [Theory]
+    [InlineData("17.0.12", false)] // Oracle de juillet 2024 : a fait planter le jeu en code JIT (v2.2.0)
+    [InlineData("17.0.13", false)]
+    [InlineData("17.0.14", true)]
+    [InlineData("17.0.16", true)]
+    public void IsRecentEnough_exige_un_correctif_minimal(string versionString, bool expected)
+    {
+        var info = new Models.JavaVersionInfo(@"C:\Javain\java.exe", versionString, JavaManager.ParseMajorVersion(versionString));
+
+        Assert.Equal(expected, JavaManager.IsRecentEnough(info));
+    }
+
+    [Fact]
+    public void Une_autre_version_majeure_n_est_jamais_assez_recente()
+    {
+        Assert.False(JavaManager.IsRecentEnough(new Models.JavaVersionInfo(@"C:\Javain\java.exe", "21.0.5", 21)));
+        Assert.False(JavaManager.IsRecentEnough(null));
+    }
+
+    [Fact]
+    public void PickNewest_prefere_le_correctif_le_plus_recent_et_ignore_les_autres_versions_majeures()
+    {
+        var old = new Models.JavaVersionInfo("old", "17.0.12", 17);
+        var recent = new Models.JavaVersionInfo("recent", "17.0.16", 17);
+        var java21 = new Models.JavaVersionInfo("21", "21.0.9", 21);
+
+        Assert.Equal("recent", JavaManager.PickNewest(old, null, java21, recent)!.ExecutablePath);
+        Assert.Null(JavaManager.PickNewest(null, java21));
+    }
 }

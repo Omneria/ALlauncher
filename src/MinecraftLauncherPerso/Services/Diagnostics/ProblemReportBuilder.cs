@@ -15,6 +15,10 @@ public static class ProblemReportBuilder
 {
     internal const int GameLogLineCount = 50;
     internal const int LauncherLogLineCount = 30;
+    internal const int NativeCrashLineCount = 25;
+
+    /// <summary>Un rapport natif plus ancien que ça ne concerne plus le problème qu'on signale.</summary>
+    internal static readonly TimeSpan NativeCrashMaxAge = TimeSpan.FromDays(7);
 
     public static async Task<string> BuildAsync(ProblemReportInfo info)
     {
@@ -39,6 +43,18 @@ public static class ProblemReportBuilder
 
         lines.Add("--- Dernières lignes de launcher.log ---");
         lines.AddRange(await ReadLastLinesAsync(info.LauncherLogPath, LauncherLogLineCount, "launcher.log"));
+
+        var nativeReport = await Task.Run(() => NativeCrashReport.FindLatest(
+            [NativeCrashReport.ReportsDirectory(info.GameDirectory), info.GameDirectory, AppContext.BaseDirectory, Environment.CurrentDirectory],
+            DateTime.Now - NativeCrashMaxAge));
+        if (nativeReport is not null)
+        {
+            lines.Add("");
+            lines.Add($"--- Dernier crash natif de Java ({nativeReport.WrittenAt:dd/MM/yyyy HH:mm}) ---");
+            lines.Add(nativeReport.Describe());
+            lines.Add($"Fichier : {nativeReport.Path}");
+            lines.AddRange(await ReadFirstLinesAsync(nativeReport.Path, NativeCrashLineCount));
+        }
 
         return HideUserProfilePath(string.Join(Environment.NewLine, lines));
     }
@@ -92,6 +108,27 @@ public static class ProblemReportBuilder
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return [$"({label} illisible : {ex.Message})"];
+        }
+    }
+
+    /// <summary>Début d'un fichier texte (l'en-tête d'un rapport natif de la JVM), lu en partage.</summary>
+    internal static async Task<List<string>> ReadFirstLinesAsync(string path, int count)
+    {
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var head = new List<string>(count);
+            while (head.Count < count && await reader.ReadLineAsync() is { } line)
+            {
+                head.Add(line);
+            }
+
+            return head;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [$"(rapport natif illisible : {ex.Message})"];
         }
     }
 

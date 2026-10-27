@@ -14,11 +14,14 @@ namespace MinecraftLauncherPerso.Services.Java;
 /// Vérifie qu'un Java 17 utilisable est disponible et, sinon, télécharge/installe une build
 /// Temurin (Eclipse Adoptium) 17 portable dans le dossier de données du launcher.
 ///
-/// Ordre de résolution :
+/// Ordre de résolution (v2.2.0 : seul un Java 17 d'un correctif récent, voir <see cref="MinimumUpdate"/>,
+/// est retenu aux étapes 1 et 2) :
 ///   1. Java 17 déjà installé par ce launcher (portable, sous %AppData%/MinecraftLauncherPerso/runtime/java17).
 ///   2. Java 17 déjà présent sur la machine (JAVA_HOME, PATH, dossiers d'installation courants, registre
 ///      Windows — un installeur Java officiel s'y enregistre toujours, même dans un dossier non standard).
 ///   3. Téléchargement + extraction d'une build Temurin 17 (JRE) via l'API Adoptium.
+///   4. Repli : si le téléchargement échoue (hors ligne, disque plein...), un Java 17 plus ancien
+///      déjà présent est utilisé plutôt que de bloquer le joueur.
 ///
 /// Forge 1.20.1 exige explicitement Java 17 (Minecraft/Mojang ne démarre plus sur un JRE 8/11
 /// depuis 1.18) : les JDK d'une autre version majeure ne sont pas acceptés même s'ils sont
@@ -27,6 +30,15 @@ namespace MinecraftLauncherPerso.Services.Java;
 public sealed class JavaManager : IJavaManager
 {
     private const int RequiredMajorVersion = 17;
+
+    /// <summary>
+    /// Premier correctif 17.0.x accepté sans téléchargement. Un Oracle 17.0.12 (juillet 2024) a fait
+    /// planter le jeu en code natif (EXCEPTION_ACCESS_VIOLATION dans du code compilé par C2, voir
+    /// NativeCrashReport) alors que le launcher le préférait à son propre Temurin. 17.0.14 (janvier
+    /// 2025) est un seuil prudent, pas une garantie : relever cette valeur si une version plus
+    /// récente s'avère nécessaire.
+    /// </summary>
+    internal const int MinimumUpdate = 14;
     private static readonly Regex VersionRegex = new(@"version ""(?<version>[^""]+)""", RegexOptions.Compiled);
 
     private readonly string _runtimeRootDirectory;
@@ -49,19 +61,42 @@ public sealed class JavaManager : IJavaManager
         // clic sur JOUER, elle gelait le thread UI plusieurs secondes (spinner figé, fenêtre
         // "ne répond pas") avant même la première ligne de progression.
         var bundledJava = await Task.Run(() => FindBundledJava(), cancellationToken);
-        if (bundledJava is not null)
+        if (IsRecentEnough(bundledJava))
         {
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 portable déjà installé : {bundledJava}"));
-            return bundledJava;
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 portable déjà installé : {bundledJava!.ExecutablePath}"));
+            return bundledJava!.ExecutablePath;
         }
 
         var systemJava = await Task.Run(() => FindSystemJava(), cancellationToken);
-        if (systemJava is not null)
+        if (IsRecentEnough(systemJava))
         {
-            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 détecté sur la machine : {systemJava}"));
-            return systemJava;
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 détecté sur la machine : {systemJava!.ExecutablePath}"));
+            return systemJava!.ExecutablePath;
         }
 
+        // Un Java 17 existe mais il est ancien : on le garde en réserve (étape 4 de la doc de la
+        // classe) et on télécharge un Temurin récent.
+        var outdatedJava = PickNewest(bundledJava, systemJava);
+        if (outdatedJava is not null)
+        {
+            Logger.Warn("JavaManager", $"Java {outdatedJava.VersionString} ({outdatedJava.ExecutablePath}) est antérieur à 17.0.{MinimumUpdate} : téléchargement d'un Temurin 17 récent.");
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Checking, 0, $"Java {outdatedJava.VersionString} détecté mais ancien, installation d'un Java 17 récent..."));
+        }
+
+        try
+        {
+            return await DownloadAndInstallAsync(progress, cancellationToken);
+        }
+        catch (Exception ex) when (outdatedJava is not null && ex is not OperationCanceledException)
+        {
+            Logger.Warn("JavaManager", $"Téléchargement de Temurin impossible ({ex.GetType().Name} : {ex.Message}), repli sur Java {outdatedJava.VersionString}.");
+            progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Téléchargement impossible, Java {outdatedJava.VersionString} utilisé à la place : {outdatedJava.ExecutablePath}"));
+            return outdatedJava.ExecutablePath;
+        }
+    }
+
+    private async Task<string> DownloadAndInstallAsync(IProgress<JavaSetupProgress>? progress, CancellationToken cancellationToken)
+    {
         // Vérification best-effort avant de lancer le téléchargement : un disque plein ne se
         // révélait auparavant qu'en pleine extraction, avec une exception peu claire. Seuil fixe
         // (pas la taille exacte de l'archive, pas connue avant l'appel à l'API Adoptium) : une build
@@ -74,14 +109,13 @@ public sealed class JavaManager : IJavaManager
                 $"Espace disque insuffisant pour installer Java {RequiredMajorVersion} (au moins {DiskSpaceChecker.FormatBytes(requiredBytes)} nécessaires).");
         }
 
-        progress?.Report(new JavaSetupProgress(JavaSetupStage.Downloading, 0, "Java 17 introuvable, téléchargement de Temurin 17..."));
+        progress?.Report(new JavaSetupProgress(JavaSetupStage.Downloading, 0, "Téléchargement de Temurin 17..."));
         var archivePath = await DownloadTemurinAsync(progress, cancellationToken);
 
         try
         {
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Extracting, 90, "Extraction de Java 17..."));
-            // Même raison que pour la détection ci-dessus : extraction synchrone d'une archive de
-            // ~50 Mo, hors du thread UI.
+            // Extraction synchrone d'une archive de ~50 Mo, hors du thread UI.
             var installedPath = await Task.Run(() => ExtractRuntime(archivePath), cancellationToken);
 
             progress?.Report(new JavaSetupProgress(JavaSetupStage.Ready, 100, $"Java 17 installé : {installedPath}"));
@@ -93,15 +127,36 @@ public sealed class JavaManager : IJavaManager
         }
     }
 
-    public bool IsJavaAvailable() => FindBundledJava() is not null || FindSystemJava() is not null;
+    /// <summary>Vrai si un Java 17 assez récent est déjà là (sinon le lancement le téléchargera).</summary>
+    public bool IsJavaAvailable() => IsRecentEnough(FindBundledJava()) || IsRecentEnough(FindSystemJava());
 
-    private string? FindBundledJava()
+    /// <summary>Correctif (le "12" de 17.0.12) d'une chaîne de version ; 0 si absent ("17", "17.0").</summary>
+    internal static int ParseUpdate(string versionString)
+    {
+        var parts = versionString.Split('.', '_', '-', '+');
+        return parts.Length >= 3 && int.TryParse(parts[2], out var update) ? update : 0;
+    }
+
+    /// <summary>Java 17 dont le correctif est au moins <see cref="MinimumUpdate"/>.</summary>
+    internal static bool IsRecentEnough(JavaVersionInfo? info) =>
+        info is not null && info.MajorVersion == RequiredMajorVersion && ParseUpdate(info.VersionString) >= MinimumUpdate;
+
+    /// <summary>Le plus récent des Java 17 donnés (par correctif) ; null si aucun.</summary>
+    internal static JavaVersionInfo? PickNewest(params JavaVersionInfo?[] candidates) =>
+        candidates.OfType<JavaVersionInfo>()
+            .Where(info => info.MajorVersion == RequiredMajorVersion)
+            .OrderByDescending(info => ParseUpdate(info.VersionString))
+            .FirstOrDefault();
+
+    private JavaVersionInfo? FindBundledJava()
     {
         var javaRoot = Path.Combine(_runtimeRootDirectory, $"java{RequiredMajorVersion}");
         return FindJavaExecutableUnder(javaRoot);
     }
 
-    private static string? FindSystemJava()
+    /// <summary>Le Java 17 installé sur la machine qui a le correctif le plus récent (pas le
+    /// premier trouvé : un vieux JAVA_HOME ne doit pas masquer un Temurin à jour).</summary>
+    private static JavaVersionInfo? FindSystemJava()
     {
         var candidates = new List<string>();
 
@@ -132,9 +187,7 @@ public sealed class JavaManager : IJavaManager
             candidates.Add(GetJavaExecutablePath(registryJavaHome));
         }
 
-        return candidates.Distinct().Select(TryGetJavaVersion)
-            .FirstOrDefault(info => info?.MajorVersion == RequiredMajorVersion)
-            ?.ExecutablePath;
+        return PickNewest(candidates.Distinct().Select(TryGetJavaVersion).ToArray());
     }
 
     /// <summary>
@@ -210,7 +263,7 @@ public sealed class JavaManager : IJavaManager
 
     /// <summary>Cherche récursivement un exécutable java valide (version 17) sous <paramref name="root"/>,
     /// sans supposer le nom exact du dossier extrait par l'archive Temurin (il varie selon la version).</summary>
-    private static string? FindJavaExecutableUnder(string root)
+    private static JavaVersionInfo? FindJavaExecutableUnder(string root)
     {
         if (!Directory.Exists(root))
         {
@@ -221,8 +274,7 @@ public sealed class JavaManager : IJavaManager
 
         return Directory.EnumerateFiles(root, executableName, SearchOption.AllDirectories)
             .Select(TryGetJavaVersion)
-            .FirstOrDefault(info => info?.MajorVersion == RequiredMajorVersion)
-            ?.ExecutablePath;
+            .FirstOrDefault(info => info?.MajorVersion == RequiredMajorVersion);
     }
 
     public static JavaVersionInfo? TryGetJavaVersion(string javaPath)
@@ -344,7 +396,7 @@ public sealed class JavaManager : IJavaManager
         // Le support Linux/macOS nécessiterait de décompresser le .tar.gz retourné par l'API à la place.
         ZipFile.ExtractToDirectory(archivePath, extractRoot);
 
-        return FindJavaExecutableUnder(extractRoot)
+        return FindJavaExecutableUnder(extractRoot)?.ExecutablePath
             ?? throw new InvalidOperationException(
                 $"Extraction de Java {RequiredMajorVersion} invalide : aucun exécutable java trouvé sous {extractRoot}.");
     }

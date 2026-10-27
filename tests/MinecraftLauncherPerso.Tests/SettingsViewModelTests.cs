@@ -92,4 +92,32 @@ public sealed class SettingsViewModelTests
 
         Assert.Equal(@"C:\jeu", settings.GameDirectory);
     }
+
+    [Fact]
+    public void Les_arguments_JVM_sont_charges_puis_appliques_aux_reglages()
+    {
+        var settings = new LauncherSettings { ExtraJvmArguments = "-XX:+UseG1GC" };
+        var vm = new SettingsViewModel();
+        vm.Load(settings);
+        Assert.Equal("-XX:+UseG1GC", vm.ExtraJvmArgumentsText);
+
+        vm.ExtraJvmArgumentsText = "-Dfoo=bar   -XX:MaxGCPauseMillis=50";
+
+        Assert.True(vm.TryApply(settings, 2048, 4096));
+        Assert.Equal("-Dfoo=bar -XX:MaxGCPauseMillis=50", settings.ExtraJvmArguments);
+        Assert.False(vm.JvmArgumentsInvalid);
+    }
+
+    [Fact]
+    public void Un_argument_JVM_invalide_bloque_l_enregistrement_et_est_signale()
+    {
+        var settings = new LauncherSettings { ExtraJvmArguments = "-Dold=1" };
+        var vm = new SettingsViewModel { ExtraJvmArgumentsText = "-Xmx16G" };
+
+        Assert.False(vm.TryApply(settings, 2048, 4096));
+
+        Assert.True(vm.JvmArgumentsInvalid);
+        Assert.Contains("curseur de RAM", vm.ValidationMessage);
+        Assert.Equal("-Dold=1", settings.ExtraJvmArguments);
+    }
 }

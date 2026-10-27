@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using CmlLib.Core;
@@ -6,6 +7,7 @@ using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
 using MinecraftLauncherPerso.Models;
 using MinecraftLauncherPerso.Services.Auth;
+using MinecraftLauncherPerso.Services.Diagnostics;
 
 namespace MinecraftLauncherPerso.Services.Launch;
 
@@ -24,6 +26,7 @@ public sealed class GameLauncher : IGameLauncher
     {
         var process = await launcher.BuildProcessAsync(versionId, new MLaunchOption
         {
+            ExtraJvmArguments = BuildExtraJvmArguments(settings),
             Session = ToMSession(session),
             JavaPath = javaExecutablePath,
             MinimumRamMb = settings.MinRamMb,
@@ -57,6 +60,40 @@ public sealed class GameLauncher : IGameLauncher
         process.BeginErrorReadLine();
 
         return processWrapper;
+    }
+
+    /// <summary>
+    /// Arguments JVM ajoutés à ceux de Forge : le rapport de crash natif rangé dans
+    /// crash-reports/ (voir NativeCrashReport), puis la saisie de Paramètres > Jeu si elle est
+    /// valide (une saisie invalide, éditée à la main dans settings.json, est ignorée plutôt que de
+    /// bloquer le lancement).
+    /// </summary>
+    internal static IReadOnlyList<MArgument> BuildExtraJvmArguments(LauncherSettings settings)
+    {
+        var arguments = new List<MArgument>();
+
+        try
+        {
+            // La JVM ne crée pas le dossier de -XX:ErrorFile : sans lui, elle écrit dans son dossier de travail.
+            Directory.CreateDirectory(NativeCrashReport.ReportsDirectory(settings.GameDirectory));
+            arguments.Add(new MArgument(NativeCrashReport.ErrorFileArgument(settings.GameDirectory)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.Warn("GameLauncher", $"Dossier des rapports de crash natif indisponible : {ex.Message}");
+        }
+
+        var extra = JvmArgumentParser.Parse(settings.ExtraJvmArguments);
+        if (extra.IsValid)
+        {
+            arguments.AddRange(extra.Arguments.Select(argument => new MArgument(argument)));
+        }
+        else
+        {
+            Logger.Warn("GameLauncher", $"Arguments JVM supplémentaires ignorés : {extra.Error}");
+        }
+
+        return arguments;
     }
 
     /// <summary>

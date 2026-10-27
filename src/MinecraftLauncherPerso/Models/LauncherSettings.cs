@@ -165,6 +165,13 @@ public sealed class LauncherSettings
     }
 
     /// <summary>
+    /// Arguments JVM supplémentaires (v2.2.0, Paramètres > Jeu), ajoutés à ceux du launcher. Sert à
+    /// contourner un bug précis sans attendre une version du launcher ; vide par défaut. Validés par
+    /// JvmArgumentParser (la RAM reste réglée par MinRamMb/MaxRamMb).
+    /// </summary>
+    public string ExtraJvmArguments { get; set; } = "";
+
+    /// <summary>
     /// Dossier .minecraft utilisé par CE launcher pour le pack modé — volontairement distinct du
     /// .minecraft du launcher officiel (qui, lui, n'est utilisé que pour lire la session active).
     /// </summary>

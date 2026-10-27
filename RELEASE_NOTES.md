@@ -7,4 +7,6 @@
      "Vérifie que RELEASE_NOTES.md a été mis à jour") : mets-le à jour à chaque fois, au même commit
      que <Version> dans le csproj, avant de poser le tag suivant. -->
 
-- Correction : en quittant le hub (Actus, Serveur, Paramètres…), les pages ne s'affichent plus les unes sur les autres.
+- Le launcher n'utilise plus un Java 17 trop ancien déjà installé sur le PC : il en télécharge un récent. Un vieux Java a fait fermer le jeu sans message chez un joueur.
+- Si le jeu se ferme brutalement, le launcher retrouve le rapport de crash de Java, explique la cause probable et l'ajoute au rapport « Signaler un problème ».
+- Paramètres > Jeu : nouveau champ « Arguments JVM supplémentaires » (avancé), à n'utiliser que sur demande de l'équipe.
