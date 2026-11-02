@@ -138,7 +138,9 @@ au clic sur "Jouer".
 
 Fichier : `src/MinecraftLauncherPerso/Services/Java/JavaManager.cs`
 
-Ordre de résolution dans `EnsureJavaAsync` :
+Ordre de résolution dans `EnsureJavaAsync` (depuis v2.2.0, seul un Java 17 dont le correctif est
+au moins 17.0.14 (`JavaManager.MinimumUpdate`) est retenu aux étapes 1 et 2 : un Oracle
+17.0.12 de juillet 2024, préféré au Temurin du launcher, a fait planter le jeu en code natif) :
 
 1. **Java 17 portable déjà installé par ce launcher** : recherche récursive d'un exécutable
    `java(.exe)` sous `%AppData%/MinecraftLauncherPerso/runtime/java17`, validé en exécutant
@@ -148,18 +150,43 @@ Ordre de résolution dans `EnsureJavaAsync` :
    `...\AdoptOpenJDK`), puis le **registre Windows** (`HKLM\SOFTWARE\JavaSoft\...`,
    `...\Eclipse Adoptium\...`, `...\Eclipse Foundation\...`, vues 64 et 32 bits) — tout installeur
    Java officiel s'y enregistre, ce qui rattrape une installation faite dans un dossier non
-   standard que le scan de dossiers seul manquerait.
-3. **Téléchargement automatique** : si aucun Java 17 valide n'est trouvé, interrogation de l'API
+   standard que le scan de dossiers seul manquerait. Parmi les candidats, c'est le correctif le
+   plus récent qui gagne (pas le premier trouvé).
+3. **Téléchargement automatique** : si aucun Java 17 assez récent n'est trouvé, interrogation de l'API
    [Adoptium](https://api.adoptium.net) (`/v3/assets/latest/17/hotspot`) pour récupérer la dernière
    build Temurin 17 (JRE) correspondant à l'OS/architecture de la machine, téléchargement avec
    suivi de progression, puis extraction dans le dossier `runtime/java17` ci-dessus.
    `AdoptiumApiClient.GetLatestJreAsync` prend la version majeure en paramètre (17 ici) plutôt que
    d'être câblé en dur sur Java 8, pour rester réutilisable si une future version de Minecraft exige
    encore un autre Java.
+4. **Repli** : si ce téléchargement échoue (hors ligne, disque plein...), le Java 17 plus ancien
+   trouvé aux étapes précédentes est utilisé plutôt que de bloquer le joueur.
 
 La détection de version parse la sortie de `java -version` (`version "1.8.0_392"` →
 version majeure 8 ; `version "17.0.9"` → version majeure 17), ce qui permet de rejeter tout
 Java déjà installé qui ne serait pas une version 17, même si un JDK plus ancien ou plus récent est présent.
+
+## Plantage natif de la JVM et arguments JVM supplémentaires (v2.2.0)
+
+Un jeu qui se ferme sans `crash-reports/` ni erreur dans `latest.log` est presque toujours un crash
+natif de la JVM (pilote graphique, bug du compilateur JIT, mémoire native) : la JVM écrit alors un
+`hs_err_pid<n>.log`.
+
+- `GameLauncher` passe `-XX:ErrorFile=<jeu>\crash-reports\hs_err_pid%p.log` : les rapports natifs
+  sont rangés à côté des crash-reports de Minecraft (`NativeCrashReport.ErrorFileArgument`).
+- À la fermeture anormale du jeu, `NativeCrashReport.FindLatest` cherche un rapport écrit depuis le
+  début du lancement (dossier `crash-reports/`, dossier de jeu, dossier du launcher, dossier courant),
+  en extrait la cause, le cadre fautif et la version de Java (`Describe()` : code JIT, bibliothèque de
+  pilote graphique, bibliothèque native quelconque), et l'affiche dans la fenêtre de diagnostic avec un
+  lien vers le dossier. Il prime sur `CrashDiagnosisService`, qui ne lit que la sortie console.
+- Le rapport « Signaler un problème » en reprend la cause et les 25 premières lignes (rapport de moins
+  de 7 jours).
+- Paramètres > Jeu > « Arguments JVM supplémentaires » (`LauncherSettings.ExtraJvmArguments`) : une
+  ligne d'options séparées par des espaces (guillemets doubles pour un chemin avec espaces), ajoutées
+  après celles de Forge. `JvmArgumentParser` refuse un mot sans `-` initial, `-Xmx`/`-Xms` (réglés par le
+  curseur de RAM), un guillemet non refermé et plus de 1000 caractères ; une valeur invalide éditée à la
+  main dans `settings.json` est ignorée au lancement. Exemple de contournement d'un bug de JIT :
+  `-XX:CompileCommand=exclude,<classe>::<méthode>`.
 
 ## Installation de Forge
 

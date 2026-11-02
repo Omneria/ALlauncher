@@ -118,6 +118,12 @@
                                 <Button Grid.Column="2" Content="PARCOURIR" Style="{StaticResource OutlineButtonStyle}"
                                         Padding="14,0" FontSize="11" Click="BrowseButton_Click" />
                             </Grid>
+
+                            <controls:TrackedText Text="ARGUMENTS JVM SUPPLÉMENTAIRES (AVANCÉ)" Style="{StaticResource LabelTrackedStyle}" Margin="0,14,0,6" />
+                            <TextBox Text="{Binding ExtraJvmArgumentsText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource AppTextBoxStyle}"
+                                     AutomationProperties.Name="Arguments JVM supplémentaires" />
+                            <TextBlock Style="{StaticResource MetaTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Text="Laisser vide sauf demande de l'équipe. Séparés par des espaces, ex. : -XX:+UseG1GC. La RAM se règle avec le curseur ci-dessus." />
                         </StackPanel>
                     </Border>
 

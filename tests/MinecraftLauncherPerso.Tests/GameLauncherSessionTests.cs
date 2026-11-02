@@ -49,4 +49,53 @@ public sealed class GameLauncherSessionTests
 
         return $"{Base64Url("""{"alg":"HS256"}""")}.{Base64Url(payloadJson)}.signature";
     }
+
+    [Fact]
+    public void Les_arguments_JVM_comprennent_le_rapport_natif_puis_la_saisie_du_joueur()
+    {
+        var gameDirectory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "game-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settings = new MinecraftLauncherPerso.Models.LauncherSettings
+            {
+                GameDirectory = gameDirectory,
+                ExtraJvmArguments = "-Dfoo=bar -XX:+UseG1GC",
+            };
+
+            var arguments = GameLauncher.BuildExtraJvmArguments(settings).SelectMany(a => a.Values).ToList();
+
+            Assert.StartsWith("-XX:ErrorFile=", arguments[0]);
+            Assert.Equal(["-Dfoo=bar", "-XX:+UseG1GC"], arguments.Skip(1));
+            Assert.True(System.IO.Directory.Exists(System.IO.Path.Combine(gameDirectory, "crash-reports")));
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(gameDirectory))
+            {
+                System.IO.Directory.Delete(gameDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Des_arguments_JVM_invalides_sont_ignores_sans_bloquer_le_lancement()
+    {
+        var gameDirectory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "game-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var settings = new MinecraftLauncherPerso.Models.LauncherSettings { GameDirectory = gameDirectory, ExtraJvmArguments = "-Xmx99G pasUnArgument" };
+
+            var arguments = GameLauncher.BuildExtraJvmArguments(settings).SelectMany(a => a.Values).ToList();
+
+            Assert.Single(arguments);
+            Assert.StartsWith("-XX:ErrorFile=", arguments[0]);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(gameDirectory))
+            {
+                System.IO.Directory.Delete(gameDirectory, recursive: true);
+            }
+        }
+    }
 }

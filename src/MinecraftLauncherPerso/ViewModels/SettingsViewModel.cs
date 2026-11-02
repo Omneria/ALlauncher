@@ -1,4 +1,5 @@
 using MinecraftLauncherPerso.Models;
+using MinecraftLauncherPerso.Services.Launch;
 using MinecraftLauncherPerso.Services.Status;
 
 namespace MinecraftLauncherPerso.ViewModels;
@@ -17,6 +18,8 @@ public sealed class SettingsViewModel : ObservableObject
     private bool _minimizeWhileGame;
     private bool _sounds;
     private string _friendsText = "";
+    private string _extraJvmArgumentsText = "";
+    private bool _jvmArgumentsInvalid;
     private bool _widthInvalid;
     private bool _heightInvalid;
     private string _validationMessage = "";
@@ -37,6 +40,19 @@ public sealed class SettingsViewModel : ObservableObject
     {
         get => _gameDirectory;
         set => SetProperty(ref _gameDirectory, value);
+    }
+
+    /// <summary>Arguments JVM supplémentaires (une ligne, séparés par des espaces).</summary>
+    public string ExtraJvmArgumentsText
+    {
+        get => _extraJvmArgumentsText;
+        set => SetProperty(ref _extraJvmArgumentsText, value);
+    }
+
+    public bool JvmArgumentsInvalid
+    {
+        get => _jvmArgumentsInvalid;
+        private set => SetProperty(ref _jvmArgumentsInvalid, value);
     }
 
     public bool DesktopNotifications
@@ -97,12 +113,14 @@ public sealed class SettingsViewModel : ObservableObject
         ScreenWidthText = settings.ScreenWidth.ToString();
         ScreenHeightText = settings.ScreenHeight.ToString();
         GameDirectory = settings.GameDirectory;
+        ExtraJvmArgumentsText = settings.ExtraJvmArguments;
         DesktopNotifications = settings.DesktopNotificationsEnabled;
         MinimizeWhileGame = settings.MinimizeWhileGameRuns;
         Sounds = settings.SoundsEnabled;
         FriendsText = string.Join(", ", settings.FriendNames);
         WidthInvalid = false;
         HeightInvalid = false;
+        JvmArgumentsInvalid = false;
         ValidationMessage = "";
     }
 
@@ -118,7 +136,15 @@ public sealed class SettingsViewModel : ObservableObject
         WidthInvalid = !widthValid;
         HeightInvalid = !heightValid;
 
+        var jvmArguments = JvmArgumentParser.Parse(ExtraJvmArgumentsText);
+        JvmArgumentsInvalid = !jvmArguments.IsValid;
+
         var errors = new List<string>();
+        if (jvmArguments.Error is { } jvmError)
+        {
+            errors.Add(jvmError);
+        }
+
         if (!widthValid)
         {
             errors.Add("Largeur : entier positif ou 0 (automatique) attendu.");
@@ -139,6 +165,7 @@ public sealed class SettingsViewModel : ObservableObject
         settings.MaxRamMb = maxRamMb;
         settings.ScreenWidth = width;
         settings.ScreenHeight = height;
+        settings.ExtraJvmArguments = string.Join(' ', jvmArguments.Arguments.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
 
         if (!string.IsNullOrWhiteSpace(GameDirectory))
         {

@@ -105,6 +105,10 @@ public partial class MainWindow : Window
     // PlayButton_Click) : le tampon est protégé par ce verrou.
     private readonly object _gameOutputLock = new();
 
+    /// <summary>Début du dernier lancement (heure locale) : un rapport de crash natif plus ancien
+    /// n'appartient pas à la partie qui vient de se terminer.</summary>
+    private DateTime _lastLaunchStartedAt = DateTime.MinValue;
+
     // Préchargement du modpack en arrière-plan (v1.8.0) : lancé dès MainWindow_Loaded si une mise à
     // jour est détectée, annulé si le joueur clique sur JOUER avant la fin pour éviter que les deux
     // n'écrivent en même temps dans le même fichier .part (voir ModSyncService.PrefetchAsync).
@@ -489,6 +493,7 @@ public partial class MainWindow : Window
         }
 
         Launch.BeginLaunch(LaunchStepStates.VisibleSteps());
+        _lastLaunchStartedAt = DateTime.Now.AddSeconds(-5);
         lock (_gameOutputLock)
         {
             _gameOutputBuffer.Clear();
@@ -690,6 +695,17 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task ShowCrashDiagnosisIfAnyAsync()
     {
+        // Un rapport natif de la JVM (hs_err_pid*.log) prime sur la sortie console : quand il existe,
+        // il nomme la vraie zone fautive, alors que la sortie ne contient souvent rien du tout.
+        var nativeReport = await Task.Run(() => NativeCrashReport.FindLatest(
+            [NativeCrashReport.ReportsDirectory(_settings.GameDirectory), _settings.GameDirectory, AppContext.BaseDirectory, Environment.CurrentDirectory],
+            _lastLaunchStartedAt));
+        if (nativeReport is not null)
+        {
+            await ShowNativeCrashAsync(nativeReport);
+            return;
+        }
+
         List<string> lines;
         lock (_gameOutputLock)
         {
@@ -728,6 +744,40 @@ public partial class MainWindow : Window
         else if (choice == RepairId)
         {
             OpenSettings(SettingsSection.Maintenance);
+        }
+    }
+
+    /// <summary>Plantage natif de la JVM : explication du rapport, chemin du fichier et lien vers les logs.</summary>
+    private async Task ShowNativeCrashAsync(NativeCrashReport report)
+    {
+        var description = report.Describe();
+        AppendLog($"Diagnostic : {description}");
+        AppendLog($"Rapport natif : {report.Path}");
+
+        const string ViewLogsId = "logs";
+        const string OpenFolderId = "folder";
+        var choice = await Dialogs.ShowAsync(new DialogRequest(
+            "Plantage de la machine Java",
+            $"{description}\n\nRapport : {report.Path}\n\nJoins ce fichier au rapport de problème (Paramètres > Signaler un problème) pour que l'équipe puisse l'analyser.",
+            [new DialogButton("VOIR LES LOGS", ViewLogsId), new DialogButton("OUVRIR LE DOSSIER", OpenFolderId, DialogButtonStyle.Primary)],
+            DialogHost.CancelId,
+            "LE JEU S'EST ARRÊTÉ",
+            IsDanger: true));
+
+        if (choice == ViewLogsId)
+        {
+            ViewLogsButton_Click(this, new RoutedEventArgs());
+        }
+        else if (choice == OpenFolderId)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{report.Path}\"") { UseShellExecute = true });
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                AppendLog($"Impossible d'ouvrir l'explorateur : {ex.Message}");
+            }
         }
     }
 
